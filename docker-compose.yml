@@ -1,0 +1,12 @@
+services:
+  contact-api:
+    build: ./backend
+    image: loureiro-contact:prod
+    container_name: loureiro-contact
+    restart: unless-stopped
+    ports:
+      # Solo localhost → Nginx del host hace proxy a
+      # https://api.loureirosoluciones.com/api/contact
+      - "127.0.0.1:8005:8000"
+    env_file:
+      - .env

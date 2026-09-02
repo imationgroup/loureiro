@@ -1,0 +1,33 @@
+/* Estilos exclusivos de las páginas legales (aviso legal, privacidad). */
+
+.legal{ padding-block:clamp(56px,7vw,88px) clamp(64px,8vw,104px); }
+.legal h1{ font-size:clamp(2rem,4vw,3rem); margin-bottom:10px; }
+.legal__date{ color:var(--muted); font-size:.92rem; margin-bottom:34px; }
+
+.legal__note{
+  background:var(--amber-soft);
+  border-left:3px solid var(--amber);
+  border-radius:0 var(--r) var(--r) 0;
+  padding:16px 20px; margin-bottom:44px;
+  font-size:.94rem; color:var(--txt);
+}
+
+.legal h2{
+  font-size:1.22rem; margin-top:42px; margin-bottom:14px;
+  padding-top:22px; border-top:1px solid var(--line);
+}
+.legal p{ color:var(--muted); margin-bottom:14px; }
+.legal p b, .legal li b{ color:var(--txt); font-weight:600; }
+.legal a{ color:var(--amber); text-underline-offset:3px; }
+
+.legal__data{ display:grid; gap:10px; margin:0 0 18px; }
+.legal__data li{
+  color:var(--muted); font-size:.96rem;
+  padding-left:20px; position:relative;
+}
+.legal__data li::before{
+  content:""; position:absolute; left:2px; top:.62em;
+  width:6px; height:6px; border-radius:50%; background:var(--amber);
+}
+
+.legal + .foot{ padding-top:0; }
