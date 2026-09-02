@@ -1,0 +1,16 @@
+# Normaliza a LF en el repo: el sitio se despliega en Linux y un CRLF en
+# scripts/deploy.sh haría que bash fallase en el VPS.
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.py   text eol=lf
+*.yml  text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+
+*.svg  text eol=lf
+*.png  binary
+*.jpg  binary
+*.webp binary
+*.woff2 binary

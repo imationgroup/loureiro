@@ -1,0 +1,18 @@
+{
+  "name": "Loureiro Soluciones",
+  "short_name": "Loureiro",
+  "description": "Reformas integrales y servicios para el hogar en Ourense.",
+  "lang": "es",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#14161A",
+  "theme_color": "#14161A",
+  "icons": [
+    {
+      "src": "/assets/img/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

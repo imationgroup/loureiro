@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F97316"/>
+      <stop offset="1" stop-color="#FBA94C"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F97316" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#F97316" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="74" height="74" patternUnits="userSpaceOnUse">
+      <path d="M74 0H0V74" fill="none" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="#14161A"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <circle cx="1010" cy="130" r="330" fill="url(#glow)"/>
+
+  <!-- Marca -->
+  <g transform="translate(80 78)">
+    <g fill="none" stroke-width="4.4" stroke-linejoin="round">
+      <path d="M6 44V16l20-8.5L46 16v28" stroke="#FFFFFF"/>
+      <path d="M17.5 44V30h17v14" stroke="#F97316"/>
+    </g>
+    <text x="66" y="38" font-family="Archivo, Segoe UI, sans-serif" font-size="30" font-weight="800" fill="#FFFFFF" letter-spacing="-0.8">Loureiro</text>
+    <text x="186" y="38" font-family="Archivo, Segoe UI, sans-serif" font-size="30" font-weight="500" fill="#9AA0AA" letter-spacing="-0.8">soluciones</text>
+  </g>
+
+  <!-- Titular -->
+  <text x="80" y="278" font-family="Archivo, Segoe UI, sans-serif" font-size="76" font-weight="800" fill="#FFFFFF" letter-spacing="-2.8">Tu reforma entera,</text>
+  <text x="80" y="366" font-family="Archivo, Segoe UI, sans-serif" font-size="76" font-weight="800" fill="url(#amber)" letter-spacing="-2.8">con una sola llamada.</text>
+
+  <text x="80" y="428" font-family="Inter, Segoe UI, sans-serif" font-size="27" fill="#9AA0AA">Reformas integrales y servicios para el hogar en Ourense.</text>
+
+  <!-- Servicios -->
+  <g font-family="Inter, Segoe UI, sans-serif" font-size="21" fill="#C9CDD4">
+    <rect x="80"  y="482" width="196" height="50" rx="25" fill="none" stroke="#FFFFFF" stroke-opacity="0.16"/>
+    <text x="178" y="513" text-anchor="middle">Electricidad</text>
+    <rect x="292" y="482" width="196" height="50" rx="25" fill="none" stroke="#FFFFFF" stroke-opacity="0.16"/>
+    <text x="390" y="513" text-anchor="middle">Albañilería</text>
+    <rect x="504" y="482" width="216" height="50" rx="25" fill="none" stroke="#FFFFFF" stroke-opacity="0.16"/>
+    <text x="612" y="513" text-anchor="middle">Climatización</text>
+    <rect x="736" y="482" width="176" height="50" rx="25" fill="none" stroke="#FFFFFF" stroke-opacity="0.16"/>
+    <text x="824" y="513" text-anchor="middle">Pellets</text>
+    <rect x="928" y="482" width="164" height="50" rx="25" fill="none" stroke="#FFFFFF" stroke-opacity="0.16"/>
+    <text x="1010" y="513" text-anchor="middle">Pintura</text>
+  </g>
+
+  <rect x="0" y="616" width="1200" height="14" fill="#F97316"/>
+</svg>
