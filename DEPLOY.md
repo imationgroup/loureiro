@@ -6,6 +6,25 @@ Mismo flujo que **imationgroup/web**: cada push a `main` dispara
 directorio del repo clonado** y hace proxy al contenedor del API de
 contacto para `api.loureirosoluciones.com`.
 
+## Estado actual (2 sep 2026)
+
+Hecho y verificado en el VPS:
+
+- [x] Repo clonado en `~/apps/loureiro` por SSH con deploy key de solo lectura
+- [x] `.env` creado a partir de `.env.example` (con `SMTP_HOST` **vacío** a propósito,
+      para que `/api/health` no mienta mientras no haya credenciales reales)
+- [x] Contenedor `loureiro-contact` levantado y escuchando en `127.0.0.1:8005`
+- [x] Permisos de lectura para `www-data` sobre el directorio del repo
+- [x] Probado: `/api/health` → `smtp_configured:false`; un POST a `/api/contact`
+      devuelve `502` (el front cae al `mailto:`); el honeypot devuelve `200` sin enviar
+
+Pendiente, porque necesita root o accesos que no tengo:
+
+- [ ] Secretos `VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY` en GitHub Actions
+- [ ] DNS del dominio apuntando al VPS
+- [ ] Vhosts de Nginx + certbot (requieren sudo)
+- [ ] Credenciales SMTP reales en `~/apps/loureiro/.env`
+
 ## Componentes en el VPS
 
 | Servicio | Subdominio | Origen |
@@ -40,16 +59,48 @@ chmod 600 ~/.ssh/authorized_keys
 cat ~/.ssh/gha_loureiro        # ← el bloque entero (BEGIN..END) va al secret
 ```
 
-### 2. Clonar el repo en el VPS
+### 2. Clonar el repo en el VPS — vía SSH, no HTTPS
+
+> **Ojo.** GitHub **rechaza las operaciones git anónimas por HTTPS desde la IP
+> de este VPS**: el `GET /info/refs` responde 200, pero el `POST
+> /git-upload-pack` devuelve `401` con `www-authenticate: Basic realm="GitHub"`.
+> Por eso `git clone https://…` falla con *«could not read Username»* aunque el
+> repo sea público. Afecta a todos los repos del servidor, no solo a este.
+>
+> La solución que ya usaban `autolinked` y `repartirpancamilo` en esta máquina:
+> una **clave de despliegue SSH por repo**, con un alias en `~/.ssh/config`.
+
+**Ya está hecho** para este repo. Quedó configurado así:
 
 ```bash
-ssh deploy@76.13.56.232
+# En el VPS, como deploy:
+ssh-keygen -t ed25519 -C "deploy-key-loureiro-vps" -f ~/.ssh/github_loureiro -N ""
+
+cat >> ~/.ssh/config <<'CFG'
+
+Host github-loureiro
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/github_loureiro
+  IdentitiesOnly yes
+CFG
+```
+
+Y la clave **pública** se dio de alta como deploy key de solo lectura en
+`Settings → Deploy keys` del repo (título «VPS deploy (read-only)»).
+
+Con eso, el clonado:
+
+```bash
 mkdir -p ~/apps && cd ~/apps
-git clone https://github.com/imationgroup/loureiro.git loureiro
+git clone github-loureiro:imationgroup/loureiro.git loureiro
 cd loureiro
 cp .env.example .env
 nano .env   # rellena SMTP_* y SUPPORT_EMAIL
 ```
+
+`scripts/deploy.sh` hace `git fetch origin` sobre ese mismo remoto SSH, así que
+los despliegues siguientes no necesitan nada más.
 
 ### 3. Nginx
 
@@ -135,6 +186,9 @@ En el panel del registrador del dominio:
 
 Certbot no puede emitir los certificados hasta que el DNS resuelva, así que
 este paso va **antes** de los `certbot` de arriba.
+
+> **Nginx y certbot necesitan root.** El usuario `deploy` no tiene sudo sin
+> contraseña, así que estos dos pasos hay que hacerlos con una sesión root.
 
 ### 5. Primer deploy
 
