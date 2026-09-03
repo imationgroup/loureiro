@@ -27,7 +27,7 @@ Pendiente:
 
 - [ ] Secretos `VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY` en GitHub Actions — **sin ellos
       el deploy automático falla** y hay que desplegar a mano con `bash scripts/deploy.sh`
-- [ ] Registros `MX` del dominio: `info@loureirosoluciones.es` todavía no existe
+- [ ] Registros `MX` del dominio: `contacto@loureirosoluciones.es` todavía no existe
 - [ ] Credenciales SMTP reales en `~/apps/loureiro/.env`. Mientras `SMTP_HOST` esté
       vacío, `/api/contact` devuelve 502 a propósito y el formulario cae al `mailto:`
 - [ ] Datos registrales en `aviso-legal.html` y `privacidad.html`
