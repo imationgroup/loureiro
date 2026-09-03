@@ -84,6 +84,13 @@
   font-size:.84rem; color:var(--muted); margin-top:10px; text-align:center;
 }
 
+/* Fotografía real de obra */
+.foto img{
+  width:100%; height:auto; display:block;
+  border-radius:var(--r-lg); border:1px solid var(--line);
+}
+.foto figcaption{ text-align:left; max-width:64ch; margin-inline:auto; }
+
 /* Aviso de que la imagen es una ilustración, no una obra real */
 .ilus{
   display:inline-flex; align-items:center; gap:7px;
