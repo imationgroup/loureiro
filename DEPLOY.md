@@ -6,24 +6,45 @@ Mismo flujo que **imationgroup/web**: cada push a `main` dispara
 directorio del repo clonado** y hace proxy al contenedor del API de
 contacto para `api.loureirosoluciones.es`.
 
-## Estado actual (2 sep 2026)
+## Estado actual (3 sep 2026)
 
-Hecho y verificado en el VPS:
+**El sitio está en producción en https://loureirosoluciones.es.**
+
+Hecho y verificado:
 
 - [x] Repo clonado en `~/apps/loureiro` por SSH con deploy key de solo lectura
-- [x] `.env` creado a partir de `.env.example` (con `SMTP_HOST` **vacío** a propósito,
-      para que `/api/health` no mienta mientras no haya credenciales reales)
-- [x] Contenedor `loureiro-contact` levantado y escuchando en `127.0.0.1:8005`
-- [x] Permisos de lectura para `www-data` sobre el directorio del repo
-- [x] Probado: `/api/health` → `smtp_configured:false`; un POST a `/api/contact`
-      devuelve `502` (el front cae al `mailto:`); el honeypot devuelve `200` sin enviar
+- [x] Contenedor `loureiro-contact` en `127.0.0.1:8005`
+- [x] Registros `A` de apex, `www` y `api` → `76.13.56.232` (Cloudflare, **DNS only**)
+- [x] Vhosts de Nginx activos y certificados Let's Encrypt emitidos para los tres
+      nombres (renovación automática; caducan el 2026-12-02)
+- [x] `http` redirige a `https` con 301
+- [x] Rutas sensibles devuelven 404: `/.env`, `/backend/…`, `/scripts/…`, `/DEPLOY.md`,
+      `/docker-compose.yml`, `/.git/config`
+- [x] CORS correcto: el preflight desde `loureirosoluciones.es` y desde `www` responde
+      200 con `access-control-allow-origin`; un origen ajeno recibe 400
 
-Pendiente, porque necesita root o accesos que no tengo:
+Pendiente:
 
-- [ ] Secretos `VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY` en GitHub Actions
-- [ ] DNS del dominio apuntando al VPS
-- [ ] Vhosts de Nginx + certbot (requieren sudo)
-- [ ] Credenciales SMTP reales en `~/apps/loureiro/.env`
+- [ ] Secretos `VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY` en GitHub Actions — **sin ellos
+      el deploy automático falla** y hay que desplegar a mano con `bash scripts/deploy.sh`
+- [ ] Registros `MX` del dominio: `info@loureirosoluciones.es` todavía no existe
+- [ ] Credenciales SMTP reales en `~/apps/loureiro/.env`. Mientras `SMTP_HOST` esté
+      vacío, `/api/contact` devuelve 502 a propósito y el formulario cae al `mailto:`
+- [ ] Datos registrales en `aviso-legal.html` y `privacidad.html`
+
+## ⚠️ El `.env` del VPS no se actualiza solo
+
+`.env` está en `.gitignore`, así que **`git reset --hard` no lo toca**. Si cambias en el
+repo el dominio, el correo o los orígenes permitidos, tienes que editarlo también a mano
+en el VPS.
+
+Ya pasó una vez: al corregir el dominio de `.com` a `.es`, el `.env` se quedó con los
+`ALLOWED_ORIGINS` viejos y el preflight de CORS empezó a devolver 400, lo que habría
+roto el formulario en el navegador sin dar ninguna pista en la web. Tras editarlo:
+
+```bash
+cd ~/apps/loureiro && docker compose up -d --force-recreate
+```
 
 ## Componentes en el VPS
 
