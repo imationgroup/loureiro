@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────────────────
-# Deploy de loureirosoluciones.com en el VPS, ejecutado por GitHub Actions.
+# Deploy de loureirosoluciones.es en el VPS, ejecutado por GitHub Actions.
 # Asume:
 #   - El repo está clonado en ~/apps/loureiro
 #   - Existe ~/apps/loureiro/.env (no versionado, con SMTP_*)
 #   - El usuario deploy pertenece al grupo docker
 #   - Nginx sirve los estáticos directamente desde ~/apps/loureiro
 #     (root /home/deploy/apps/loureiro;) y hace proxy a 127.0.0.1:8005
-#     para api.loureirosoluciones.com.
+#     para api.loureirosoluciones.es.
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 

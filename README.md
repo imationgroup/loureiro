@@ -1,4 +1,4 @@
-# loureirosoluciones.com
+# loureirosoluciones.es
 
 Web corporativa de **Loureiro Soluciones** — reformas integrales y servicios
 para el hogar en Ourense y provincia.
@@ -55,14 +55,16 @@ docker compose up --build
 
 ## Pendiente
 
-- [ ] **Confirmar el teléfono.** Ahora mismo figura `63356999`, que tiene 8
-      dígitos; los móviles españoles tienen 9. Está en `index.html` (dos
-      enlaces `tel:`, dos `wa.me`, el JSON-LD) y en las páginas legales.
+- [ ] **Registros DNS en Cloudflare.** La zona de `loureirosoluciones.es` existe
+      pero está **vacía**: sin `A`, sin `MX`, sin nada. Hacen falta tres `A`
+      (apex, `www` y `api`) apuntando a `76.13.56.232`, y los `MX` del correo.
+- [ ] **Confirmar el correo.** Se asume `info@loureirosoluciones.es`. El dominio
+      no tiene `MX`, así que el buzón todavía no existe.
 - [ ] **Rellenar los datos registrales** (denominación social, NIF, domicilio)
       en `aviso-legal.html` y `privacidad.html`. Es obligatorio por LSSI-CE.
 - [ ] **Fotos de obras reales.** El diseño funciona sin fotografía, pero una
       galería de trabajos hechos es la mejora que más va a convertir.
 - [ ] **`og-image` en PNG.** Ahora es SVG y la mayoría de redes sociales no lo
       renderiza en las previsualizaciones; conviene exportarlo a PNG 1200×630.
-- [ ] **Buzón `info@loureirosoluciones.com`** operativo, y `.env` del VPS con
+- [ ] **Buzón `info@loureirosoluciones.es`** operativo, y `.env` del VPS con
       las credenciales SMTP.

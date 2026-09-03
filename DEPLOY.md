@@ -1,10 +1,10 @@
-# Despliegue de loureirosoluciones.com en el VPS
+# Despliegue de loureirosoluciones.es en el VPS
 
 Mismo flujo que **imationgroup/web**: cada push a `main` dispara
 `.github/workflows/deploy.yml`, que se conecta por SSH al VPS y ejecuta
 `scripts/deploy.sh`. Nginx sirve los estáticos **directamente desde el
 directorio del repo clonado** y hace proxy al contenedor del API de
-contacto para `api.loureirosoluciones.com`.
+contacto para `api.loureirosoluciones.es`.
 
 ## Estado actual (2 sep 2026)
 
@@ -29,8 +29,8 @@ Pendiente, porque necesita root o accesos que no tengo:
 
 | Servicio | Subdominio | Origen |
 | --- | --- | --- |
-| Web estática | `loureirosoluciones.com` (+ `www`) | Nginx → `/home/deploy/apps/loureiro` |
-| API de contacto | `api.loureirosoluciones.com` | Nginx → `127.0.0.1:8005` (contenedor `loureiro-contact`) |
+| Web estática | `loureirosoluciones.es` (+ `www`) | Nginx → `/home/deploy/apps/loureiro` |
+| API de contacto | `api.loureirosoluciones.es` | Nginx → `127.0.0.1:8005` (contenedor `loureiro-contact`) |
 
 > El puerto **8005** se eligió porque 8000–8004 ya estaban ocupados por los
 > otros proyectos del VPS. Si añades más servicios, comprueba antes con
@@ -106,13 +106,13 @@ los despliegues siguientes no necesitan nada más.
 
 #### Vhost del sitio estático
 
-`/etc/nginx/sites-available/loureirosoluciones.com`
+`/etc/nginx/sites-available/loureirosoluciones.es`
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
-    server_name loureirosoluciones.com www.loureirosoluciones.com;
+    server_name loureirosoluciones.es www.loureirosoluciones.es;
 
     root /home/deploy/apps/loureiro;
     index index.html;
@@ -136,9 +136,9 @@ server {
 ```
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/loureirosoluciones.com /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/loureirosoluciones.es /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d loureirosoluciones.com -d www.loureirosoluciones.com
+sudo certbot --nginx -d loureirosoluciones.es -d www.loureirosoluciones.es
 ```
 
 > **Permisos**: Nginx (`www-data`) tiene que poder leer el directorio:
@@ -149,13 +149,13 @@ sudo certbot --nginx -d loureirosoluciones.com -d www.loureirosoluciones.com
 
 #### Vhost del API de contacto
 
-`/etc/nginx/sites-available/api.loureirosoluciones.com`
+`/etc/nginx/sites-available/api.loureirosoluciones.es`
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
-    server_name api.loureirosoluciones.com;
+    server_name api.loureirosoluciones.es;
 
     location / {
         proxy_pass http://127.0.0.1:8005;
@@ -169,9 +169,9 @@ server {
 ```
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/api.loureirosoluciones.com /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/api.loureirosoluciones.es /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d api.loureirosoluciones.com
+sudo certbot --nginx -d api.loureirosoluciones.es
 ```
 
 ### 4. DNS
@@ -180,7 +180,7 @@ En el panel del registrador del dominio:
 
 | Tipo | Nombre | Valor |
 | --- | --- | --- |
-| `A` | `loureirosoluciones.com` | `76.13.56.232` |
+| `A` | `loureirosoluciones.es` | `76.13.56.232` |
 | `A` | `www` | `76.13.56.232` |
 | `A` | `api` | `76.13.56.232` |
 
@@ -195,8 +195,8 @@ este paso va **antes** de los `certbot` de arriba.
 Push a `main`, o **Actions → Deploy to VPS → Run workflow**. Después:
 
 ```bash
-curl -I https://loureirosoluciones.com
-curl https://api.loureirosoluciones.com/api/health
+curl -I https://loureirosoluciones.es
+curl https://api.loureirosoluciones.es/api/health
 ```
 
 El `health` devuelve `{"status":"ok","smtp_configured":true}` cuando el

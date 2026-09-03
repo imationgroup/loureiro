@@ -1,4 +1,4 @@
-"""Backend del formulario de contacto de loureirosoluciones.com.
+"""Backend del formulario de contacto de loureirosoluciones.es.
 
 Mismo patrón que imationgroup/web: FastAPI + SMTP via smtplib. Sin BD y sin
 auth — recibe el formulario, valida, aplica rate-limit y manda un correo a
@@ -35,15 +35,15 @@ SMTP_HOST = env("SMTP_HOST")
 SMTP_PORT = int(env("SMTP_PORT", "587"))
 SMTP_USER = env("SMTP_USER")
 SMTP_PASSWORD = env("SMTP_PASSWORD")
-SMTP_FROM = env("SMTP_FROM", "info@loureirosoluciones.com")
+SMTP_FROM = env("SMTP_FROM", "info@loureirosoluciones.es")
 SMTP_USE_TLS = env("SMTP_USE_TLS", "true").lower() == "true"
-SUPPORT_EMAIL = env("SUPPORT_EMAIL", "info@loureirosoluciones.com")
+SUPPORT_EMAIL = env("SUPPORT_EMAIL", "info@loureirosoluciones.es")
 
 ALLOWED_ORIGINS = [
     o.strip()
     for o in env(
         "ALLOWED_ORIGINS",
-        "https://loureirosoluciones.com,https://www.loureirosoluciones.com,http://localhost:8080",
+        "https://loureirosoluciones.es,https://www.loureirosoluciones.es,http://localhost:8080",
     ).split(",")
     if o.strip()
 ]
@@ -158,7 +158,7 @@ def contact(payload: ContactPayload, request: Request):
     phone = (payload.phone or "").strip() or "No facilitado"
 
     body = (
-        "Nueva solicitud desde el formulario de loureirosoluciones.com\n\n"
+        "Nueva solicitud desde el formulario de loureirosoluciones.es\n\n"
         f"Nombre:   {name}\n"
         f"Email:    {sender_email}\n"
         f"Teléfono: {phone}\n"
