@@ -244,3 +244,23 @@
 @media (prefers-reduced-motion:reduce){
   .post:hover,.rel a:hover{ transform:none; }
 }
+
+/* ── Lista de comprobación de las páginas de servicio ────────────────── */
+.lista-check{ display:grid; gap:14px; max-width:64ch; }
+.lista-check li{
+  position:relative; padding-left:34px;
+  color:var(--muted-d); font-size:1.02em; line-height:1.55;
+}
+.lista-check li::before{
+  content:""; position:absolute; left:0; top:.34em;
+  width:18px; height:18px; border-radius:50%;
+  background:var(--amber-soft);
+  border:1.5px solid var(--amber);
+}
+.lista-check li::after{
+  content:""; position:absolute; left:6px; top:.62em;
+  width:5px; height:9px;
+  border-right:2px solid var(--amber); border-bottom:2px solid var(--amber);
+  transform:rotate(45deg);
+}
+.sec--dark .lista-check li{ color:var(--muted-d); }

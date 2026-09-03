@@ -220,6 +220,7 @@ button,input,select,textarea{ font:inherit; color:inherit; }
   content:""; position:absolute; left:0; top:0; height:3px; width:0;
   background:var(--amber); transition:width .35s var(--ease);
 }
+a.card{ text-decoration:none; color:inherit; }
 .card:hover{ transform:translateY(-5px); box-shadow:var(--sh-lg); border-color:transparent; }
 .card:hover::before{ width:100%; }
 .card--wide{
