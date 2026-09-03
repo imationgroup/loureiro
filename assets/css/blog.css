@@ -23,21 +23,56 @@
 .bhero h1{ font-size:clamp(2.1rem,4.6vw,3.4rem); max-width:18ch; }
 .bhero p{ color:var(--muted-d); max-width:60ch; margin-top:18px; font-size:1.05em; }
 
-/* ── Navegación de categorías ────────────────────────────────────────── */
+/* ── Navegación por categorías / servicios ───────────────────────────
+   Fichas con icono en lugar de texto suelto: al ser el elemento que
+   salta de un servicio a otro, necesita peso visual suficiente para
+   leerse como navegación y no como una lista de enlaces.          */
 .cats{
-  display:flex; flex-wrap:wrap; gap:9px;
+  display:flex; flex-wrap:wrap; gap:10px;
   margin-bottom:clamp(30px,4vw,44px);
 }
 .cats a{
-  font-family:var(--ff-head); font-size:.88rem; font-weight:600;
+  display:inline-flex; align-items:center; gap:10px;
+  font-family:var(--ff-head); font-size:.9rem; font-weight:600;
   text-decoration:none; color:var(--txt);
-  border:1px solid var(--line); border-radius:100px; padding:9px 18px;
+  background:var(--white);
+  border:1px solid var(--line); border-radius:100px;
+  padding:10px 20px 10px 12px;
   transition:border-color .2s var(--ease), color .2s var(--ease),
-             background .2s var(--ease), transform .2s var(--ease);
+             background .2s var(--ease), transform .2s var(--ease),
+             box-shadow .2s var(--ease);
 }
-.cats a:hover{ border-color:var(--amber); color:var(--amber); transform:translateY(-2px); }
-.cats a.is-on{ background:var(--ink); border-color:var(--ink); color:#fff; }
-.cats a.is-on:hover{ color:#fff; }
+.cats a svg{
+  width:30px; height:30px; padding:6px; flex:none;
+  border-radius:50%; box-sizing:border-box;
+  background:var(--amber-soft); color:var(--amber);
+  fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round;
+  transition:background .2s var(--ease), color .2s var(--ease);
+}
+.cats a:hover{
+  border-color:transparent; color:var(--txt);
+  transform:translateY(-2px); box-shadow:var(--sh);
+}
+.cats a.is-on{
+  background:var(--ink); border-color:var(--ink); color:#fff;
+  box-shadow:0 6px 18px rgba(20,22,26,.18);
+}
+.cats a.is-on svg{ background:var(--amber); color:#fff; }
+.cats a.is-on:hover{ color:#fff; transform:none; }
+
+/* Sobre fondo oscuro */
+.sec--dark .cats a,.bhero .cats a{
+  background:rgba(255,255,255,.05); border-color:var(--line-d); color:#fff;
+}
+.sec--dark .cats a.is-on,.bhero .cats a.is-on{ background:var(--amber); border-color:var(--amber); }
+.sec--dark .cats a.is-on svg,.bhero .cats a.is-on svg{ background:rgba(255,255,255,.22); color:#fff; }
+
+@media (max-width:560px){
+  .cats{ gap:8px; }
+  .cats a{ font-size:.84rem; padding:8px 16px 8px 10px; }
+  .cats a svg{ width:26px; height:26px; padding:5px; }
+}
 
 .vacio{
   color:var(--muted); background:var(--sand);

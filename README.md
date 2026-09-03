@@ -42,6 +42,26 @@ cp .env.example .env   # rellena SMTP_*
 docker compose up --build
 ```
 
+## Después de tocar CSS o JS: sellar los assets
+
+Nginx sirve los assets con `Cache-Control: immutable, max-age=2592000`. Con
+`immutable` el navegador **no revalida**: si el nombre del fichero no cambia,
+se queda con su copia vieja hasta 30 días aunque el servidor ya tenga otra.
+Publicas un cambio de estilo y quien ya había entrado sigue viendo el diseño
+antiguo. Nos pasó, y cuesta un rato darse cuenta porque `curl` sí ve lo nuevo.
+
+La solución no es quitar la caché, que es buena, sino que la URL cambie cuando
+cambia el contenido:
+
+```bash
+python scripts/sellar-assets.py
+```
+
+Recalcula un `?v=<hash>` a partir del contenido de cada CSS y JS y lo escribe en
+todos los HTML. **Ejecútalo después de tocar cualquier CSS o JS y antes de
+commitear.** Si se olvida no se rompe nada, simplemente los visitantes que ya
+conocían el sitio tardarán en ver el cambio.
+
 ## Dónde se cambian las cosas
 
 | Qué | Dónde |
