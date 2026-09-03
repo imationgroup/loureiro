@@ -12,8 +12,8 @@ el mismo flujo que `imationgroup/web`: push a `main` → GitHub Actions → SSH 
 
 ```
 index.html            Página principal (one-page)
-aviso-legal.html      Aviso legal — falta el nombre del titular
-privacidad.html       Política de privacidad — falta el nombre del titular
+aviso-legal.html      Aviso legal — falta el CIF
+privacidad.html       Política de privacidad — falta el CIF
 assets/
   css/styles.css      Toda la hoja de estilos del sitio
   css/legal.css       Estilos exclusivos de las páginas legales
@@ -60,9 +60,9 @@ docker compose up --build
       (apex, `www` y `api`) apuntando a `76.13.56.232`, y los `MX` del correo.
 - [ ] **Confirmar el correo.** Se asume `contacto@loureirosoluciones.es`. El dominio
       no tiene `MX`, así que el buzón todavía no existe.
-- [ ] **Añadir el nombre y apellidos del titular** en `aviso-legal.html` y
-      `privacidad.html`. El artículo 10 de la LSSI-CE exige identificar al
-      responsable con nombre y apellidos mientras se ejerza como autónomo.
+- [ ] **Añadir el CIF** en `aviso-legal.html` y `privacidad.html` cuando se
+      complete la constitución de la sociedad, junto con los datos registrales.
+      El artículo 10 de la LSSI-CE exige publicar el identificador fiscal.
 - [ ] **Fotos de obras reales.** El diseño funciona sin fotografía, pero una
       galería de trabajos hechos es la mejora que más va a convertir.
 - [ ] **`og-image` en PNG.** Ahora es SVG y la mayoría de redes sociales no lo
