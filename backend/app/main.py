@@ -35,9 +35,9 @@ SMTP_HOST = env("SMTP_HOST")
 SMTP_PORT = int(env("SMTP_PORT", "587"))
 SMTP_USER = env("SMTP_USER")
 SMTP_PASSWORD = env("SMTP_PASSWORD")
-SMTP_FROM = env("SMTP_FROM", "info@loureirosoluciones.es")
+SMTP_FROM = env("SMTP_FROM", "contacto@loureirosoluciones.es")
 SMTP_USE_TLS = env("SMTP_USE_TLS", "true").lower() == "true"
-SUPPORT_EMAIL = env("SUPPORT_EMAIL", "info@loureirosoluciones.es")
+SUPPORT_EMAIL = env("SUPPORT_EMAIL", "contacto@loureirosoluciones.es")
 
 ALLOWED_ORIGINS = [
     o.strip()

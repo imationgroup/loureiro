@@ -9,7 +9,7 @@
      Endpoint del backend de contacto. Si lo dejas vacío, el formulario
      cae automáticamente a abrir el cliente de correo del visitante.     */
   var API = "https://api.loureirosoluciones.es/api/contact";
-  var EMAIL = "info@loureirosoluciones.es";
+  var EMAIL = "contacto@loureirosoluciones.es";
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
