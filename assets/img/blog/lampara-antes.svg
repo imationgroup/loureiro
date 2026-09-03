@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de una bombilla desnuda colgando de un cable, sin lámpara">
+  <rect width="800" height="450" fill="#BFB8AE"/>
+  <rect y="0" width="800" height="46" fill="#ADA69C"/>
+  <ellipse cx="150" cy="120" rx="86" ry="54" fill="#B2AB9F" opacity=".55"/>
+
+  <!-- Cable pelado y regleta a la vista -->
+  <path d="M400 46v78" stroke="#4E463D" stroke-width="6"/>
+  <rect x="368" y="118" width="64" height="26" rx="4" fill="#6B6055"/>
+  <g stroke="#3F3830" stroke-width="4"><path d="M380 118v-14M400 118v-14M420 118v-14"/></g>
+  <path d="M400 144v66" stroke="#4E463D" stroke-width="6"/>
+
+  <!-- Portalámparas y bombilla desnuda -->
+  <rect x="384" y="208" width="32" height="30" rx="4" fill="#8A8178"/>
+  <circle cx="400" cy="272" r="40" fill="#E8DFCB"/>
+  <path d="M386 250c0 18 28 18 28 0" fill="none" stroke="#C6B894" stroke-width="4"/>
+  <circle cx="400" cy="272" r="40" fill="none" stroke="#BFB29A" stroke-width="3"/>
+
+  <!-- Luz pobre -->
+  <path d="M400 312l-90 96h180z" fill="#DCD3BC" opacity=".45"/>
+
+  <!-- Agujero del techo -->
+  <ellipse cx="400" cy="48" rx="34" ry="12" fill="#7E7770"/>
+
+  <!-- Aviso -->
+  <g transform="translate(618 320)">
+    <path d="M28 0 56 48H0z" fill="#C2410C"/>
+    <path d="M28 16v18M28 40v4" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>

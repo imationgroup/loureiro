@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración del mismo salón después de la reforma">
+  <defs>
+    <linearGradient id="sd-w" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+    <linearGradient id="sd-f" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D3AC7E"/><stop offset="1" stop-color="#C09A6E"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#sd-w)"/>
+  <!-- Tarima nueva -->
+  <rect y="330" width="800" height="120" fill="url(#sd-f)"/>
+  <g stroke="#B98F63" stroke-width="1.5" opacity=".8">
+    <path d="M0 364h800M0 400h800"/>
+    <path d="M110 330v34M300 330v34M520 330v34M700 330v34"/>
+    <path d="M60 364v36M240 364v36M430 364v36M640 364v36"/>
+    <path d="M150 400v50M380 400v50M600 400v50"/>
+  </g>
+  <rect y="320" width="800" height="12" fill="#FFFFFF"/>
+
+  <!-- Ventanal ampliado -->
+  <rect x="286" y="62" width="228" height="176" fill="#BBD4E0"/>
+  <rect x="286" y="62" width="228" height="176" fill="none" stroke="#2B3039" stroke-width="7"/>
+  <path d="M400 62v176" stroke="#2B3039" stroke-width="5"/>
+  <path d="M300 200l60-70 44 48 40-52 60 74z" fill="#9FC0D0" opacity=".7"/>
+
+  <!-- Mueble bajo moderno -->
+  <rect x="76" y="252" width="176" height="68" rx="5" fill="#2B3039"/>
+  <rect x="76" y="252" width="176" height="7" rx="3" fill="#3A414C"/>
+  <rect x="120" y="282" width="40" height="4" rx="2" fill="#F97316"/>
+  <rect x="176" y="282" width="40" height="4" rx="2" fill="#F97316"/>
+
+  <!-- Sofá -->
+  <rect x="576" y="244" width="160" height="52" rx="12" fill="#E4DCD2"/>
+  <rect x="566" y="222" width="180" height="42" rx="14" fill="#EFE8DF"/>
+  <rect x="604" y="230" width="48" height="30" rx="8" fill="#F97316" opacity=".85"/>
+
+  <!-- Luminaria -->
+  <path d="M400 0v44" stroke="#2B3039" stroke-width="3"/>
+  <path d="M370 44h60l-14 26h-32z" fill="#2B3039"/>
+  <circle cx="400" cy="80" r="16" fill="#FFD9A8" opacity=".55"/>
+
+  <!-- Planta -->
+  <rect x="466" y="286" width="34" height="34" rx="4" fill="#C4693A"/>
+  <path d="M483 286c-22-8-30-30-22-46 18 2 28 20 22 46z" fill="#5C7F5A"/>
+  <path d="M483 286c20-12 24-34 14-48-17 5-24 24-14 48z" fill="#6E9469"/>
+</svg>

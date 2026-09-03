@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de un salón antiguo antes de reformar">
+  <defs>
+    <linearGradient id="sa-w" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C3BDB4"/><stop offset="1" stop-color="#AEA79D"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#sa-w)"/>
+  <!-- Suelo viejo -->
+  <rect y="330" width="800" height="120" fill="#8C8279"/>
+  <g stroke="#7A7168" stroke-width="2">
+    <path d="M0 330h800M0 366h800M0 402h800"/>
+    <path d="M60 330v120M180 330v120M300 330v120M420 330v120M540 330v120M660 330v120"/>
+  </g>
+  <!-- Rodapié -->
+  <rect y="318" width="800" height="14" fill="#6F675F"/>
+
+  <!-- Humedad y grietas -->
+  <path d="M120 60c30 24 12 58 44 84 26 21 8 52 34 70" fill="none" stroke="#8E8579" stroke-width="3" stroke-linecap="round"/>
+  <path d="M640 40c-18 40 10 62-6 96" fill="none" stroke="#8E8579" stroke-width="3" stroke-linecap="round"/>
+  <ellipse cx="700" cy="120" rx="86" ry="58" fill="#9E958A" opacity=".55"/>
+  <ellipse cx="90" cy="290" rx="70" ry="42" fill="#9E958A" opacity=".45"/>
+
+  <!-- Ventana pequeña con marco viejo -->
+  <rect x="300" y="80" width="200" height="140" fill="#7E8B92"/>
+  <rect x="300" y="80" width="200" height="140" fill="none" stroke="#655D55" stroke-width="12"/>
+  <path d="M400 80v140M300 150h200" stroke="#655D55" stroke-width="9"/>
+
+  <!-- Mueble antiguo -->
+  <rect x="80" y="228" width="150" height="92" fill="#7B6A57"/>
+  <rect x="80" y="228" width="150" height="12" fill="#6B5B49"/>
+  <circle cx="145" cy="272" r="5" fill="#5A4C3D"/><circle cx="175" cy="272" r="5" fill="#5A4C3D"/>
+
+  <!-- Cables colgando -->
+  <path d="M560 0v56c0 18 22 14 22 32v26" fill="none" stroke="#5A5249" stroke-width="4"/>
+  <circle cx="582" cy="118" r="12" fill="#6E655B"/>
+
+  <!-- Radiador viejo -->
+  <g fill="#8A8178">
+    <rect x="596" y="240" width="120" height="76" rx="4"/>
+  </g>
+  <g stroke="#756C63" stroke-width="3">
+    <path d="M616 246v64M640 246v64M664 246v64M688 246v64"/>
+  </g>
+</svg>

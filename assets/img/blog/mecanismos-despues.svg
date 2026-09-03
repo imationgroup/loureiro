@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de mecanismos nuevos: interruptor, enchufe con toma de tierra y enchufe con USB">
+  <rect width="800" height="450" fill="#F4F1EC"/>
+
+  <!-- Interruptor moderno -->
+  <g transform="translate(150 120)">
+    <rect width="150" height="150" rx="12" fill="#FFFFFF"/>
+    <rect width="150" height="150" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+    <rect x="32" y="28" width="86" height="94" rx="8" fill="#FAF8F5"/>
+    <rect x="32" y="28" width="86" height="94" rx="8" fill="none" stroke="#E0DBD2" stroke-width="2"/>
+    <rect x="60" y="46" width="30" height="4" rx="2" fill="#F97316"/>
+    <circle cx="75" cy="102" r="5" fill="#4ADE80"/>
+  </g>
+
+  <!-- Schuko con tierra -->
+  <g transform="translate(360 120)">
+    <rect width="150" height="150" rx="12" fill="#FFFFFF"/>
+    <rect width="150" height="150" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+    <circle cx="75" cy="75" r="52" fill="#FAF8F5"/>
+    <circle cx="75" cy="75" r="52" fill="none" stroke="#E0DBD2" stroke-width="2"/>
+    <circle cx="56" cy="75" r="8" fill="#2B3039"/>
+    <circle cx="94" cy="75" r="8" fill="#2B3039"/>
+    <!-- contactos laterales de tierra -->
+    <rect x="69" y="26" width="12" height="7" rx="3" fill="#5C7F5A"/>
+    <rect x="69" y="117" width="12" height="7" rx="3" fill="#5C7F5A"/>
+  </g>
+
+  <!-- Enchufe con USB -->
+  <g transform="translate(570 120)">
+    <rect width="150" height="150" rx="12" fill="#FFFFFF"/>
+    <rect width="150" height="150" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+    <circle cx="75" cy="56" r="38" fill="#FAF8F5"/>
+    <circle cx="75" cy="56" r="38" fill="none" stroke="#E0DBD2" stroke-width="2"/>
+    <circle cx="61" cy="56" r="6" fill="#2B3039"/><circle cx="89" cy="56" r="6" fill="#2B3039"/>
+    <rect x="44" y="108" width="28" height="12" rx="3" fill="#2B3039"/>
+    <rect x="80" y="108" width="28" height="12" rx="3" fill="#2B3039"/>
+    <text x="75" y="140" font-family="Inter, sans-serif" font-size="13" fill="#6C7079" text-anchor="middle">USB-C</text>
+  </g>
+
+  <!-- Nota tierra OK -->
+  <g transform="translate(94 322)">
+    <circle cx="24" cy="24" r="24" fill="#5C7F5A"/>
+    <path d="M13 25l8 8 16-17" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="158" y="354" font-family="Inter, sans-serif" font-size="19" fill="#4A4F58">Con toma de tierra</text>
+</svg>

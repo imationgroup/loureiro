@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de una instalación de luces de jardín mal protegida, con empalmes con cinta y agua acumulada">
+  <rect width="800" height="450" fill="#1C2129"/>
+  <rect y="300" width="800" height="150" fill="#2C3A2C"/>
+  <path d="M0 300c120-16 220 12 340 0s200-18 460 6v144H0z" fill="#263326"/>
+
+  <!-- Charco -->
+  <ellipse cx="420" cy="392" rx="150" ry="34" fill="#39474F" opacity=".9"/>
+  <ellipse cx="420" cy="388" rx="110" ry="22" fill="#4A5A63" opacity=".7"/>
+
+  <!-- Foco tirado en el suelo, dentro del charco -->
+  <g transform="translate(360 356)">
+    <rect width="70" height="34" rx="6" fill="#5A5249"/>
+    <rect x="8" y="7" width="54" height="20" rx="4" fill="#8B8578"/>
+  </g>
+
+  <!-- Empalme con cinta aislante a la intemperie -->
+  <path d="M120 330c60-26 110 18 170-8" fill="none" stroke="#3F3830" stroke-width="7" stroke-linecap="round"/>
+  <rect x="196" y="308" width="40" height="22" rx="5" fill="#4A423A"/>
+  <g stroke="#5E5648" stroke-width="2">
+    <path d="M204 308v22M214 308v22M224 308v22"/>
+  </g>
+
+  <!-- Regleta doméstica al aire -->
+  <rect x="560" y="316" width="80" height="26" rx="4" fill="#6B6055"/>
+  <g stroke="#3F3830" stroke-width="4"><path d="M572 316v-16M600 316v-16M628 316v-16"/></g>
+
+  <!-- Gotas de lluvia -->
+  <g stroke="#5E6E78" stroke-width="3" stroke-linecap="round" opacity=".7">
+    <path d="M120 60v34M200 30v40M290 74v30M480 44v38M580 24v34M680 66v32M380 20v34"/>
+  </g>
+
+  <!-- Aviso -->
+  <g transform="translate(64 350)">
+    <path d="M28 0 56 48H0z" fill="#C2410C"/>
+    <path d="M28 16v18M28 40v4" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>

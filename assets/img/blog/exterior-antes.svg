@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de una fachada de noche mal iluminada por un único foco deslumbrante">
+  <rect width="800" height="450" fill="#1A1E26"/>
+  <!-- Fachada -->
+  <path d="M180 130h440v250H180z" fill="#2A2F38"/>
+  <path d="M180 130L400 40l220 90z" fill="#333944"/>
+  <rect x="360" y="270" width="80" height="110" fill="#20242C"/>
+  <rect x="240" y="190" width="70" height="60" fill="#20242C"/>
+  <rect x="490" y="190" width="70" height="60" fill="#20242C"/>
+  <rect y="380" width="800" height="70" fill="#141820"/>
+
+  <!-- Foco halógeno deslumbrante -->
+  <rect x="386" y="150" width="28" height="16" rx="3" fill="#5A5249"/>
+  <circle cx="400" cy="170" r="14" fill="#FFF6D8"/>
+  <path d="M400 176l-190 204h380z" fill="#FFF3CC" opacity=".38"/>
+  <!-- Deslumbramiento -->
+  <g stroke="#FFF6D8" stroke-width="3" opacity=".7">
+    <path d="M400 138v-24M356 176l-22-14M444 176l22-14"/>
+  </g>
+
+  <!-- Zonas negras -->
+  <ellipse cx="130" cy="360" rx="130" ry="52" fill="#10141B" opacity=".85"/>
+  <ellipse cx="672" cy="360" rx="130" ry="52" fill="#10141B" opacity=".85"/>
+
+  <!-- Cable a la vista -->
+  <path d="M414 158c40 8 44 46 86 46" fill="none" stroke="#4E463D" stroke-width="4"/>
+</svg>
