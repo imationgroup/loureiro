@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de luces de jardín instaladas de forma estanca, con balizas, foco enterrado y caja IP67">
+  <rect width="800" height="450" fill="#1A2029"/>
+  <rect y="300" width="800" height="150" fill="#33452F"/>
+  <path d="M0 300c120-16 220 12 340 0s200-18 460 6v144H0z" fill="#2C3C29"/>
+
+  <!-- Camino -->
+  <path d="M300 450l40-150h120l40 150z" fill="#4A4F4A"/>
+
+  <!-- Balizas estancas -->
+  <g>
+    <rect x="286" y="248" width="11" height="54" rx="5" fill="#2B3039"/>
+    <rect x="282" y="238" width="19" height="14" rx="4" fill="#3A414C"/>
+    <ellipse cx="292" cy="318" rx="52" ry="16" fill="#FFD9A8" opacity=".3"/>
+
+    <rect x="502" y="248" width="11" height="54" rx="5" fill="#2B3039"/>
+    <rect x="498" y="238" width="19" height="14" rx="4" fill="#3A414C"/>
+    <ellipse cx="508" cy="318" rx="52" ry="16" fill="#FFD9A8" opacity=".3"/>
+  </g>
+
+  <!-- Foco enterrado bañando un árbol -->
+  <circle cx="668" cy="336" r="15" fill="#2B3039"/>
+  <circle cx="668" cy="336" r="8" fill="#FFD9A8"/>
+  <path d="M668 326l-42 -150h84z" fill="#FFD9A8" opacity=".22"/>
+  <path d="M668 180c-30-8-42-44-30-66 26 4 40 30 30 66z" fill="#4F7A4A"/>
+  <path d="M668 180c30-16 34-50 20-68-24 8-32 34-20 68z" fill="#5E8C57"/>
+  <rect x="662" y="180" width="12" height="150" fill="#3E3226"/>
+
+  <!-- Caja de conexión estanca enterrada -->
+  <g transform="translate(120 318)">
+    <rect width="88" height="46" rx="8" fill="#2B3039"/>
+    <rect x="8" y="8" width="72" height="30" rx="5" fill="#3A414C"/>
+    <circle cx="16" cy="14" r="3" fill="#8B93A0"/><circle cx="72" cy="14" r="3" fill="#8B93A0"/>
+    <circle cx="16" cy="38" r="3" fill="#8B93A0"/><circle cx="72" cy="38" r="3" fill="#8B93A0"/>
+    <text x="44" y="30" font-family="Inter, sans-serif" font-size="13" fill="#F97316" text-anchor="middle">IP67</text>
+  </g>
+  <!-- Manguera enterrada en tubo -->
+  <path d="M208 342h72" stroke="#F97316" stroke-width="7" stroke-linecap="round" opacity=".8"/>
+  <path d="M208 342h72" stroke="#2B3039" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Cielo despejado con estrellas -->
+  <g fill="#8B93A0" opacity=".55">
+    <circle cx="120" cy="60" r="2"/><circle cx="240" cy="40" r="2"/><circle cx="360" cy="80" r="2"/>
+    <circle cx="470" cy="46" r="2"/><circle cx="600" cy="70" r="2"/><circle cx="720" cy="38" r="2"/>
+  </g>
+</svg>

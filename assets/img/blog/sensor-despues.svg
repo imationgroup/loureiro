@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de un pasillo con detector de presencia que enciende la luz solo al pasar">
+  <defs>
+    <radialGradient id="sd-g" cx="0.5" cy="0" r="1">
+      <stop offset="0" stop-color="#FFD9A8" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#FFD9A8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="450" fill="#F4F1EC"/>
+  <rect y="330" width="800" height="120" fill="#C09A6E"/>
+  <path d="M200 60h400v270H200z" fill="#EDE8E0"/>
+  <path d="M200 60L0 0v330l200-60zM600 60l200-60v330l-200-60z" fill="#F1ECE4"/>
+
+  <!-- Detector de presencia en el techo -->
+  <ellipse cx="400" cy="66" rx="26" ry="9" fill="#2B3039"/>
+  <circle cx="400" cy="72" r="11" fill="#3A414C"/>
+  <circle cx="400" cy="72" r="4" fill="#F97316"/>
+
+  <!-- Cono de detección -->
+  <path d="M400 80l-150 250h300z" fill="url(#sd-g)"/>
+  <g stroke="#F97316" stroke-width="2" fill="none" opacity=".55">
+    <path d="M400 92a58 58 0 0 1 0 0M356 128a112 112 0 0 1 88 0M330 176a166 166 0 0 1 140 0"/>
+  </g>
+
+  <!-- Luces encendidas solo en la zona de paso -->
+  <circle cx="400" cy="150" r="13" fill="#FFE0B0"/>
+  <circle cx="400" cy="206" r="10" fill="#FFE0B0"/>
+
+  <!-- Persona -->
+  <g fill="#2B3039" transform="translate(376 218)">
+    <circle cx="24" cy="14" r="14"/>
+    <path d="M10 34h28l8 52H2z"/>
+    <path d="M8 86h12v26H8zM28 86h12v26H28z"/>
+  </g>
+
+  <!-- Etiqueta ahorro -->
+  <g transform="translate(614 210)">
+    <rect width="140" height="44" rx="22" fill="#FFFFFF" stroke="#E0DBD2" stroke-width="2"/>
+    <circle cx="28" cy="22" r="11" fill="#5C7F5A"/>
+    <path d="M22 22l5 5 9-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="52" y="28" font-family="Inter, sans-serif" font-size="14" fill="#4A4F58">Solo al pasar</text>
+  </g>
+</svg>

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de la misma fachada con iluminación exterior repartida, bañado de muro y balizas">
+  <defs>
+    <linearGradient id="ed-b" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#FFD9A8" stop-opacity=".62"/>
+      <stop offset="1" stop-color="#FFD9A8" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="#171B23"/>
+  <path d="M180 130h440v250H180z" fill="#2E343E"/>
+  <path d="M180 130L400 40l220 90z" fill="#3A414C"/>
+  <rect y="380" width="800" height="70" fill="#141820"/>
+
+  <!-- Bañado de muro desde abajo -->
+  <path d="M210 380l24-190h22l24 190z" fill="url(#ed-b)"/>
+  <path d="M520 380l24-190h22l24 190z" fill="url(#ed-b)"/>
+  <g fill="#F97316">
+    <rect x="228" y="370" width="20" height="8" rx="3"/>
+    <rect x="538" y="370" width="20" height="8" rx="3"/>
+  </g>
+
+  <!-- Ventanas cálidas -->
+  <rect x="240" y="190" width="70" height="60" fill="#FFD9A8" opacity=".85"/>
+  <rect x="490" y="190" width="70" height="60" fill="#FFD9A8" opacity=".85"/>
+  <rect x="360" y="270" width="80" height="110" fill="#FFE7C4" opacity=".9"/>
+
+  <!-- Aplique sobre la puerta, con visera -->
+  <rect x="378" y="248" width="44" height="10" rx="4" fill="#2B3039"/>
+  <path d="M400 258l-40 122h80z" fill="#FFD9A8" opacity=".35"/>
+
+  <!-- Balizas de camino -->
+  <g>
+    <rect x="96" y="342" width="9" height="38" rx="4" fill="#2B3039"/>
+    <circle cx="100" cy="340" r="7" fill="#FFD9A8"/>
+    <ellipse cx="100" cy="392" rx="42" ry="12" fill="#FFD9A8" opacity=".22"/>
+
+    <rect x="694" y="342" width="9" height="38" rx="4" fill="#2B3039"/>
+    <circle cx="698" cy="340" r="7" fill="#FFD9A8"/>
+    <ellipse cx="698" cy="392" rx="42" ry="12" fill="#FFD9A8" opacity=".22"/>
+  </g>
+
+  <!-- Etiqueta -->
+  <g transform="translate(300 404)">
+    <rect width="200" height="34" rx="17" fill="#FFFFFF" opacity=".92"/>
+    <text x="100" y="23" font-family="Inter, sans-serif" font-size="13" fill="#3A414C" text-anchor="middle">Luz repartida, sin deslumbrar</text>
+  </g>
+</svg>
