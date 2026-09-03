@@ -13,45 +13,57 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/blog/reforma-integral-piso-ourense.html</loc>
+    <loc>https://loureirosoluciones.es/blog/reformas-integrales/</loc>
     <lastmod>2026-09-03</lastmod>
-    <changefreq>yearly</changefreq>
+    <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/blog/cambiar-cuadro-electrico-vivienda-antigua.html</loc>
+    <loc>https://loureirosoluciones.es/blog/electricidad/</loc>
     <lastmod>2026-09-03</lastmod>
-    <changefreq>yearly</changefreq>
+    <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/blog/cambiar-enchufes-interruptores-mecanismos.html</loc>
+    <loc>https://loureirosoluciones.es/blog/reformas-integrales/reforma-integral-piso-ourense.html</loc>
     <lastmod>2026-09-03</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/blog/instalar-lampara-techo-guia.html</loc>
+    <loc>https://loureirosoluciones.es/blog/electricidad/cambiar-cuadro-electrico-vivienda-antigua.html</loc>
     <lastmod>2026-09-03</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/blog/luces-automaticas-sensor-presencia.html</loc>
+    <loc>https://loureirosoluciones.es/blog/electricidad/cambiar-enchufes-interruptores-mecanismos.html</loc>
     <lastmod>2026-09-03</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/blog/iluminacion-exterior-fachada-terraza.html</loc>
+    <loc>https://loureirosoluciones.es/blog/electricidad/instalar-lampara-techo-guia.html</loc>
     <lastmod>2026-09-03</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/blog/luces-jardin-estancas-ip.html</loc>
+    <loc>https://loureirosoluciones.es/blog/electricidad/luces-automaticas-sensor-presencia.html</loc>
     <lastmod>2026-09-03</lastmod>
     <changefreq>yearly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/blog/electricidad/iluminacion-exterior-fachada-terraza.html</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/blog/electricidad/luces-jardin-estancas-ip.html</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
   </url>
 </urlset>
