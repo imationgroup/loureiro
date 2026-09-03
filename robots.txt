@@ -3,4 +3,4 @@ Allow: /
 Disallow: /aviso-legal.html
 Disallow: /privacidad.html
 
-Sitemap: https://loureirosoluciones.com/sitemap.xml
+Sitemap: https://loureirosoluciones.es/sitemap.xml
