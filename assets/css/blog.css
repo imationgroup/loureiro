@@ -23,6 +23,33 @@
 .bhero h1{ font-size:clamp(2.1rem,4.6vw,3.4rem); max-width:18ch; }
 .bhero p{ color:var(--muted-d); max-width:60ch; margin-top:18px; font-size:1.05em; }
 
+/* ── Navegación de categorías ────────────────────────────────────────── */
+.cats{
+  display:flex; flex-wrap:wrap; gap:9px;
+  margin-bottom:clamp(30px,4vw,44px);
+}
+.cats a{
+  font-family:var(--ff-head); font-size:.88rem; font-weight:600;
+  text-decoration:none; color:var(--txt);
+  border:1px solid var(--line); border-radius:100px; padding:9px 18px;
+  transition:border-color .2s var(--ease), color .2s var(--ease),
+             background .2s var(--ease), transform .2s var(--ease);
+}
+.cats a:hover{ border-color:var(--amber); color:var(--amber); transform:translateY(-2px); }
+.cats a.is-on{ background:var(--ink); border-color:var(--ink); color:#fff; }
+.cats a.is-on:hover{ color:#fff; }
+
+.vacio{
+  color:var(--muted); background:var(--sand);
+  border:1px dashed var(--line); border-radius:var(--r-lg);
+  padding:clamp(26px,4vw,40px); text-align:center; max-width:60ch; margin-inline:auto;
+}
+.vacio a{ color:var(--amber); font-weight:600; }
+
+.bhero .crumbs{ color:var(--muted-d); margin-bottom:18px; }
+.bhero .crumbs a{ color:var(--muted-d); }
+.bhero .crumbs a:hover{ color:var(--amber); }
+
 /* ── Listado de artículos ────────────────────────────────────────────── */
 .posts{
   display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr));
@@ -90,6 +117,34 @@
   border-radius:var(--r-lg); border:1px solid var(--line);
 }
 .foto figcaption{ text-align:left; max-width:64ch; margin-inline:auto; }
+
+/* ── Antes / después apilado, a escala real ──────────────────────────
+   Las dos fotos están recortadas del mismo original sin reescalar, así
+   que un magnetotérmico mide lo mismo en las dos. Para que esa escala se
+   mantenga en pantalla, el "antes" se muestra al 71,5 % del ancho del
+   "después", que es la proporción real entre ambos recortes (615/860 px).
+   Si se cambian las fotos, hay que recalcular ese porcentaje.          */
+.apilado{ margin:34px 0; }
+.apilado__item{ position:relative; margin-bottom:16px; }
+.apilado__item--antes{ width:71.5%; }
+.apilado img{
+  width:100%; height:auto; display:block;
+  border-radius:var(--r-lg); border:1px solid var(--line);
+}
+.apilado__tag{
+  position:absolute; top:14px; left:14px; z-index:2;
+  font-family:var(--ff-head); font-size:.72rem; font-weight:700;
+  letter-spacing:.12em; text-transform:uppercase;
+  padding:6px 14px; border-radius:100px;
+  background:rgba(20,22,26,.74); color:#fff;
+  backdrop-filter:blur(4px);
+}
+.apilado__tag--a{ background:var(--amber); }
+.apilado figcaption{ text-align:left; max-width:64ch; }
+
+@media (max-width:560px){
+  .apilado__item--antes{ width:82%; }
+}
 
 /* Aviso de que la imagen es una ilustración, no una obra real */
 .ilus{
