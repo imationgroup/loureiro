@@ -188,8 +188,15 @@ button,input,select,textarea{ font:inherit; color:inherit; }
   font-size:clamp(1.02rem,1.3vw,1.22rem); color:var(--muted-d); line-height:1.6;
 }
 .hero__cta{ display:flex; flex-wrap:wrap; gap:14px; margin-top:38px; }
-.hero .btn--ghost{ color:#fff; border-color:rgba(255,255,255,.24); }
-.hero .btn--ghost:hover{ border-color:#fff; background:rgba(255,255,255,.06); }
+/* El botón fantasma usa texto oscuro, que sobre fondo oscuro no se ve.
+   Se invierte en TODOS los bloques oscuros, no solo en el hero: se había
+   quedado invisible en las llamadas a la acción del blog. */
+.hero .btn--ghost,
+.sec--dark .btn--ghost,
+.artcta .btn--ghost{ color:#fff; border-color:rgba(255,255,255,.28); }
+.hero .btn--ghost:hover,
+.sec--dark .btn--ghost:hover,
+.artcta .btn--ghost:hover{ border-color:#fff; background:rgba(255,255,255,.08); }
 
 .trust{
   display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr));

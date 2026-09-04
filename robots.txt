@@ -1,7 +1,24 @@
+# robots.txt de loureirosoluciones.es
+# Generado por scripts/generar-sitemap.py
+
 User-agent: *
 Allow: /
+
+# Panel de gestión: nada que indexar y datos de clientes detrás
 Disallow: /admin/
-Disallow: /aviso-legal.html
-Disallow: /privacidad.html
+
+# Las páginas legales y las URLs antiguas del blog NO se bloquean aquí a
+# propósito: ya llevan noindex en el propio HTML. Si se bloqueasen,
+# Google no podría entrar a leer ese noindex y podría acabar indexando
+# la URL igualmente. Con noindex basta, y hace falta poder rastrearlas
+# para que surta efecto.
+#
+# Tampoco se pone "Disallow: /blog/*.html$" para las URLs antiguas: en
+# robots.txt el comodín abarca también las barras, así que esa regla se
+# tragaría TODOS los artículos, que viven en /blog/<categoria>/<x>.html.
+
+# El buscador de imágenes sí puede ver las fotos de obra
+User-agent: Googlebot-Image
+Allow: /assets/img/
 
 Sitemap: https://loureirosoluciones.es/sitemap.xml
