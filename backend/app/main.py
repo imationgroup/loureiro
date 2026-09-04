@@ -25,6 +25,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from . import db
 from .admin import router as router_admin, router_crud as router_admin_crud
+from .documentos import router as router_documentos
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("loureiro-contact")
@@ -72,6 +73,7 @@ def _arranque():
 # El router del CRUD genérico va DESPUÉS: su /{recurso} es un comodín que
 # se tragaría rutas concretas como /api/admin/dashboard.
 app.include_router(router_admin)
+app.include_router(router_documentos)
 app.include_router(router_admin_crud)
 
 

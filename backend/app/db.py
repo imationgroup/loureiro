@@ -62,7 +62,9 @@ CREATE TABLE IF NOT EXISTS clientes (
   email       TEXT,
   telefono    TEXT,
   direccion   TEXT,
+  cp          TEXT,
   ciudad      TEXT,
+  provincia   TEXT DEFAULT 'Ourense',
   notas       TEXT,
   creado      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -76,6 +78,7 @@ CREATE TABLE IF NOT EXISTS profesionales (
   email       TEXT,
   nif         TEXT,
   ciudades    TEXT,               -- ciudades donde opera, separadas por coma
+  provincia   TEXT DEFAULT 'Ourense',
   tarifa_hora REAL,
   autonomo    INTEGER NOT NULL DEFAULT 1,
   activo      INTEGER NOT NULL DEFAULT 1,
@@ -102,7 +105,9 @@ CREATE TABLE IF NOT EXISTS obras (
   titulo            TEXT NOT NULL,
   cliente_id        INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
   direccion         TEXT,
+  cp                TEXT,
   ciudad            TEXT,
+  provincia         TEXT DEFAULT 'Ourense',
   estado            TEXT NOT NULL DEFAULT 'presupuesto',
   fecha_inicio      TEXT,
   fecha_fin_prevista TEXT,
@@ -195,6 +200,59 @@ CREATE TABLE IF NOT EXISTS solicitudes (
   creado    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Presupuestos y facturas ──────────────────────────────────────────
+-- Documentos con lineas de detalle. El total NO se guarda: se calcula
+-- siempre desde las lineas, asi no puede quedar descuadrado.
+CREATE TABLE IF NOT EXISTS presupuestos (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero      TEXT,
+  cliente_id  INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  obra_id     INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  fecha       TEXT NOT NULL DEFAULT (date('now')),
+  validez     INTEGER NOT NULL DEFAULT 30,      -- días
+  estado      TEXT NOT NULL DEFAULT 'borrador', -- borrador|enviado|aceptado|rechazado
+  notas       TEXT,
+  creado      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS presupuesto_lineas (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  presupuesto_id INTEGER NOT NULL REFERENCES presupuestos(id) ON DELETE CASCADE,
+  concepto       TEXT NOT NULL,
+  cantidad       REAL NOT NULL DEFAULT 1,
+  unidad         TEXT NOT NULL DEFAULT 'ud',
+  precio         REAL NOT NULL DEFAULT 0,
+  iva            REAL NOT NULL DEFAULT 21,
+  orden          INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS facturas (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero         TEXT,
+  cliente_id     INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  obra_id        INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  presupuesto_id INTEGER REFERENCES presupuestos(id) ON DELETE SET NULL,
+  fecha          TEXT NOT NULL DEFAULT (date('now')),
+  vencimiento    TEXT,
+  estado         TEXT NOT NULL DEFAULT 'emitida', -- emitida|cobrada|anulada
+  notas          TEXT,
+  creado         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS factura_lineas (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  factura_id INTEGER NOT NULL REFERENCES facturas(id) ON DELETE CASCADE,
+  concepto   TEXT NOT NULL,
+  cantidad   REAL NOT NULL DEFAULT 1,
+  unidad     TEXT NOT NULL DEFAULT 'ud',
+  precio     REAL NOT NULL DEFAULT 0,
+  iva        REAL NOT NULL DEFAULT 21,
+  orden      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_plineas ON presupuesto_lineas(presupuesto_id);
+CREATE INDEX IF NOT EXISTS idx_flineas ON factura_lineas(factura_id);
+
 CREATE INDEX IF NOT EXISTS idx_costes_obra       ON costes(obra_id);
 CREATE INDEX IF NOT EXISTS idx_ingresos_obra     ON ingresos(obra_id);
 CREATE INDEX IF NOT EXISTS idx_obraprof_obra     ON obra_profesionales(obra_id);
@@ -203,10 +261,32 @@ CREATE INDEX IF NOT EXISTS idx_solicitudes_estado ON solicitudes(estado);
 """
 
 
+# Columnas añadidas después de la primera versión. CREATE TABLE IF NOT
+# EXISTS no toca una tabla que ya existe, así que hay que añadirlas a mano.
+MIGRACIONES = [
+    ("clientes", "provincia", "TEXT DEFAULT 'Ourense'"),
+    ("obras", "provincia", "TEXT DEFAULT 'Ourense'"),
+    ("profesionales", "provincia", "TEXT DEFAULT 'Ourense'"),
+    ("clientes", "cp", "TEXT"),
+    ("obras", "cp", "TEXT"),
+    ("ingresos", "factura_id", "INTEGER"),
+]
+
+
+def migrar():
+    con = conexion()
+    for tabla, columna, tipo in MIGRACIONES:
+        existentes = {r["name"] for r in con.execute(f"PRAGMA table_info({tabla})")}
+        if columna not in existentes:
+            con.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
+    con.commit()
+
+
 def inicializar():
     con = conexion()
     con.executescript(ESQUEMA)
     con.commit()
+    migrar()
 
 
 def filas(sql: str, params=()) -> list[dict]:

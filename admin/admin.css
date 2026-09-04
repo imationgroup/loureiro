@@ -211,6 +211,9 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .modal__cab button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:1.5rem;line-height:1;padding:0 4px}
 .modal__cab button:hover{color:var(--txt)}
 .modal__pie{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
+/* Los documentos con líneas necesitan más ancho: si no, la columna del
+   concepto queda tan estrecha que no se lee lo que se escribe. */
+.modal__caja--ancho{max-width:860px}
 
 /* ── Barra de herramientas ───────────────────────────────────────────── */
 .herr{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
@@ -243,4 +246,74 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms!important}
+}
+
+/* ── Editor de líneas de presupuestos y facturas ──────────────────────── */
+.lineas{display:grid;gap:8px}
+.linea{
+  display:grid;
+  grid-template-columns:minmax(180px,1fr) 72px 58px 92px 60px 92px 32px;
+  gap:7px;align-items:center;
+}
+.linea input{
+  background:var(--ink-3);border:1.5px solid transparent;border-radius:8px;
+  padding:8px 10px;font-size:.88rem;width:100%;
+}
+.linea input:focus{outline:none;border-color:var(--amber);background:var(--ink-4)}
+.linea .l-total{
+  font-size:.87rem;text-align:right;color:var(--muted);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.linea .l-borrar{
+  background:none;border:0;color:var(--muted-2);cursor:pointer;
+  padding:5px;border-radius:6px;display:grid;place-items:center;
+}
+.linea .l-borrar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.linea .l-borrar:hover{background:var(--rojo-soft);color:var(--rojo)}
+
+.totales{
+  margin-top:18px;padding-top:14px;border-top:1px solid var(--line);
+  display:grid;gap:7px;
+}
+.totales div{display:flex;justify-content:space-between;align-items:baseline;font-size:.9rem}
+.totales span{color:var(--muted)}
+.totales b{font-variant-numeric:tabular-nums}
+.totales .grande{
+  padding-top:9px;margin-top:3px;border-top:1px solid var(--line);
+  font-family:var(--ff-h);font-size:1.16rem;
+}
+.totales .grande b{color:var(--amber)}
+
+/* Cabecera de la rejilla de líneas, para saber qué es cada columna */
+.lineas-cab{
+  display:grid;grid-template-columns:minmax(180px,1fr) 72px 58px 92px 60px 92px 32px;
+  gap:7px;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted-2);margin-bottom:2px;padding:0 2px;
+}
+.lineas-cab span:nth-child(n+2){text-align:center}
+.lineas-cab span:nth-child(6){text-align:right}
+
+/* ── Selección múltiple (oficios de un profesional) ───────────────────── */
+.multi{
+  display:flex;flex-wrap:wrap;gap:7px;
+  background:var(--ink-3);border:1.5px solid transparent;
+  border-radius:9px;padding:10px;
+}
+.multi label{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  background:rgba(255,255,255,.05);border:1px solid var(--line);
+  border-radius:100px;padding:5px 12px;font-size:.84rem;color:var(--muted);
+  transition:border-color .16s var(--ease),color .16s var(--ease),background .16s var(--ease);
+}
+.multi label:hover{border-color:var(--muted-2);color:var(--txt)}
+.multi input{accent-color:var(--amber);margin:0;cursor:pointer}
+.multi label:has(input:checked){
+  background:var(--amber-soft);border-color:var(--amber);color:var(--amber);font-weight:600;
+}
+
+@media (max-width:640px){
+  .linea,.lineas-cab{grid-template-columns:1fr 60px 50px 80px 54px}
+  .linea .l-total{grid-column:1/-1;text-align:right}
+  .linea .l-borrar{position:absolute;right:0}
+  .lineas-cab{display:none}
 }
