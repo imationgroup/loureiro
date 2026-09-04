@@ -10,3 +10,13 @@ services:
       - "127.0.0.1:8005:8000"
     env_file:
       - .env
+    environment:
+      DB_PATH: /data/loureiro.db
+    volumes:
+      # Los datos del panel viven en un volumen, NO en el directorio del
+      # repo: el despliegue hace `git reset --hard` y no debe poder
+      # llevarse por delante clientes, obras ni contabilidad.
+      - loureiro-datos:/data
+
+volumes:
+  loureiro-datos:

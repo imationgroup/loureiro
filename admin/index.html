@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de gestión · Loureiro Soluciones</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#14161A">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/admin/admin.css?v=09862f02">
+</head>
+<body>
+
+<!-- ══ LOGIN ═══════════════════════════════════════════════════════════ -->
+<div class="login" id="login">
+  <div class="login__caja">
+    <div class="login__marca">
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M6 30V10l14-6 14 6v20" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M14 30V20h12v10" fill="none" stroke="#F97316" stroke-width="3" stroke-linejoin="round"/>
+      </svg>
+      <b>Loureiro<em>soluciones</em></b>
+    </div>
+
+    <h1>Panel de gestión</h1>
+    <p class="login__sub">Acceso restringido.</p>
+
+    <div class="aviso aviso--err" id="login-aviso" hidden></div>
+
+    <form id="login-form" novalidate>
+      <div class="campo">
+        <label for="li-email">Email</label>
+        <input id="li-email" type="email" autocomplete="username" required
+               placeholder="contacto@loureirosoluciones.es">
+      </div>
+      <div class="campo">
+        <label for="li-pass">Contraseña</label>
+        <input id="li-pass" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn--amber btn--full" type="submit" id="li-btn">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<!-- ══ APLICACIÓN ══════════════════════════════════════════════════════ -->
+<div class="app" id="app" hidden>
+
+  <aside class="lat" id="lat">
+    <div class="lat__marca">
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M6 30V10l14-6 14 6v20" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M14 30V20h12v10" fill="none" stroke="#F97316" stroke-width="3" stroke-linejoin="round"/>
+      </svg>
+      <b>Loureiro<em>soluciones</em></b>
+    </div>
+
+    <nav class="lat__nav" id="menu"></nav>
+
+    <div class="lat__pie">
+      <span id="sesion-email"></span>
+      <button id="btn-salir">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="cab">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="movil-btn" id="btn-menu" aria-label="Menú">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div>
+          <h1 id="vista-titulo">Panel</h1>
+          <p id="vista-sub"></p>
+        </div>
+      </div>
+      <div id="vista-acciones"></div>
+    </div>
+
+    <div id="vista"></div>
+  </main>
+</div>
+
+<div id="modal-host"></div>
+
+<script src="/admin/admin.js?v=16ab52d2"></script>
+</body>
+</html>

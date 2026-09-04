@@ -29,7 +29,10 @@ import re
 import sys
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PATRON = re.compile(r'(?P<attr>href|src)="(?P<ruta>/assets/(?:css|js)/[^"?]+\.(?:css|js))(?:\?v=[^"]*)?"')
+# Incluye también /admin/: nginx le aplica la misma caché de 30 días
+# con immutable, así que sufre exactamente el mismo problema.
+PATRON = re.compile(
+    r'(?P<attr>href|src)="(?P<ruta>/(?:assets/(?:css|js)|admin)/[^"?]+\.(?:css|js))(?:\?v=[^"]*)?"')
 
 
 def hash_de(ruta_rel):

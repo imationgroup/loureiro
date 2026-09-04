@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
 Disallow: /aviso-legal.html
 Disallow: /privacidad.html
 
