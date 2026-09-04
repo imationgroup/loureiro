@@ -24,7 +24,17 @@
       </svg>
       <span class="brand__txt">Loureiro<em>soluciones</em></span>
     </a>
-    <a class="btn btn--sm btn--ghost" href="/">Volver al inicio</a>
+    <nav class="nav" id="nav" aria-label="Principal">
+      <a href="/#servicios">Servicios</a>
+      <a href="/#proceso">Cómo trabajamos</a>
+      <a href="/#zona">Zona</a>
+      <a href="/#faq">Preguntas</a>
+      <a href="/blog/">Blog</a>
+      <a class="btn btn--sm btn--amber" href="/#contacto">Pide presupuesto</a>
+    </nav>
+    <button class="burger" id="burger" aria-label="Abrir menú" aria-expanded="false" aria-controls="nav">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </header>
 
@@ -124,6 +134,7 @@
   </div>
 </footer>
 
+<script src="/assets/js/main.js?v=070b7010" defer></script>
 <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
 </body>
 </html>

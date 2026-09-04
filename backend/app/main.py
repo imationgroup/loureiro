@@ -21,6 +21,7 @@ from typing import Deque, Dict
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
 from . import db
@@ -62,6 +63,23 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+def _error_no_previsto(request: Request, exc: Exception):
+    """Convierte cualquier excepción en una respuesta JSON.
+
+    Sin esto, una excepción sin capturar sale de la aplicación sin pasar
+    por el middleware de CORS, el navegador bloquea la respuesta y el
+    panel solo puede decir "Failed to fetch", que no dice nada. Así al
+    menos se ve el motivo.
+    """
+    log.exception("error no previsto en %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error del servidor: {type(exc).__name__}. "
+                           "Revisa que los campos obligatorios estén completos."},
+    )
 
 
 @app.on_event("startup")
