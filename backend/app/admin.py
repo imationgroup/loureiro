@@ -93,9 +93,19 @@ class Tabla:
         self.orden = orden
         self.obligatorios = obligatorios
 
-    def limpiar(self, datos: dict) -> dict:
-        """Se queda solo con columnas conocidas: nadie inyecta campos raros."""
-        return {k: v for k, v in datos.items() if k in self.campos}
+    def limpiar(self, datos: dict, creando: bool = False) -> dict:
+        """Se queda solo con columnas conocidas: nadie inyecta campos raros.
+
+        Al crear se descartan además los valores nulos. Varias columnas son
+        NOT NULL con valor por defecto (iva 21, fecha de hoy, importe 0…):
+        mandar NULL explícito revienta la restricción en vez de dejar que
+        el valor por defecto haga su trabajo. Al editar sí se conservan,
+        para poder vaciar un campo a propósito.
+        """
+        d = {k: v for k, v in datos.items() if k in self.campos}
+        if creando:
+            d = {k: v for k, v in d.items() if v is not None and v != ""}
+        return d
 
 
 TABLAS = {
@@ -149,7 +159,7 @@ def listar(recurso: str, _: str = Depends(sesion_actual)):
 @router_crud.post("/{recurso}", status_code=201)
 def crear(recurso: str, datos: dict[str, Any], _: str = Depends(sesion_actual)):
     t = _tabla(recurso)
-    d = t.limpiar(datos)
+    d = t.limpiar(datos, creando=True)
     for campo in t.obligatorios:
         if not str(d.get(campo, "")).strip():
             raise HTTPException(422, f"Falta el campo obligatorio: {campo}")

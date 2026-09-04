@@ -301,9 +301,9 @@ var MODULOS = {
     campos: [
       { c: "concepto", t: "Concepto", req: true },
       { c: "categoria", t: "Categoría", tipo: "select", ops: CAT_COSTE, mitad: true },
-      { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true },
+      { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "importe", t: "Base imponible (€)", tipo: "numero", mitad: true },
-      { c: "iva", t: "IVA (%)", tipo: "numero", mitad: true },
+      { c: "iva", t: "IVA (%)", tipo: "numero", mitad: true, pordefecto: 21 },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", mitad: true },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true },
       { c: "proveedor_id", t: "Proveedor", tipo: "ref", de: "proveedores", mitad: true },
@@ -326,10 +326,10 @@ var MODULOS = {
     ],
     campos: [
       { c: "concepto", t: "Concepto", req: true },
-      { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true },
+      { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "factura_ref", t: "Nº de factura", mitad: true },
       { c: "importe", t: "Base imponible (€)", tipo: "numero", mitad: true },
-      { c: "iva", t: "IVA (%)", tipo: "numero", mitad: true },
+      { c: "iva", t: "IVA (%)", tipo: "numero", mitad: true, pordefecto: 21 },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", mitad: true },
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
       { c: "cobrado", t: "Estado", tipo: "select", ops: [{ v: 0, t: "Pendiente de cobro" }, { v: 1, t: "Cobrado" }] },
@@ -560,8 +560,12 @@ function cerrarModal() {
   document.removeEventListener("keydown", escCierra);
 }
 
-function campoHTML(campo, valor) {
+function campoHTML(campo, valor, esNuevo) {
   var v = valor === null || valor === undefined ? "" : valor;
+  if (esNuevo && v === "" && campo.pordefecto !== undefined) {
+    v = (campo.pordefecto === "hoy") ? new Date().toISOString().slice(0, 10)
+                                     : campo.pordefecto;
+  }
   var h = '<div class="campo">' +
           '<label for="c-' + campo.c + '">' + esc(campo.t) + (campo.req ? " *" : "") + "</label>";
   if (campo.tipo === "area") {
@@ -623,10 +627,23 @@ function abrirFormulario(clave, registro) {
     var cuerpo = '<div class="aviso aviso--err" id="f-err" hidden></div><form id="f-form">';
     var buffer = [];
     m.campos.forEach(function (campo) {
-      if (campo.mitad) { buffer.push(campo); if (buffer.length === 2) { cuerpo += '<div class="rejilla-2">' + campoHTML(buffer[0], registro && registro[buffer[0].c]) + campoHTML(buffer[1], registro && registro[buffer[1].c]) + "</div>"; buffer = []; } }
-      else { if (buffer.length) { cuerpo += campoHTML(buffer[0], registro && registro[buffer[0].c]); buffer = []; } cuerpo += campoHTML(campo, registro && registro[campo.c]); }
+      if (campo.mitad) {
+        buffer.push(campo);
+        if (buffer.length === 2) {
+          cuerpo += '<div class="rejilla-2">' +
+            campoHTML(buffer[0], registro && registro[buffer[0].c], !editando) +
+            campoHTML(buffer[1], registro && registro[buffer[1].c], !editando) + "</div>";
+          buffer = [];
+        }
+      } else {
+        if (buffer.length) {
+          cuerpo += campoHTML(buffer[0], registro && registro[buffer[0].c], !editando);
+          buffer = [];
+        }
+        cuerpo += campoHTML(campo, registro && registro[campo.c], !editando);
+      }
     });
-    if (buffer.length) cuerpo += campoHTML(buffer[0], registro && registro[buffer[0].c]);
+    if (buffer.length) cuerpo += campoHTML(buffer[0], registro && registro[buffer[0].c], !editando);
     cuerpo += "</form>";
 
     modal((editando ? "Editar " : "Nuevo en ") + m.titulo.toLowerCase(), cuerpo,
@@ -673,10 +690,15 @@ function abrirFormulario(clave, registro) {
         var campo = m.campos.filter(function (c) { return c.c === el.dataset.c; })[0];
         var val = el.value.trim();
         if (campo.req && !val) falta = falta || campo.t;
-        if (campo.tipo === "numero") datos[el.dataset.c] = val === "" ? null : Number(val);
+        if (campo.tipo === "numero") {
+          // Vacío = no se envía. La columna aplica su valor por defecto;
+          // mandar null rompería el NOT NULL de iva, importe, etc.
+          if (val !== "") datos[el.dataset.c] = Number(val);
+        }
         else if (campo.tipo === "ref") datos[el.dataset.c] = val === "" ? null : Number(val);
         else if (campo.tipo === "select" && campo.ops.length && typeof campo.ops[0] === "object")
           datos[el.dataset.c] = Number(val);
+        else if (campo.tipo === "fecha") { if (val !== "") datos[el.dataset.c] = val; }
         else datos[el.dataset.c] = val || null;
       });
       if (falta) { var e = $("#f-err"); e.textContent = "Falta: " + falta; e.hidden = false; return; }
