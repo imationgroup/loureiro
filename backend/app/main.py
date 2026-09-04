@@ -23,6 +23,9 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
+from . import db
+from .admin import router as router_admin, router_crud as router_admin_crud
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("loureiro-contact")
 
@@ -54,9 +57,22 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["POST", "GET", "OPTIONS"],
+    # El panel necesita PUT y DELETE además de POST/GET.
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _arranque():
+    db.inicializar()
+    log.info("base de datos lista en %s", db.RUTA_DB)
+
+
+# El router del CRUD genérico va DESPUÉS: su /{recurso} es un comodín que
+# se tragaría rutas concretas como /api/admin/dashboard.
+app.include_router(router_admin)
+app.include_router(router_admin_crud)
 
 
 @app.get("/api/health")
@@ -169,6 +185,19 @@ def contact(payload: ContactPayload, request: Request):
         f"{payload.message.strip()}\n"
     )
     subject = f"[Presupuesto] {service} — {name}"
+
+    # Se guarda antes de enviar: si el correo falla, el aviso no se pierde
+    # y queda en el panel para atenderlo igualmente.
+    try:
+        with db.tx() as con:
+            con.execute(
+                """INSERT INTO solicitudes (nombre, email, telefono, servicio, mensaje, ip)
+                   VALUES (?,?,?,?,?,?)""",
+                (name, sender_email, phone if phone != "No facilitado" else None,
+                 service, payload.message.strip(), ip),
+            )
+    except Exception:  # noqa: BLE001
+        log.exception("[contact] no se pudo guardar la solicitud en la BD")
 
     ok = send_email(to=SUPPORT_EMAIL, subject=subject, body=body, reply_to=sender_email)
     if not ok:
