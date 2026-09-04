@@ -453,7 +453,9 @@ function modal(titulo, cuerpo, pie) {
     '<button id="modal-x" aria-label="Cerrar">&times;</button></div>' +
     cuerpo + '<div class="modal__pie">' + pie + "</div></div></div>";
   $("#modal-x").addEventListener("click", cerrarModal);
-  $("#modal").addEventListener("click", function (e) { if (e.target.id === "modal") cerrarModal(); });
+  // A propósito NO se cierra al pinchar fuera: con un formulario a medio
+  // rellenar, un clic despistado en el fondo tiraba todo lo escrito.
+  // Se cierra con el aspa, con Cancelar o con Escape.
   document.addEventListener("keydown", escCierra);
 }
 function escCierra(e) { if (e.key === "Escape") cerrarModal(); }
