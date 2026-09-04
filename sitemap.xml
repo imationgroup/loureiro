@@ -2,110 +2,110 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://loureirosoluciones.es/</loc>
-    <lastmod>2026-09-03</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/servicios/reformas-integrales-ourense/</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/servicios/electricista-ourense/</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/servicios/albanileria-ourense/</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/servicios/aire-acondicionado-ourense/</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/servicios/estufas-de-pellets-ourense/</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/servicios/pintores-ourense/</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/servicios/limpieza-fin-de-obra-ourense/</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
     <loc>https://loureirosoluciones.es/blog/</loc>
-    <lastmod>2026-09-03</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://loureirosoluciones.es/blog/reformas-integrales/</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://loureirosoluciones.es/blog/electricidad/</loc>
-    <lastmod>2026-09-03</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/blog/reformas-integrales/reforma-integral-piso-ourense.html</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://loureirosoluciones.es/blog/electricidad/cambiar-cuadro-electrico-vivienda-antigua.html</loc>
-    <lastmod>2026-09-03</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://loureirosoluciones.es/blog/electricidad/cambiar-enchufes-interruptores-mecanismos.html</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/blog/electricidad/instalar-lampara-techo-guia.html</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://loureirosoluciones.es/blog/electricidad/luces-automaticas-sensor-presencia.html</loc>
-    <lastmod>2026-09-03</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://loureirosoluciones.es/blog/electricidad/iluminacion-exterior-fachada-terraza.html</loc>
-    <lastmod>2026-09-03</lastmod>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/blog/electricidad/instalar-lampara-techo-guia.html</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/blog/electricidad/luces-automaticas-sensor-presencia.html</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://loureirosoluciones.es/blog/electricidad/luces-jardin-estancas-ip.html</loc>
-    <lastmod>2026-09-03</lastmod>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/blog/reformas-integrales/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/blog/reformas-integrales/reforma-integral-piso-ourense.html</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/servicios/aire-acondicionado-ourense/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/servicios/albanileria-ourense/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/servicios/electricista-ourense/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/servicios/estufas-de-pellets-ourense/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/servicios/limpieza-fin-de-obra-ourense/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/servicios/pintores-ourense/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loureirosoluciones.es/servicios/reformas-integrales-ourense/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
   </url>
 </urlset>
