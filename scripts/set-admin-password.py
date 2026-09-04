@@ -32,7 +32,9 @@ def crear_hash(password: str) -> str:
     n, r, p = 2**14, 8, 1
     sal = secrets.token_bytes(16)
     dk = hashlib.scrypt(password.encode(), salt=sal, n=n, r=r, p=p, dklen=32)
-    return f"scrypt${n}${r}${p}${base64.b64encode(sal).decode()}${base64.b64encode(dk).decode()}"
+    # Separador ":" y no "$": Docker Compose interpola el .env y un "$"
+    # dentro del valor se lo come, dejando el hash truncado.
+    return f"scrypt:{n}:{r}:{p}:{base64.b64encode(sal).decode()}:{base64.b64encode(dk).decode()}"
 
 
 def poner(contenido: str, clave: str, valor: str) -> str:

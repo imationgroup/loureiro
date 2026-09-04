@@ -4,7 +4,13 @@ La contraseña NUNCA se guarda en claro ni viaja al repositorio. En el
 `.env` del VPS va solo el hash, generado con `scrypt` (librería estándar,
 sin dependencias añadidas) y con sal aleatoria por instalación.
 
-Formato de ADMIN_PASSWORD_HASH:  scrypt$<n>$<r>$<p>$<sal_b64>$<hash_b64>
+Formato de ADMIN_PASSWORD_HASH:  scrypt:<n>:<r>:<p>:<sal_b64>:<hash_b64>
+
+El separador es ":" y NO "$" a propósito. Docker Compose interpola las
+variables del .env, así que un "$" dentro del valor se interpreta como
+"$NOMBRE_DE_VARIABLE" y desaparece: el hash llegaba al contenedor
+truncado y el login era imposible. Base64 nunca usa ":", así que es un
+separador seguro.
 
 Para generarlo:  python scripts/set-admin-password.py
 """
@@ -34,7 +40,7 @@ HORAS_SESION = int(os.getenv("SESSION_HOURS", "12"))
 def crear_hash(password: str, n: int = 2**14, r: int = 8, p: int = 1) -> str:
     sal = secrets.token_bytes(16)
     dk = hashlib.scrypt(password.encode(), salt=sal, n=n, r=r, p=p, dklen=32)
-    return "scrypt${}${}${}${}${}".format(
+    return "scrypt:{}:{}:{}:{}:{}".format(
         n, r, p,
         base64.b64encode(sal).decode(),
         base64.b64encode(dk).decode(),
@@ -43,7 +49,7 @@ def crear_hash(password: str, n: int = 2**14, r: int = 8, p: int = 1) -> str:
 
 def verificar_password(password: str, almacenado: str) -> bool:
     try:
-        algo, n, r, p, sal_b64, hash_b64 = almacenado.split("$")
+        algo, n, r, p, sal_b64, hash_b64 = almacenado.split(":")
         if algo != "scrypt":
             return False
         dk = hashlib.scrypt(
@@ -115,5 +121,21 @@ def sesion_actual(cred: HTTPAuthorizationCredentials | None = Depends(esquema_be
     return s["email"]
 
 
+def hash_valido(h: str) -> bool:
+    """Comprueba la forma del hash, no solo que exista.
+
+    Sin esto, un hash truncado (por ejemplo, si Compose se comió parte al
+    interpolar) se daría por bueno y el login fallaría sin explicación.
+    """
+    partes = (h or "").split(":")
+    if len(partes) != 6 or partes[0] != "scrypt":
+        return False
+    try:
+        int(partes[1]); int(partes[2]); int(partes[3])
+        return len(base64.b64decode(partes[4])) == 16 and len(base64.b64decode(partes[5])) == 32
+    except Exception:
+        return False
+
+
 def configurado() -> bool:
-    return bool(ADMIN_EMAIL and ADMIN_PASSWORD_HASH)
+    return bool(ADMIN_EMAIL) and hash_valido(ADMIN_PASSWORD_HASH)
