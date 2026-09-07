@@ -1,3 +1,65 @@
+/* ----------------------------------------------------------------------
+   Tipografias servidas desde el propio dominio.
+
+   Antes venian de fonts.googleapis.com, que bloqueaba el renderizado unos
+   780 ms en movil: el navegador tenia que resolver DNS, negociar TLS y
+   descargar un CSS de un tercero ANTES de poder pedir las fuentes, que
+   ademas viven en un segundo origen (fonts.gstatic.com). Dos conexiones
+   nuevas en la ruta critica, que en red movil se pagan caras.
+
+   Se usan las versiones VARIABLES: un solo fichero por familia cubre todos
+   los pesos. Con las estaticas hacian falta 7 ficheros y 278 KB; asi son 2
+   ficheros y 81 KB.
+
+   Solo se incluyen los subsets latin y latin-ext. El unicode-range hace que
+   el navegador descargue unicamente el fichero del rango que necesita, asi
+   que latin-ext no se pide salvo que aparezca un caracter suyo.
+
+   Archivo e Inter son SIL Open Font License 1.1, que permite alojarlas.
+   ---------------------------------------------------------------------- */
+
+/* Archivo variable - latin-ext */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 500 800;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/assets/fonts/archivo-var-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Archivo variable - latin */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 500 800;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/assets/fonts/archivo-var-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Inter variable - latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url(/assets/fonts/inter-var-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Inter variable - latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url(/assets/fonts/inter-var-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    Loureiro Soluciones — hoja de estilos única
    Paleta: grafito + ámbar. Sin frameworks, sin build.
@@ -395,6 +457,22 @@ a.contacto__big:hover{ color:var(--amber); border-bottom-color:var(--amber); }
 .reveal{ opacity:0; transform:translateY(22px); transition:opacity .65s var(--ease), transform .65s var(--ease); }
 .reveal.is-in{ opacity:1; transform:none; }
 
+/* El hero NO espera al JS.
+   Sus elementos llevaban .reveal, que arranca en opacity:0 y solo se hace
+   visible cuando main.js -que va deferred- monta el IntersectionObserver.
+   El H1 del hero es el elemento LCP de la portada, asi que eso retrasaba la
+   metrica hasta despues de descargar y ejecutar el JS, y en movil eso son
+   cientos de milisegundos. Ademas no tenia sentido: el hero esta a la vista
+   desde el principio, no hay nada que "revelar al hacer scroll".
+   Ahora entra con una animacion CSS que solo desplaza, sin tocar la opacidad,
+   asi que el navegador puede pintar el titulo en el primer frame. */
+.hero .reveal{ opacity:1; animation:heroEntra .55s var(--ease) both; }
+.hero .hero__h1{ animation-delay:.05s; }
+.hero .hero__lead{ animation-delay:.10s; }
+.hero .hero__cta{ animation-delay:.15s; }
+.hero .trust{ animation-delay:.20s; }
+@keyframes heroEntra{ from{ transform:translateY(16px); } to{ transform:none; } }
+
 /* ── Responsive ─────────────────────────────────────────────────────── */
 @media (max-width:960px){
   .zona,.contacto{ grid-template-columns:1fr; }
@@ -433,6 +511,7 @@ a.contacto__big:hover{ color:var(--amber); border-bottom-color:var(--amber); }
   html{ scroll-behavior:auto; }
   *,*::before,*::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
   .reveal{ opacity:1; transform:none; }
+  .hero .reveal{ animation:none; }
   .steps li::after{ width:100%; }
 }
 
