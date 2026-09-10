@@ -45,6 +45,7 @@ var ico = {
   doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
   recibo:'<path d="M4 2h16v20l-3-2-3 2-2-2-2 2-3-2-3 2z"/><path d="M8 8h8M8 12h8M8 16h4"/>',
   descarga:'<path d="M12 3v12"/><path d="M7 12l5 5 5-5"/><path d="M4 20h16"/>',
+  mapa:'<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   proforma:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 14h6M12 11v6"/>',
   altaCliente:'<path d="M14 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M15 11h6"/>',
   equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
@@ -232,6 +233,13 @@ var MODULOS = {
 
   clientes: {
     titulo: "Clientes", sub: "Quién te contrata", icono: ico.gente, recurso: "clientes",
+    // Botón para ir a casa del cliente. Solo sale si hay calle: con solo la
+    // ciudad o la provincia, el navegador llevaría al centro del pueblo.
+    accion: {
+      ico: "mapa", titulo: "Cómo llegar (Google Maps)",
+      oculta: function (f) { return !String(f.direccion || "").trim(); },
+      fn: function (f) { abrirMaps(f); }
+    },
     columnas: [
       { c: "nombre", t: "Nombre" }, { c: "nif", t: "NIF" },
       { c: "telefono", t: "Teléfono" }, { c: "email", t: "Email" },
@@ -793,6 +801,22 @@ function avisar(texto, tipo) {
   setTimeout(function () { caja.remove(); }, 5600);
 }
 
+/* ── Cómo llegar ──────────────────────────────────────────────────────── */
+/* Abre Google Maps con la ruta en coche desde donde estés hasta la dirección.
+   Es el enlace oficial de rutas de Maps: en el móvil abre la app y deja la
+   navegación lista para arrancar; en el ordenador abre la web. */
+function abrirMaps(f) {
+  var ciudad = String(f.ciudad || "").trim();
+  var provincia = String(f.provincia || "").trim();
+  // En Ourense capital ciudad y provincia coinciden; no se repite.
+  if (provincia.toLowerCase() === ciudad.toLowerCase()) provincia = "";
+  var destino = [f.direccion, f.cp, ciudad, provincia, "España"]
+    .map(function (x) { return String(x || "").trim(); })
+    .filter(Boolean).join(", ");
+  window.open("https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+              encodeURIComponent(destino), "_blank", "noopener");
+}
+
 /* ── Descarga del PDF ─────────────────────────────────────────────────── */
 function descargarPdf(tipo, id, numero) {
   // No se puede usar api(): eso espera JSON. Y tampoco vale un enlace
@@ -1250,11 +1274,14 @@ function editarDocumento(tipo, id) {
       '<div class="rejilla-2">' +
         '<div class="campo"><label for="d-numero">Número</label><input id="d-numero" value="' +
           esc(doc.numero) + '" placeholder="' +
-          (esFactura ? "F-2026-001" : "Se genera solo al guardar") + '">' +
-          (esFactura || doc.numero ? "" :
-            '<small style="color:var(--muted-2);font-size:.79rem">Déjalo vacío y se ' +
-            "numera solo siguiendo la serie. Escribe uno solo si necesitas forzar " +
-            "un número concreto.</small>") + "</div>" +
+          "Se genera solo al guardar" + '">' +
+          (doc.numero ? "" :
+            '<small style="color:var(--muted-2);font-size:.79rem">' +
+            (esFactura
+              ? "Déjalo vacío y se numera sola, detrás de la última factura. No fuerces " +
+                "números a mano: la serie de facturas tiene que ser correlativa."
+              : "Déjalo vacío y se numera solo siguiendo la serie. Escribe uno solo si " +
+                "necesitas forzar un número concreto.") + "</small>") + "</div>" +
         '<div class="campo"><label for="d-fecha">Fecha</label><input id="d-fecha" type="date" value="' +
           esc(doc.fecha) + '"></div>' +
       "</div>" +
