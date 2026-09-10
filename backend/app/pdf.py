@@ -1,4 +1,4 @@
-"""Presupuesto en PDF.
+"""Presupuestos, proformas y facturas en PDF.
 
 Se genera en el servidor y no en el navegador a propósito: el PDF que se le
 manda a un cliente es un documento de la empresa, y tiene que salir igual
@@ -6,11 +6,13 @@ desde el portátil, desde el móvil o desde un correo automático. Dejarlo en
 manos de la maquetación del navegador de turno es pedir que un día llegue
 descuadrado.
 
+Los tres tipos comparten maquetación; solo cambian el título, la etiqueta
+del cliente, los datos de la esquina (validez o vencimiento) y el pie.
+
 Se usa reportlab porque es Python puro con ruedas precompiladas: no hace
 falta cairo, pango ni ninguna librería del sistema en la imagen de Docker.
 """
 
-import os
 from io import BytesIO
 
 from reportlab.lib import colors
@@ -22,24 +24,26 @@ from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.platypus import Paragraph, Table, TableStyle
 
 from . import db
+from .empresa import EMPRESA
 
-# ── Identidad ────────────────────────────────────────────────────────────
-# Los mismos datos que el aviso legal del sitio.
-#
-# El NIF sale del .env (EMPRESA_NIF) y no del código: así, cuando llegue el
-# CIF de la S.L., basta con ponerlo en el servidor y recrear el contenedor,
-# sin tocar el repositorio ni desplegar. Si la variable está vacía se imprime
-# "en trámite", que es lo que dice hoy el aviso legal.
-EMPRESA_NIF = (os.getenv("EMPRESA_NIF") or "").strip()
 
-EMPRESA = {
-    "nombre": "Loureiro Soluciones, S.L. en constitución",
-    "marca": "Loureiro soluciones",
-    "nif": f"NIF: {EMPRESA_NIF}" if EMPRESA_NIF else "NIF: en trámite",
-    "direccion": "OU-0517, 32910 San Ciprián de Viñas, Ourense",
-    "telefono": "603 905 128",
-    "email": "contacto@loureirosoluciones.es",
-    "web": "loureirosoluciones.es",
+class DocumentoIncompleto(Exception):
+    """Falta un dato sin el cual el documento no debe salir."""
+
+
+TIPOS = {
+    "presupuestos": {
+        "tabla": "presupuestos", "lineas": "presupuesto_lineas", "fk": "presupuesto_id",
+        "titulo": "PRESUPUESTO", "para": "PRESUPUESTO PARA", "uno": "presupuesto",
+    },
+    "proformas": {
+        "tabla": "proformas", "lineas": "proforma_lineas", "fk": "proforma_id",
+        "titulo": "FACTURA PROFORMA", "para": "PROFORMA PARA", "uno": "proforma",
+    },
+    "facturas": {
+        "tabla": "facturas", "lineas": "factura_lineas", "fk": "factura_id",
+        "titulo": "FACTURA", "para": "FACTURAR A", "uno": "factura",
+    },
 }
 
 INK = colors.HexColor("#14161A")
@@ -80,13 +84,19 @@ def _localidad(cliente) -> str | None:
     return linea or None
 
 
+def _identidad() -> str:
+    """Razón social · NIF · web, sin dejar un hueco si el NIF no está puesto."""
+    nif = f"NIF {EMPRESA['nif']}" if EMPRESA["nif"] else None
+    return " · ".join(x for x in [EMPRESA["nombre"], nif, EMPRESA["web"]] if x)
+
+
 def _parrafo(txt, tam=8.5, color=INK, alineacion=0, negrita=False):
     return Paragraph(txt, ParagraphStyle(
         "c", fontName="Helvetica-Bold" if negrita else "Helvetica",
         fontSize=tam, leading=tam * 1.35, textColor=color, alignment=alineacion))
 
 
-def _cabecera(c, p):
+def _cabecera(c, tipo, p):
     y = ALTO - MARGEN
 
     # Isotipo: la misma casa de trazo del sitio, dibujada a mano porque son
@@ -108,22 +118,34 @@ def _cabecera(c, p):
     c.drawString(MARGEN + 14 * mm, y - 6 * mm, EMPRESA["marca"])
     c.setFillColor(GRIS)
     c.setFont("Helvetica", 7.5)
-    for i, l in enumerate([EMPRESA["nombre"], EMPRESA["nif"], EMPRESA["direccion"],
-                           f"{EMPRESA['telefono']} · {EMPRESA['email']}"]):
+    datos = [EMPRESA["nombre"],
+             f"NIF: {EMPRESA['nif']}" if EMPRESA["nif"] else None,
+             EMPRESA["direccion"],
+             f"{EMPRESA['telefono']} · {EMPRESA['email']}"]
+    for i, l in enumerate(x for x in datos if x):
         c.drawString(MARGEN + 14 * mm, y - 10.5 * mm - i * 3.6 * mm, l)
 
-    # Bloque del documento, arriba a la derecha
+    # Bloque del documento, arriba a la derecha. "FACTURA PROFORMA" es largo:
+    # el cuerpo se reduce hasta que cabe sin pisar los datos de la empresa.
+    titulo, tam = TIPOS[tipo]["titulo"], 20
+    while c.stringWidth(titulo, "Helvetica-Bold", tam) > 80 * mm and tam > 12:
+        tam -= 1
     c.setFillColor(INK)
-    c.setFont("Helvetica-Bold", 20)
-    c.drawRightString(ANCHO - MARGEN, y - 5 * mm, "PRESUPUESTO")
+    c.setFont("Helvetica-Bold", tam)
+    c.drawRightString(ANCHO - MARGEN, y - 5 * mm, titulo)
     c.setFont("Helvetica-Bold", 11)
     c.setFillColor(AMBER)
     c.drawRightString(ANCHO - MARGEN, y - 11 * mm, p["numero"] or f"#{p['id']}")
     c.setFillColor(GRIS)
     c.setFont("Helvetica", 8)
     c.drawRightString(ANCHO - MARGEN, y - 16 * mm, f"Fecha: {_fecha(p['fecha'])}")
-    c.drawRightString(ANCHO - MARGEN, y - 20 * mm,
-                      f"Validez: {p['validez'] or 30} días")
+    if tipo == "facturas":
+        if p.get("vencimiento"):
+            c.drawRightString(ANCHO - MARGEN, y - 20 * mm,
+                              f"Vencimiento: {_fecha(p['vencimiento'])}")
+    else:
+        c.drawRightString(ANCHO - MARGEN, y - 20 * mm,
+                          f"Validez: {p.get('validez') or 30} días")
 
     c.setStrokeColor(LINEA)
     c.setLineWidth(0.8)
@@ -131,11 +153,11 @@ def _cabecera(c, p):
     return y - 27 * mm
 
 
-def _bloque_cliente(c, y, cliente, obra):
+def _bloque_cliente(c, y, tipo, cliente, obra):
     y -= 9 * mm
     c.setFillColor(GRIS)
     c.setFont("Helvetica-Bold", 7.5)
-    c.drawString(MARGEN, y, "PRESUPUESTO PARA")
+    c.drawString(MARGEN, y, TIPOS[tipo]["para"])
     y -= 5 * mm
     c.setFillColor(INK)
     if not cliente:
@@ -162,7 +184,10 @@ def _bloque_cliente(c, y, cliente, obra):
         c.drawString(MARGEN, y - 3 * mm, "OBRA")
         c.setFillColor(INK)
         c.setFont("Helvetica", 8.5)
-        c.drawString(MARGEN + 16 * mm, y - 3 * mm, obra["nombre"])
+        # La columna de la obra se llama "titulo"; con "nombre" el PDF
+        # reventaba en cuanto el documento tenía una obra asignada.
+        c.drawString(MARGEN + 16 * mm, y - 3 * mm,
+                     obra.get("titulo") or obra.get("nombre") or "")
         y -= 3 * mm
     return y
 
@@ -197,100 +222,165 @@ def _tabla(lineas):
     return t
 
 
+def _filas_totales(lineas):
+    """Filas del bloque de totales, con el IVA desglosado por tipo.
+
+    En reformas de vivienda conviven el 21 % y el 10 %, y en una factura el
+    desglose por tipo impositivo (base y cuota de cada uno) es obligatorio:
+    una sola línea de "IVA" con la suma no vale.
+    """
+    grupos = {}
+    for l in lineas:
+        base = (l["cantidad"] or 0) * (l["precio"] or 0)
+        g = grupos.setdefault(l["iva"] or 0, [0.0, 0.0])
+        g[0] += base
+        g[1] += base * (l["iva"] or 0) / 100
+    total = sum(b + i for b, i in grupos.values())
+    if len(grupos) > 1:
+        filas = []
+        for tipo in sorted(grupos):
+            filas += [(f"Base al {tipo:g} %", grupos[tipo][0]),
+                      (f"IVA {tipo:g} %", grupos[tipo][1])]
+    else:
+        tipo = next(iter(grupos), 21)
+        base, iva = grupos.get(tipo, [0.0, 0.0])
+        filas = [("Base imponible", base), (f"IVA {tipo:g} %", iva)]
+    return filas, total
+
+
 def _totales(c, y, lineas):
-    base = sum((l["cantidad"] or 0) * (l["precio"] or 0) for l in lineas)
-    iva = sum((l["cantidad"] or 0) * (l["precio"] or 0) * (l["iva"] or 0) / 100
-              for l in lineas)
+    filas, total = _filas_totales(lineas)
     x = ANCHO - MARGEN
     c.setFont("Helvetica", 9)
-    c.setFillColor(GRIS)
-    c.drawRightString(x - 30 * mm, y, "Base imponible")
-    c.setFillColor(INK)
-    c.drawRightString(x, y, _eur(base))
-    c.setFillColor(GRIS)
-    c.drawRightString(x - 30 * mm, y - 5.5 * mm, "IVA")
-    c.setFillColor(INK)
-    c.drawRightString(x, y - 5.5 * mm, _eur(iva))
+    for i, (etiqueta, valor) in enumerate(filas):
+        c.setFillColor(GRIS)
+        c.drawRightString(x - 30 * mm, y - i * 5.5 * mm, etiqueta)
+        c.setFillColor(INK)
+        c.drawRightString(x, y - i * 5.5 * mm, _eur(valor))
 
-    # 20 mm, no 14: la caja del TOTAL mide 11 mm hacia arriba y con 14
-    # se subia por encima de la linea del IVA y la tapaba.
-    y -= 20 * mm
+    # 14,5 mm por debajo de la última fila: la caja del TOTAL mide 11 mm hacia
+    # arriba y con menos se subía por encima de la línea del IVA y la tapaba.
+    y -= (len(filas) - 1) * 5.5 * mm + 14.5 * mm
     c.setFillColor(AMBER)
     c.rect(x - 68 * mm, y - 2 * mm, 68 * mm, 11 * mm, stroke=0, fill=1)
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 10)
     c.drawString(x - 64 * mm, y + 1.6 * mm, "TOTAL")
     c.setFont("Helvetica-Bold", 13)
-    c.drawRightString(x - 4 * mm, y + 1.2 * mm, _eur(base + iva))
+    c.drawRightString(x - 4 * mm, y + 1.2 * mm, _eur(total))
     return y - 6 * mm
 
 
-def _pie(c, p):
+def _pie(c, tipo, p):
     y = MARGEN + 16 * mm
     c.setStrokeColor(LINEA)
     c.setLineWidth(0.8)
     c.line(MARGEN, y, ANCHO - MARGEN, y)
     c.setFillColor(GRIS)
     c.setFont("Helvetica", 7)
-    avisos = [
-        f"Presupuesto válido {p['validez'] or 30} días desde la fecha de emisión. "
-        "Los precios incluyen mano de obra y materiales salvo indicación expresa.",
-        "Este documento no supone contrato hasta su aceptación por escrito. "
-        f"{EMPRESA['nombre']} · {EMPRESA['nif']} · {EMPRESA['web']}",
-    ]
+    validez = p.get("validez") or 30
+    if tipo == "presupuestos":
+        avisos = [
+            f"Presupuesto válido {validez} días desde la fecha de emisión. "
+            "Los precios incluyen mano de obra y materiales salvo indicación expresa.",
+            "Este documento no supone contrato hasta su aceptación por escrito. " + _identidad(),
+        ]
+    elif tipo == "proformas":
+        # Una proforma tiene que decir que no es una factura: si no, el
+        # cliente puede tomarla como tal y contabilizarla.
+        avisos = [
+            "Factura proforma: documento sin validez fiscal. No sustituye a la factura, "
+            "que se emitirá al realizar el trabajo o recibir el pago.",
+            f"Válida {validez} días desde la fecha de emisión. " + _identidad(),
+        ]
+    else:
+        avisos = [_identidad() + " · " + EMPRESA["direccion"]]
     for i, l in enumerate(avisos):
         c.drawString(MARGEN, y - 5 * mm - i * 3.6 * mm, l)
 
 
-def presupuesto_pdf(id_: int) -> tuple[bytes, str]:
+def _comprobar(tipo, doc):
+    """Una factura sin número o sin el NIF del emisor no es válida: no sale.
+
+    Presupuestos y proformas no tienen valor fiscal y se dejan descargar igual.
+    """
+    if tipo != "facturas":
+        return
+    faltan = []
+    if not (doc.get("numero") or "").strip():
+        faltan.append("ponerle número")
+    if not EMPRESA["nif"]:
+        faltan.append("configurar el NIF de la empresa (EMPRESA_NIF en el .env del servidor)")
+    if faltan:
+        raise DocumentoIncompleto(
+            "Para descargar la factura hay que " + " y ".join(faltan) +
+            ". Una factura sin esos datos no es válida.")
+
+
+def documento_pdf(tipo: str, id_: int) -> tuple[bytes | None, str | None]:
     """Devuelve (bytes del PDF, nombre de fichero sugerido)."""
-    p = db.fila("SELECT * FROM presupuestos WHERE id = ?", (id_,))
-    if not p:
+    t = TIPOS[tipo]
+    doc = db.fila(f"SELECT * FROM {t['tabla']} WHERE id = ?", (id_,))
+    if not doc:
         return None, None
+    _comprobar(tipo, doc)
+
     lineas = db.filas(
-        "SELECT * FROM presupuesto_lineas WHERE presupuesto_id = ? ORDER BY orden, id",
-        (id_,))
+        f"SELECT * FROM {t['lineas']} WHERE {t['fk']} = ? ORDER BY orden, id", (id_,))
     cliente = db.fila("SELECT * FROM clientes WHERE id = ?",
-                      (p["cliente_id"],)) if p["cliente_id"] else None
+                      (doc["cliente_id"],)) if doc["cliente_id"] else None
     obra = db.fila("SELECT * FROM obras WHERE id = ?",
-                   (p["obra_id"],)) if p["obra_id"] else None
+                   (doc["obra_id"],)) if doc["obra_id"] else None
 
     buf = BytesIO()
     c = rl_canvas.Canvas(buf, pagesize=A4)
-    c.setTitle(f"Presupuesto {p['numero'] or p['id']}")
+    c.setTitle(f"{t['titulo'].capitalize()} {doc['numero'] or doc['id']}")
 
-    y = _cabecera(c, p)
-    y = _bloque_cliente(c, y, cliente, obra)
-
-    tabla = _tabla(lineas)
-    ancho_util = ANCHO - 2 * MARGEN
-    # El alto se mide antes de dibujar para saber si cabe; si no, se parte en
-    # páginas y se repite la fila de cabecera (repeatRows=1).
-    partes = tabla.split(ancho_util, y - MARGEN - 46 * mm)
+    y = _cabecera(c, tipo, doc)
+    y = _bloque_cliente(c, y, tipo, cliente, obra)
     y -= 8 * mm
-    if not partes:
-        partes = [tabla]
-    for i, parte in enumerate(partes):
-        if i:
-            c.showPage()
-            y = ALTO - MARGEN
-        w, h = parte.wrap(ancho_util, y)
-        parte.drawOn(c, MARGEN, y - h)
-        y = y - h
+
+    # Hueco que se deja libre al pie de cada página para los totales y el
+    # pie. Crece con el número de filas de IVA.
+    reserva = 44 * mm + len(_filas_totales(lineas)[0]) * 5.5 * mm
+    ancho_util = ANCHO - 2 * MARGEN
+
+    # La tabla se va partiendo página a página. split() solo corta en dos, y
+    # el resto puede no caber tampoco en una página entera: por eso es un
+    # bucle y no un único corte.
+    restante = _tabla(lineas)
+    while True:
+        disponible = y - MARGEN - reserva
+        partes = restante.split(ancho_util, disponible)
+        if not partes:
+            if y >= ALTO - MARGEN - 1:       # ni en una página vacía: se pinta tal cual
+                partes = [restante]
+            else:
+                c.showPage()
+                y = ALTO - MARGEN
+                continue
+        _, h = partes[0].wrap(ancho_util, disponible)
+        partes[0].drawOn(c, MARGEN, y - h)
+        y -= h
+        if len(partes) == 1:
+            break
+        restante = partes[1]
+        c.showPage()
+        y = ALTO - MARGEN
 
     y = _totales(c, y - 10 * mm, lineas)
 
-    if p.get("notas"):
+    if doc.get("notas"):
         c.setFillColor(GRIS)
         c.setFont("Helvetica-Bold", 7.5)
         c.drawString(MARGEN, y, "NOTAS")
-        parrafo = _parrafo(p["notas"].replace(chr(10), "<br/>"), 8, GRIS)
-        w, h = parrafo.wrap(ANCHO - 2 * MARGEN, 40 * mm)
+        parrafo = _parrafo(doc["notas"].replace(chr(10), "<br/>"), 8, GRIS)
+        _, h = parrafo.wrap(ANCHO - 2 * MARGEN, 40 * mm)
         parrafo.drawOn(c, MARGEN, y - 4 * mm - h)
 
-    _pie(c, p)
+    _pie(c, tipo, doc)
     c.showPage()
     c.save()
 
-    numero = (p["numero"] or f"presupuesto-{p['id']}").replace("/", "-")
+    numero = (doc["numero"] or f"{t['uno']}-{doc['id']}").replace("/", "-")
     return buf.getvalue(), f"{numero}.pdf"

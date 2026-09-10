@@ -80,9 +80,11 @@ conocían el sitio tardarán en ver el cambio.
       (apex, `www` y `api`) apuntando a `76.13.56.232`, y los `MX` del correo.
 - [ ] **Confirmar el correo.** Se asume `contacto@loureirosoluciones.es`. El dominio
       no tiene `MX`, así que el buzón todavía no existe.
-- [ ] **Añadir el CIF** en `aviso-legal.html` y `privacidad.html` cuando se
-      complete la constitución de la sociedad, junto con los datos registrales.
-      El artículo 10 de la LSSI-CE exige publicar el identificador fiscal.
+- [ ] **NIF en el servidor.** No se escribe en el HTML: sale de `EMPRESA_NIF`
+      en el `.env` y de ahí va a los PDF y a las páginas legales. Mientras
+      esté vacío, las facturas no se dejan descargar.
+- [ ] **Datos registrales** (Registro Mercantil: tomo, folio, hoja) en
+      `aviso-legal.html`. El artículo 10 de la LSSI-CE los exige a una S.L.
 - [ ] **Fotos de obras reales.** El diseño funciona sin fotografía, pero una
       galería de trabajos hechos es la mejora que más va a convertir.
 - [ ] **`og-image` en PNG.** Ahora es SVG y la mayoría de redes sociales no lo

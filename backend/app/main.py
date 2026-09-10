@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
-from . import db
+from . import db, empresa
 from .admin import router as router_admin, router_crud as router_admin_crud
 from .documentos import router as router_documentos
 
@@ -93,6 +93,17 @@ def _arranque():
 app.include_router(router_admin)
 app.include_router(router_documentos)
 app.include_router(router_admin_crud)
+
+
+@app.get("/api/empresa")
+def datos_empresa():
+    """NIF para el aviso legal y la política de privacidad.
+
+    Esas páginas son HTML estático y no pueden leer el .env; lo piden aquí
+    para que el dato salga del mismo sitio que en los PDF. Es un dato
+    público por ley (art. 10 LSSI-CE), así que no lleva sesión.
+    """
+    return {"nif": empresa.NIF}
 
 
 @app.get("/api/health")

@@ -12,6 +12,26 @@
   var EMAIL = "contacto@loureirosoluciones.es";
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
+
+  /* ── Datos de la empresa en las páginas legales ─────────────────────
+     El NIF vive en el .env del servidor, no en el HTML: así se cambia en un
+     solo sitio y sale igual aquí que en los PDF. La fila está oculta hasta
+     que llega el dato, para no enseñar un hueco si la API no responde.   */
+  var huecos = document.querySelectorAll("[data-empresa]");
+  if (huecos.length && API && window.fetch) {
+    fetch(API.slice(0, API.lastIndexOf("/")) + "/empresa")
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (datos) {
+        Array.prototype.forEach.call(huecos, function (el) {
+          var v = datos[el.getAttribute("data-empresa")];
+          if (!v) return;
+          el.textContent = v;
+          var fila = el.closest("[data-empresa-fila]");
+          if (fila) fila.hidden = false;
+        });
+      })
+      .catch(function () {});
+  }
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 
   /* ── Año del footer ─────────────────────────────────────────────── */

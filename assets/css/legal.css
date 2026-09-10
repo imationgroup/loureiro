@@ -31,3 +31,7 @@
 }
 
 .legal + .foot{ padding-top:0; }
+
+/* La fila del NIF se rellena desde la API; oculta hasta entonces. Hace falta
+   explícito porque cualquier display de las li anula el atributo hidden. */
+[data-empresa-fila][hidden]{ display:none; }

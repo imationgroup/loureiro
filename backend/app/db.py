@@ -250,6 +250,35 @@ CREATE TABLE IF NOT EXISTS factura_lineas (
   orden      INTEGER NOT NULL DEFAULT 0
 );
 
+-- ── Proformas ────────────────────────────────────────────────────────
+-- Mismo formato que una factura pero SIN valor fiscal. Van en tablas propias
+-- y no como un estado de la factura a propósito: así no pueden colarse en la
+-- contabilidad ni ocupar números de la serie de facturas, que tiene que ser
+-- correlativa y sin huecos.
+CREATE TABLE IF NOT EXISTS proformas (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero         TEXT,
+  cliente_id     INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  obra_id        INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  presupuesto_id INTEGER REFERENCES presupuestos(id) ON DELETE SET NULL,
+  fecha          TEXT NOT NULL DEFAULT (date('now')),
+  validez        INTEGER NOT NULL DEFAULT 30,
+  estado         TEXT NOT NULL DEFAULT 'borrador', -- borrador|enviada|aceptada|facturada|anulada
+  notas          TEXT,
+  creado         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS proforma_lineas (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  proforma_id INTEGER NOT NULL REFERENCES proformas(id) ON DELETE CASCADE,
+  concepto    TEXT NOT NULL,
+  cantidad    REAL NOT NULL DEFAULT 1,
+  unidad      TEXT NOT NULL DEFAULT 'ud',
+  precio      REAL NOT NULL DEFAULT 0,
+  iva         REAL NOT NULL DEFAULT 21,
+  orden       INTEGER NOT NULL DEFAULT 0
+);
+
 -- ── Contadores de numeración ─────────────────────────────────────────
 -- La numeración NO se deduce del máximo existente. Si se deduce y alguien
 -- borra el último documento, el siguiente reutiliza su número, y dos
@@ -264,6 +293,7 @@ CREATE TABLE IF NOT EXISTS contadores (
 
 CREATE INDEX IF NOT EXISTS idx_plineas ON presupuesto_lineas(presupuesto_id);
 CREATE INDEX IF NOT EXISTS idx_flineas ON factura_lineas(factura_id);
+CREATE INDEX IF NOT EXISTS idx_prlineas ON proforma_lineas(proforma_id);
 
 CREATE INDEX IF NOT EXISTS idx_costes_obra       ON costes(obra_id);
 CREATE INDEX IF NOT EXISTS idx_ingresos_obra     ON ingresos(obra_id);

@@ -400,5 +400,6 @@ td.acciones button.borrar:hover{color:var(--rojo)}
   animation:toastEntra .22s ease both;
 }
 .toast--fuera{ opacity:0; transition:opacity .35s ease; }
+.toast--err{ border-left-color:var(--rojo,#F87171); }
 @keyframes toastEntra{ from{ opacity:0; transform:translate(-50%,10px) } }
 @media (prefers-reduced-motion:reduce){ .toast{ animation:none } }

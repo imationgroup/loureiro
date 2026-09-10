@@ -45,6 +45,7 @@ var ico = {
   doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
   recibo:'<path d="M4 2h16v20l-3-2-3 2-2-2-2 2-3-2-3 2z"/><path d="M8 8h8M8 12h8M8 16h4"/>',
   descarga:'<path d="M12 3v12"/><path d="M7 12l5 5 5-5"/><path d="M4 20h16"/>',
+  proforma:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 14h6M12 11v6"/>',
   altaCliente:'<path d="M14 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M15 11h6"/>',
   equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
 };
@@ -389,6 +390,9 @@ var MODULOS = {
   presupuestos: { titulo: "Presupuestos", sub: "Ofertas enviadas a clientes",
                   icono: ico.doc, especial: "documento", tipo: "presupuestos" },
 
+  proformas: { titulo: "Proformas", sub: "Facturas proforma, sin valor fiscal",
+               icono: ico.proforma, especial: "documento", tipo: "proformas" },
+
   facturas: { titulo: "Facturas", sub: "Lo que has facturado",
               icono: ico.recibo, especial: "documento", tipo: "facturas" },
 
@@ -398,7 +402,7 @@ var MODULOS = {
 var ORDEN_MENU = [
   { sep: null, items: ["dashboard", "solicitudes"] },
   { sep: "Gestión", items: ["obras", "clientes", "profesionales"] },
-  { sep: "Economía", items: ["presupuestos", "facturas", "costes", "contabilidad"] },
+  { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "costes", "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] }
 ];
 
@@ -780,9 +784,9 @@ function pasarACliente(s) {
 /* Aviso breve flotante. No usa alert() para no cortar el flujo, y va colgado
    del <body> y no de #vista: la vista se repinta en cuanto responde la API y
    se llevaba por delante el aviso antes de que diese tiempo a leerlo. */
-function avisar(texto) {
+function avisar(texto, tipo) {
   var caja = document.createElement("div");
-  caja.className = "toast";
+  caja.className = "toast" + (tipo === "err" ? " toast--err" : "");
   caja.textContent = texto;
   document.body.appendChild(caja);
   setTimeout(function () { caja.classList.add("toast--fuera"); }, 5200);
@@ -798,20 +802,26 @@ function descargarPdf(tipo, id, numero) {
     headers: { Authorization: "Bearer " + token }
   }).then(function (res) {
     if (res.status === 401) { salir(true); throw new Error("Sesión caducada"); }
-    if (!res.ok) throw new Error("No se pudo generar el PDF");
+    if (!res.ok) {
+      // Una factura sin número o sin NIF se rechaza con 422 y un motivo
+      // concreto; se enseña ese motivo en vez de un error genérico.
+      return res.json().then(
+        function (j) { throw new Error((j && j.detail) || "No se pudo generar el PDF"); },
+        function () { throw new Error("No se pudo generar el PDF"); });
+    }
     return res.blob();
   }).then(function (blob) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = (numero || "presupuesto-" + id) + ".pdf";
+    a.download = (numero || NOMBRE_DOC[tipo].uno + "-" + id) + ".pdf";
     document.body.appendChild(a);
     a.click();
     a.remove();
     // Se libera con retardo: revocarlo en el mismo tick corta la descarga
     // que acaba de empezar en algunos navegadores.
     setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
-  }).catch(error);
+  }).catch(function (e) { avisar(e.message, "err"); });
 }
 
 function error(err) {
@@ -1099,14 +1109,21 @@ function moverStock(art) {
 /* ── Presupuestos y facturas ──────────────────────────────────────────── */
 var ESTADOS_DOC = {
   presupuestos: ["borrador", "enviado", "aceptado", "rechazado"],
-  facturas: ["emitida", "cobrada", "anulada"]
+  facturas: ["emitida", "cobrada", "anulada"],
+  proformas: ["borrador", "enviada", "aceptada", "facturada", "anulada"]
+};
+
+var NOMBRE_DOC = {
+  presupuestos: { uno: "presupuesto", nuevo: "Nuevo presupuesto" },
+  proformas:    { uno: "proforma",    nuevo: "Nueva proforma" },
+  facturas:     { uno: "factura",     nuevo: "Nueva factura" }
 };
 
 function verDocumentos(clave) {
   var m = MODULOS[clave], tipo = m.tipo;
   $("#vista-acciones").innerHTML =
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) +
-    (tipo === "facturas" ? "Nueva factura" : "Nuevo presupuesto") + "</button>";
+    NOMBRE_DOC[tipo].nuevo + "</button>";
   $("#btn-nuevo").addEventListener("click", function () { editarDocumento(tipo, null); });
 
   Promise.all([api("/api/admin/documentos/" + tipo), cargarRef("clientes"), cargarRef("obras")])
@@ -1122,7 +1139,7 @@ function verDocumentos(clave) {
         '<th class="num">Base</th><th class="num">IVA</th><th class="num">Total</th>' +
         '<th class="num">Acciones</th></tr></thead><tbody>';
       docs.forEach(function (d) {
-        var clase = (d.estado === "aceptado" || d.estado === "cobrada") ? "tag--verde"
+        var clase = ["aceptado", "aceptada", "cobrada", "facturada"].indexOf(d.estado) >= 0 ? "tag--verde"
                   : (d.estado === "rechazado" || d.estado === "anulada") ? "tag--rojo" : "tag--amber";
         h += "<tr><td><b>" + (esc(d.numero) || "#" + d.id) + "</b>" +
              '<div style="font-size:.78rem;color:var(--muted-2)">' + d.n_lineas +
@@ -1134,10 +1151,13 @@ function verDocumentos(clave) {
              '<td class="num" style="color:var(--muted)">' + eur(d.iva) + "</td>" +
              '<td class="num"><b>' + eur(d.total) + "</b></td>" +
              '<td class="acciones">' +
+             '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
+               '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
              (tipo === "presupuestos"
-               ? '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
-                 '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
-                 '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
+               ? '<button data-proforma="' + d.id + '" title="Crear proforma">' + svg(ico.proforma) + "</button>"
+               : "") +
+             (tipo !== "facturas"
+               ? '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
                : "") +
              '<button data-editar="' + d.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
              '<button class="borrar" data-borrar="' + d.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
@@ -1172,14 +1192,33 @@ function verDocumentos(clave) {
       $$("[data-facturar]").forEach(function (b) {
         b.addEventListener("click", function () {
           modal("Convertir en factura",
-            "<p style='color:var(--muted)'>Se creará una factura con las mismas líneas y el presupuesto quedará como <b>aceptado</b>.</p>",
+            "<p style='color:var(--muted)'>Se creará una factura con las mismas líneas y " +
+              (tipo === "presupuestos" ? "el presupuesto quedará como <b>aceptado</b>."
+                                       : "la proforma quedará como <b>facturada</b>.") + "</p>",
             '<button class="btn btn--fant" id="fa-no">Cancelar</button>' +
             '<button class="btn btn--amber" id="fa-si">Crear factura</button>');
           $("#fa-no").addEventListener("click", cerrarModal);
           $("#fa-si").addEventListener("click", function () {
-            api("/api/admin/documentos/presupuestos/" + b.dataset.facturar + "/facturar",
+            api("/api/admin/documentos/" + tipo + "/" + b.dataset.facturar + "/facturar",
                 { metodo: "POST" })
               .then(function () { cerrarModal(); ir("facturas"); })
+              .catch(function (e) { cerrarModal(); error(e); });
+          });
+        });
+      });
+      $$("[data-proforma]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          modal("Crear proforma",
+            "<p style='color:var(--muted)'>Se creará una factura proforma con las mismas líneas, " +
+            "con su propia numeración, y el presupuesto quedará como <b>aceptado</b>. " +
+            "La proforma no cuenta en la contabilidad: no es una factura.</p>",
+            '<button class="btn btn--fant" id="pf-no">Cancelar</button>' +
+            '<button class="btn btn--amber" id="pf-si">Crear proforma</button>');
+          $("#pf-no").addEventListener("click", cerrarModal);
+          $("#pf-si").addEventListener("click", function () {
+            api("/api/admin/documentos/presupuestos/" + b.dataset.proforma + "/proforma",
+                { metodo: "POST" })
+              .then(function () { cerrarModal(); ir("proformas"); })
               .catch(function (e) { cerrarModal(); error(e); });
           });
         });
@@ -1244,7 +1283,7 @@ function editarDocumento(tipo, id) {
       '<div class="campo" style="margin-top:16px"><label for="d-notas">Notas</label><textarea id="d-notas">' +
         esc(doc.notas) + "</textarea></div>";
 
-    modal((id ? "Editar " : "Nuevo ") + (esFactura ? "factura" : "presupuesto"), cuerpo,
+    modal(id ? "Editar " + NOMBRE_DOC[tipo].uno : NOMBRE_DOC[tipo].nuevo, cuerpo,
       '<button class="btn btn--fant" id="d-cancelar">Cancelar</button>' +
       '<button class="btn btn--amber" id="d-guardar">Guardar</button>', true);
 
