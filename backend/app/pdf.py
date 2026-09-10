@@ -10,6 +10,7 @@ Se usa reportlab porque es Python puro con ruedas precompiladas: no hace
 falta cairo, pango ni ninguna librería del sistema en la imagen de Docker.
 """
 
+import os
 from io import BytesIO
 
 from reportlab.lib import colors
@@ -23,12 +24,18 @@ from reportlab.platypus import Paragraph, Table, TableStyle
 from . import db
 
 # ── Identidad ────────────────────────────────────────────────────────────
-# Los mismos datos que el aviso legal del sitio. Si se constituye la S.L. y
-# hay CIF, se cambia aquí y sale en todos los presupuestos a la vez.
+# Los mismos datos que el aviso legal del sitio.
+#
+# El NIF sale del .env (EMPRESA_NIF) y no del código: así, cuando llegue el
+# CIF de la S.L., basta con ponerlo en el servidor y recrear el contenedor,
+# sin tocar el repositorio ni desplegar. Si la variable está vacía se imprime
+# "en trámite", que es lo que dice hoy el aviso legal.
+EMPRESA_NIF = (os.getenv("EMPRESA_NIF") or "").strip()
+
 EMPRESA = {
     "nombre": "Loureiro Soluciones, S.L. en constitución",
     "marca": "Loureiro soluciones",
-    "nif": "NIF: en trámite",
+    "nif": f"NIF: {EMPRESA_NIF}" if EMPRESA_NIF else "NIF: en trámite",
     "direccion": "OU-0517, 32910 San Ciprián de Viñas, Ourense",
     "telefono": "603 905 128",
     "email": "contacto@loureirosoluciones.es",
