@@ -42,13 +42,44 @@ DOCUMENTOS = {
 }
 
 
-# Series con numeración automática. Las facturas se dejan fuera a propósito:
-# su numeración tiene requisitos legales de correlatividad y, si ya hay una
-# serie en uso, cambiarla por sorpresa desde el panel haría más daño que bien.
+# Series con numeración automática, una por tipo y año: P-2026-078,
+# PF-2026-001, F-2026-005...
+#
 # Las proformas llevan su propia serie (PF) y nunca la de facturas: una
 # proforma no es una factura, y si consumiese números de esa serie dejaría
 # huecos en una numeración que tiene que ser correlativa.
-SERIES = {"presupuestos": "P", "proformas": "PF"}
+SERIES = {"presupuestos": "P", "proformas": "PF", "facturas": "F"}
+
+# Series que, además del contador, siguen siempre detrás del número más alto
+# que ya exista ese año. Las facturas lo necesitan por dos motivos: al activar
+# la numeración ya había facturas con número puesto a mano y la serie tiene
+# que continuar desde ahí, y si alguien fuerza un número a mano la siguiente
+# no puede repetirlo. Los presupuestos no: ahí un número forzado no debe
+# arrastrar la serie.
+CONTINUAN_DETRAS = {"facturas"}
+
+
+def _mayor_existente(con, serie: str, anio: int) -> int:
+    """El número de secuencia más alto entre los documentos de ese año.
+
+    Se leen las cifras finales del número sea cual sea su formato, así que
+    vale para F-2026-004, para 2026/007 o para FAC-12. Se ignora un final que
+    sea el propio año: un "F-2026" sin secuencia no puede disparar la serie
+    hasta el 2026.
+    """
+    mayor = 0
+    filas = con.execute(
+        f"SELECT numero FROM {DOCUMENTOS[serie]['tabla']} "
+        "WHERE substr(fecha, 1, 4) = ? AND numero IS NOT NULL", (str(anio),))
+    for fila in filas:
+        cifras = ""
+        for ch in reversed(str(fila[0]).strip()):
+            if not ch.isdigit():
+                break
+            cifras = ch + cifras
+        if cifras and not (len(cifras) == 4 and int(cifras) == anio):
+            mayor = max(mayor, int(cifras))
+    return mayor
 
 
 def siguiente_numero(con, serie: str, anio: int) -> str:
@@ -60,6 +91,10 @@ def siguiente_numero(con, serie: str, anio: int) -> str:
     """
     con.execute("INSERT OR IGNORE INTO contadores (serie, anio, ultimo) VALUES (?,?,0)",
                 (serie, anio))
+    if serie in CONTINUAN_DETRAS:
+        con.execute(
+            "UPDATE contadores SET ultimo = MAX(ultimo, ?) WHERE serie = ? AND anio = ?",
+            (_mayor_existente(con, serie, anio), serie, anio))
     con.execute("UPDATE contadores SET ultimo = ultimo + 1 WHERE serie = ? AND anio = ?",
                 (serie, anio))
     n = con.execute("SELECT ultimo FROM contadores WHERE serie = ? AND anio = ?",
