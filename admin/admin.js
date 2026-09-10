@@ -44,6 +44,8 @@ var ico = {
   flechas:'<path d="M7 10l5-5 5 5M7 14l5 5 5-5"/>',
   doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
   recibo:'<path d="M4 2h16v20l-3-2-3 2-2-2-2 2-3-2-3 2z"/><path d="M8 8h8M8 12h8M8 16h4"/>',
+  descarga:'<path d="M12 3v12"/><path d="M7 12l5 5 5-5"/><path d="M4 20h16"/>',
+  altaCliente:'<path d="M14 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M15 11h6"/>',
   equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
 };
 function svg(d, cls) {
@@ -207,8 +209,15 @@ var MODULOS = {
       { c: "telefono", t: "Teléfono" },
       { c: "email", t: "Email" },
       { c: "estado", t: "Estado", tipo: "tag" },
+      { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes" },
       { c: "creado", t: "Recibida", tipo: "fecha" }
     ],
+    // Accion extra en cada fila, ademas de editar y borrar
+    accion: {
+      ico: "altaCliente", titulo: "Pasar a cliente",
+      oculta: function (f) { return !!f.cliente_id; },   // ya convertida
+      fn: function (f) { pasarACliente(f); }
+    },
     campos: [
       { c: "nombre", t: "Nombre", req: true },
       { c: "email", t: "Email", tipo: "email", mitad: true },
@@ -525,6 +534,10 @@ function pintarFilas(clave, filas) {
     h += "<tr>";
     m.columnas.forEach(function (c) { h += "<td" + (c.num ? ' class="num"' : "") + ">" + celda(c, f) + "</td>"; });
     h += '<td class="acciones">' +
+         (m.accion && !(m.accion.oculta && m.accion.oculta(f))
+           ? '<button data-accion="' + f.id + '" title="' + esc(m.accion.titulo) + '">' +
+             svg(ico[m.accion.ico]) + "</button>"
+           : "") +
          '<button data-editar="' + f.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
          '<button class="borrar" data-borrar="' + f.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
          "</td></tr>";
@@ -538,6 +551,11 @@ function pintarFilas(clave, filas) {
   });
   $$("[data-borrar]", caja).forEach(function (b) {
     b.addEventListener("click", function () { confirmarBorrado(clave, b.dataset.borrar); });
+  });
+  $$("[data-accion]", caja).forEach(function (b) {
+    b.addEventListener("click", function () {
+      m.accion.fn(filas.filter(function (x) { return x.id == b.dataset.accion; })[0]);
+    });
   });
 }
 
@@ -728,6 +746,72 @@ function confirmarBorrado(clave, id) {
       .then(function () { invalidar(); cerrarModal(); ir(clave); })
       .catch(error);
   });
+}
+
+/* ── Solicitud → cliente ──────────────────────────────────────────────── */
+function pasarACliente(s) {
+  modal("Pasar a cliente",
+    '<p style="color:var(--muted);line-height:1.55">Se va a dar de alta a <b>' +
+      esc(s.nombre) + "</b> como cliente" +
+      (s.email ? ' con el correo <b>' + esc(s.email) + "</b>" : "") + ".<br>" +
+      "Si ya hay un cliente con ese correo se enlaza con el que existe, " +
+      "en vez de duplicarlo.</p>",
+    '<button class="btn btn--fant" id="c-no">Cancelar</button>' +
+    '<button class="btn btn--amber" id="c-si">Pasar a cliente</button>');
+  $("#c-no").addEventListener("click", cerrarModal);
+  $("#c-si").addEventListener("click", function () {
+    this.disabled = true;
+    api("/api/admin/solicitudes/" + s.id + "/convertir", { metodo: "POST" })
+      .then(function (r) {
+        invalidar();          // la caché de clientes se queda vieja si no
+        cerrarModal();
+        // El aviso va ANTES de repintar: si ir() falla por lo que sea, el
+        // catch se lo tragaba y el usuario no llegaba a ver la confirmación.
+        avisar(r.creado
+          ? "Cliente creado: " + r.cliente.nombre
+          : "Ya existía un cliente con ese correo. Solicitud enlazada con " +
+            r.cliente.nombre + ".");
+        ir("solicitudes");
+      })
+      .catch(function (e) { cerrarModal(); error(e); });
+  });
+}
+
+/* Aviso breve flotante. No usa alert() para no cortar el flujo, y va colgado
+   del <body> y no de #vista: la vista se repinta en cuanto responde la API y
+   se llevaba por delante el aviso antes de que diese tiempo a leerlo. */
+function avisar(texto) {
+  var caja = document.createElement("div");
+  caja.className = "toast";
+  caja.textContent = texto;
+  document.body.appendChild(caja);
+  setTimeout(function () { caja.classList.add("toast--fuera"); }, 5200);
+  setTimeout(function () { caja.remove(); }, 5600);
+}
+
+/* ── Descarga del PDF ─────────────────────────────────────────────────── */
+function descargarPdf(tipo, id, numero) {
+  // No se puede usar api(): eso espera JSON. Y tampoco vale un enlace
+  // normal, porque la sesión va en la cabecera Authorization y un <a href>
+  // no la manda. Se descarga a mano y se envuelve en un blob.
+  fetch(API + "/api/admin/documentos/" + tipo + "/" + id + "/pdf", {
+    headers: { Authorization: "Bearer " + token }
+  }).then(function (res) {
+    if (res.status === 401) { salir(true); throw new Error("Sesión caducada"); }
+    if (!res.ok) throw new Error("No se pudo generar el PDF");
+    return res.blob();
+  }).then(function (blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = (numero || "presupuesto-" + id) + ".pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Se libera con retardo: revocarlo en el mismo tick corta la descarga
+    // que acaba de empezar en algunos navegadores.
+    setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
+  }).catch(error);
 }
 
 function error(err) {
@@ -1051,7 +1135,9 @@ function verDocumentos(clave) {
              '<td class="num"><b>' + eur(d.total) + "</b></td>" +
              '<td class="acciones">' +
              (tipo === "presupuestos"
-               ? '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
+               ? '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
+                 '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
+                 '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
                : "") +
              '<button data-editar="' + d.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
              '<button class="borrar" data-borrar="' + d.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
@@ -1062,6 +1148,11 @@ function verDocumentos(clave) {
         '<div style="padding:14px 16px;border-top:1px solid var(--line);text-align:right;font-size:.9rem">' +
         "Total acumulado: <b>" + eur(totalGlobal) + "</b></div></div>";
 
+      $$("[data-pdf]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          descargarPdf(tipo, b.dataset.pdf, b.dataset.num);
+        });
+      });
       $$("[data-editar]").forEach(function (b) {
         b.addEventListener("click", function () { editarDocumento(tipo, b.dataset.editar); });
       });
@@ -1119,7 +1210,12 @@ function editarDocumento(tipo, id) {
     var cuerpo = '<div class="aviso aviso--err" id="d-err" hidden></div>' +
       '<div class="rejilla-2">' +
         '<div class="campo"><label for="d-numero">Número</label><input id="d-numero" value="' +
-          esc(doc.numero) + '" placeholder="' + (esFactura ? "F-2026-001" : "P-2026-001") + '"></div>' +
+          esc(doc.numero) + '" placeholder="' +
+          (esFactura ? "F-2026-001" : "Se genera solo al guardar") + '">' +
+          (esFactura || doc.numero ? "" :
+            '<small style="color:var(--muted-2);font-size:.79rem">Déjalo vacío y se ' +
+            "numera solo siguiendo la serie. Escribe uno solo si necesitas forzar " +
+            "un número concreto.</small>") + "</div>" +
         '<div class="campo"><label for="d-fecha">Fecha</label><input id="d-fecha" type="date" value="' +
           esc(doc.fecha) + '"></div>' +
       "</div>" +

@@ -250,6 +250,18 @@ CREATE TABLE IF NOT EXISTS factura_lineas (
   orden      INTEGER NOT NULL DEFAULT 0
 );
 
+-- ── Contadores de numeración ─────────────────────────────────────────
+-- La numeración NO se deduce del máximo existente. Si se deduce y alguien
+-- borra el último documento, el siguiente reutiliza su número, y dos
+-- documentos distintos acaban compartiendo numeración. Un contador que solo
+-- sube nunca hace eso.
+CREATE TABLE IF NOT EXISTS contadores (
+  serie  TEXT    NOT NULL,          -- 'presupuestos'
+  anio   INTEGER NOT NULL,
+  ultimo INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (serie, anio)
+);
+
 CREATE INDEX IF NOT EXISTS idx_plineas ON presupuesto_lineas(presupuesto_id);
 CREATE INDEX IF NOT EXISTS idx_flineas ON factura_lineas(factura_id);
 
@@ -270,6 +282,7 @@ MIGRACIONES = [
     ("clientes", "cp", "TEXT"),
     ("obras", "cp", "TEXT"),
     ("ingresos", "factura_id", "INTEGER"),
+    ("solicitudes", "cliente_id", "INTEGER"),
 ]
 
 
@@ -282,9 +295,20 @@ def migrar():
     con.commit()
 
 
+# Punto de partida de cada serie. El valor es el ÚLTIMO número usado, así
+# que el primer presupuesto de 2026 sale con el 078, que es donde lo dejó
+# la numeración anterior. Solo se siembra si la fila no existe: en un
+# arranque posterior no puede pisar el contador real.
+SEMILLAS_CONTADOR = [("presupuestos", 2026, 77)]
+
+
 def inicializar():
     con = conexion()
     con.executescript(ESQUEMA)
+    for serie, anio, ultimo in SEMILLAS_CONTADOR:
+        con.execute(
+            "INSERT OR IGNORE INTO contadores (serie, anio, ultimo) VALUES (?,?,?)",
+            (serie, anio, ultimo))
     con.commit()
     migrar()
 
