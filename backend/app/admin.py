@@ -200,6 +200,32 @@ def borrar(recurso: str, id_: int, _: str = Depends(sesion_actual)):
     return {"ok": True}
 
 
+# ═══ Notificaciones (la campanita del panel) ════════════════════════════
+
+@router.get("/notificaciones")
+def notificaciones(_: str = Depends(sesion_actual)):
+    """Lo que está pendiente de atender.
+
+    Por ahora solo las solicitudes pendientes. La respuesta es genérica
+    (tipo, título, detalle, fecha y vista a la que lleva) para poder añadir
+    más avisos —facturas vencidas, stock bajo mínimo— sin tocar el panel.
+    Tiene que ir en el router de rutas concretas: en el genérico, /{recurso}
+    se la tragaría como si "notificaciones" fuese una tabla.
+    """
+    pendientes = db.filas(
+        """SELECT id, nombre, servicio, creado FROM solicitudes
+           WHERE estado = 'pendiente' ORDER BY creado DESC, id DESC""")
+    items = [{
+        "tipo": "solicitud",
+        "id": s["id"],
+        "titulo": s["nombre"],
+        "detalle": s["servicio"] or "Sin especificar",
+        "fecha": s["creado"],
+        "vista": "solicitudes",
+    } for s in pendientes[:20]]
+    return {"total": len(pendientes), "items": items}
+
+
 SALTO = chr(10)   # separador dentro de las notas del cliente
 
 
@@ -251,10 +277,10 @@ def convertir_en_cliente(id_: int, _: str = Depends(sesion_actual)):
 
         con.execute("UPDATE solicitudes SET cliente_id = ? WHERE id = ?",
                     (cliente_id, id_))
-        # Si seguía sin tocar, pasa a contactada: convertirla en cliente ya es
-        # haberla atendido, y dejarla en «nueva» falsea el aviso del panel.
-        if s.get("estado") == "nueva":
-            con.execute("UPDATE solicitudes SET estado = 'contactada' WHERE id = ?",
+        # Si seguía pendiente, pasa a atendida: convertirla en cliente ya es
+        # haberla atendido, y dejarla pendiente falsea la campanita del panel.
+        if s.get("estado") == "pendiente":
+            con.execute("UPDATE solicitudes SET estado = 'atendida' WHERE id = ?",
                         (id_,))
 
     return {"cliente": db.fila("SELECT * FROM clientes WHERE id = ?", (cliente_id,)),
@@ -441,7 +467,7 @@ def dashboard(_: str = Depends(sesion_actual)):
             "obras_total": db.escalar("SELECT COUNT(*) FROM obras"),
             "clientes": db.escalar("SELECT COUNT(*) FROM clientes"),
             "profesionales": db.escalar("SELECT COUNT(*) FROM profesionales WHERE activo=1"),
-            "solicitudes_nuevas": db.escalar("SELECT COUNT(*) FROM solicitudes WHERE estado='nueva'"),
+            "solicitudes_nuevas": db.escalar("SELECT COUNT(*) FROM solicitudes WHERE estado='pendiente'"),
             "stock_bajo": db.escalar("SELECT COUNT(*) FROM stock WHERE minimo > 0 AND cantidad <= minimo"),
         },
         "mes": {

@@ -222,8 +222,11 @@ def contact(payload: ContactPayload, request: Request):
     try:
         with db.tx() as con:
             con.execute(
-                """INSERT INTO solicitudes (nombre, email, telefono, servicio, mensaje, ip)
-                   VALUES (?,?,?,?,?,?)""",
+                # El estado va explícito: en la base de producción la columna se
+                # creó con DEFAULT 'nueva', y SQLite no deja cambiar un valor por
+                # defecto sin rehacer la tabla entera.
+                """INSERT INTO solicitudes (nombre, email, telefono, servicio, mensaje, ip, estado)
+                   VALUES (?,?,?,?,?,?,'pendiente')""",
                 (name, sender_email, phone if phone != "No facilitado" else None,
                  service, payload.message.strip(), ip),
             )

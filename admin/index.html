@@ -9,7 +9,7 @@
 <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/assets/fonts/inter-var-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/archivo-var-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/admin/admin.css?v=8e0479a3">
+<link rel="stylesheet" href="/admin/admin.css?v=831fc969">
 </head>
 <body>
 
@@ -75,7 +75,20 @@
           <p id="vista-sub"></p>
         </div>
       </div>
-      <div id="vista-acciones"></div>
+      <div class="cab__der">
+        <div id="vista-acciones"></div>
+        <div class="campana" id="campana">
+          <button class="campana__btn" id="campana-btn" type="button"
+                  aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
+            </svg>
+            <span class="campana__num" id="campana-num" hidden></span>
+          </button>
+          <div class="campana__panel" id="campana-panel" hidden></div>
+        </div>
+      </div>
     </div>
 
     <div id="vista"></div>
@@ -84,6 +97,6 @@
 
 <div id="modal-host"></div>
 
-<script src="/admin/admin.js?v=64c01c35"></script>
+<script src="/admin/admin.js?v=681c3557"></script>
 </body>
 </html>

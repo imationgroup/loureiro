@@ -93,7 +93,7 @@ loginForm.addEventListener("submit", function (e) {
     token = r.token;
     localStorage.setItem("loureiro_token", token);
     localStorage.setItem("loureiro_email", r.email);
-    arrancar();
+    arrancar(true);
   }).catch(function (err) {
     aviso.textContent = err.message;
     aviso.hidden = false;
@@ -113,6 +113,8 @@ function salir(silencioso) {
   }
   $("#app").hidden = true;
   $("#login").hidden = false;
+  cerrarCampana();
+  document.title = "Panel de gestión · Loureiro Soluciones";
 }
 $("#btn-salir").addEventListener("click", function () { salir(false); });
 
@@ -122,7 +124,7 @@ var CATEGORIAS_PRO = ["Electricista", "Albañil", "Fontanero", "Pintor", "Carpin
   "Cristalero", "Cerrajero", "Jardinero", "Otro"];
 
 var ESTADOS_OBRA = ["presupuesto", "en curso", "pausada", "terminada", "cancelada"];
-var ESTADOS_SOL  = ["nueva", "contactada", "presupuestada", "ganada", "perdida"];
+var ESTADOS_SOL  = ["pendiente", "atendida", "descartada"];
 var CAT_COSTE    = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata", "otros"];
 
 /* ── Provincias y municipios ──────────────────────────────────────────────
@@ -210,7 +212,7 @@ var MODULOS = {
       { c: "servicio", t: "Servicio" },
       { c: "telefono", t: "Teléfono" },
       { c: "email", t: "Email" },
-      { c: "estado", t: "Estado", tipo: "tag" },
+      { c: "estado", t: "Estado", tipo: "estadoRapido", ops: ESTADOS_SOL },
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes" },
       { c: "creado", t: "Recibida", tipo: "fecha" }
     ],
@@ -453,6 +455,7 @@ function ir(k) {
   vistaActual = k;
   location.hash = k;
   pintarMenu();
+  actualizarCampana();
   var m = MODULOS[k];
   $("#vista-titulo").textContent = m.titulo;
   $("#vista-sub").textContent = m.sub;
@@ -523,11 +526,20 @@ function celda(col, fila) {
       return '<span class="tag" style="margin-right:4px">' + esc(x.trim()) + "</span>";
     }).join("");
   }
+  if (col.tipo === "estadoRapido") {
+    // Desplegable en la propia fila: cambiar de estado no obliga a abrir la
+    // ficha. El manejador está en pintarFilas.
+    return '<select class="estado-rapido estado-rapido--' + esc(v) + '" data-estado="' +
+      fila.id + '" aria-label="Estado de ' + esc(fila.nombre || "") + '">' +
+      col.ops.map(function (o) {
+        return "<option" + (o === v ? " selected" : "") + ">" + esc(o) + "</option>";
+      }).join("") + "</select>";
+  }
   if (col.tipo === "tag") {
     var clase = "";
-    if (v === "en curso" || v === "ganada" || v === "terminada") clase = " tag--verde";
-    if (v === "nueva" || v === "presupuesto" || v === "presupuestada") clase = " tag--amber";
-    if (v === "cancelada" || v === "perdida") clase = " tag--rojo";
+    if (v === "en curso" || v === "atendida" || v === "terminada") clase = " tag--verde";
+    if (v === "pendiente" || v === "presupuesto") clase = " tag--amber";
+    if (v === "cancelada" || v === "descartada") clase = " tag--rojo";
     return v ? '<span class="tag' + clase + '">' + esc(v) + "</span>" : "—";
   }
   return esc(v) || "—";
@@ -567,6 +579,24 @@ function pintarFilas(clave, filas) {
   $$("[data-accion]", caja).forEach(function (b) {
     b.addEventListener("click", function () {
       m.accion.fn(filas.filter(function (x) { return x.id == b.dataset.accion; })[0]);
+    });
+  });
+  // Cambio de estado desde la fila. Si el servidor lo rechaza, el desplegable
+  // vuelve a su valor para no enseñar un estado que no se ha guardado.
+  $$("[data-estado]", caja).forEach(function (sel) {
+    sel.addEventListener("change", function () {
+      var f = filas.filter(function (x) { return x.id == sel.dataset.estado; })[0];
+      var antes = f.estado, ahora = sel.value;
+      sel.disabled = true;
+      api("/api/admin/" + m.recurso + "/" + f.id, { metodo: "PUT", datos: { estado: ahora } })
+        .then(function () {
+          f.estado = ahora;
+          sel.className = "estado-rapido estado-rapido--" + ahora;
+          actualizarCampana();
+          avisar((f.nombre ? f.nombre + ": " : "") + ahora);
+        })
+        .catch(function (e) { sel.value = antes; avisar(e.message, "err"); })
+        .finally(function () { sel.disabled = false; });
     });
   });
 }
@@ -912,7 +942,7 @@ function verDashboard() {
       ? '<div class="tabla-scroll"><table><tbody>' + d.solicitudes_recientes.map(function (s) {
           return "<tr><td><b>" + esc(s.nombre) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
                  esc(s.servicio || "") + "</div></td>" +
-                 '<td><span class="tag ' + (s.estado === "nueva" ? "tag--amber" : "") + '">' + esc(s.estado) + "</span></td>" +
+                 '<td><span class="tag ' + (s.estado === "pendiente" ? "tag--amber" : "") + '">' + esc(s.estado) + "</span></td>" +
                  '<td class="num" style="font-size:.82rem;color:var(--muted)">' + esc(fecha(s.creado)) + "</td></tr>";
         }).join("") + "</tbody></table></div>"
       : '<div class="vacia">Ninguna todavía.</div>') + "</div>";
@@ -1453,20 +1483,124 @@ function verContabilidad() {
   }).catch(error);
 }
 
+/* ── Campanita de notificaciones ──────────────────────────────────────── */
+var avisosPend = { total: 0, items: [] };
+
+/* "hace 5 min", "hace 2 h", "ayer"... Las fechas de SQLite van en UTC y sin
+   zona; sin la Z el navegador las leería como hora local y saldrían dos
+   horas desplazadas. */
+function hace(s) {
+  if (!s) return "";
+  s = String(s);
+  if (s.length <= 10) return fecha(s);
+  var min = Math.round((Date.now() - new Date(s.replace(" ", "T") + "Z").getTime()) / 60000);
+  if (isNaN(min)) return fecha(s);
+  if (min < 1) return "ahora mismo";
+  if (min < 60) return "hace " + min + " min";
+  var h = Math.round(min / 60);
+  if (h < 24) return "hace " + h + " h";
+  var d = Math.round(h / 24);
+  if (d === 1) return "ayer";
+  if (d < 7) return "hace " + d + " días";
+  return fecha(s);
+}
+
+function actualizarCampana() {
+  if (!token) return;
+  api("/api/admin/notificaciones").then(function (n) {
+    avisosPend = n;
+    var num = $("#campana-num");
+    num.textContent = n.total > 99 ? "99+" : String(n.total);
+    num.hidden = !n.total;
+    $("#campana-btn").setAttribute("aria-label", n.total
+      ? n.total + (n.total === 1 ? " notificación pendiente" : " notificaciones pendientes")
+      : "Sin notificaciones pendientes");
+    // El número también en la pestaña del navegador, para verlo sin tener
+    // el panel delante.
+    document.title = (n.total ? "(" + n.total + ") " : "") + "Panel de gestión · Loureiro Soluciones";
+    if (!$("#campana-panel").hidden) pintarCampana();
+  }).catch(function () {});
+}
+
+function pintarCampana() {
+  var n = avisosPend, p = $("#campana-panel");
+  p.innerHTML =
+    '<div class="campana__cab">Pendiente de atender' +
+      (n.total ? " <span>" + n.total + "</span>" : "") + "</div>" +
+    (n.items.length
+      ? n.items.map(function (it) {
+          return '<button type="button" class="campana__item" data-noti="' + it.id + '">' +
+                 "<b>" + esc(it.titulo) + "</b><span>" + esc(it.detalle) + " · " +
+                 esc(hace(it.fecha)) + "</span></button>";
+        }).join("")
+      : '<div class="campana__vacio">Todo atendido. No hay nada pendiente.</div>') +
+    (n.total > n.items.length || n.total
+      ? '<button type="button" class="campana__todas">Ver todas las solicitudes</button>'
+      : "");
+
+  // Pinchar un aviso lleva a Solicitudes y abre esa solicitud, con el mensaje
+  // y el desplegable de estado a mano.
+  $$("[data-noti]", p).forEach(function (b) {
+    b.addEventListener("click", function () {
+      var id = b.dataset.noti;
+      cerrarCampana();
+      ir("solicitudes");
+      api("/api/admin/solicitudes").then(function (lista) {
+        var f = lista.filter(function (x) { return String(x.id) === id; })[0];
+        if (f) abrirFormulario("solicitudes", f);
+      }).catch(error);
+    });
+  });
+  var todas = p.querySelector(".campana__todas");
+  if (todas) todas.addEventListener("click", function () { cerrarCampana(); ir("solicitudes"); });
+}
+
+function abrirCampana() {
+  pintarCampana();
+  $("#campana-panel").hidden = false;
+  $("#campana-btn").setAttribute("aria-expanded", "true");
+  actualizarCampana();
+}
+function cerrarCampana() {
+  $("#campana-panel").hidden = true;
+  $("#campana-btn").setAttribute("aria-expanded", "false");
+}
+
+$("#campana-btn").addEventListener("click", function (e) {
+  e.stopPropagation();
+  if ($("#campana-panel").hidden) abrirCampana(); else cerrarCampana();
+});
+document.addEventListener("click", function (e) {
+  if (!$("#campana-panel").hidden && !$("#campana").contains(e.target)) cerrarCampana();
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") cerrarCampana();
+});
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden) actualizarCampana();
+});
+
 /* ── Arranque ─────────────────────────────────────────────────────────── */
-function arrancar() {
+var relojCampana = null;
+function arrancar(desdeLogin) {
   $("#login").hidden = true;
   $("#app").hidden = false;
   $("#sesion-email").textContent = localStorage.getItem("loureiro_email") || "";
   invalidar();
+  // Al entrar con la contraseña se abre siempre el Panel, aunque la URL traiga
+  // la vista de la sesión anterior. Al recargar con la sesión viva sí se
+  // respeta la vista en la que estabas.
   var inicial = location.hash.replace("#", "");
-  ir(MODULOS[inicial] ? inicial : "dashboard");
+  ir(!desdeLogin && MODULOS[inicial] ? inicial : "dashboard");
+  // La campanita se refresca al cambiar de vista (lo hace ir()), cada minuto
+  // y al volver a la pestaña.
+  if (!relojCampana) relojCampana = setInterval(actualizarCampana, 60000);
 }
 
 $("#btn-menu").addEventListener("click", function () { $("#lat").classList.toggle("is-open"); });
 
 if (token) {
-  api("/api/admin/dashboard").then(arrancar).catch(function () { salir(true); });
+  api("/api/admin/dashboard").then(function () { arrancar(false); }).catch(function () { salir(true); });
 } else {
   api("/api/admin/estado").then(function (e) {
     if (!e.configurado) {

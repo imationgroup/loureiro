@@ -403,3 +403,59 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .toast--err{ border-left-color:var(--rojo,#F87171); }
 @keyframes toastEntra{ from{ opacity:0; transform:translate(-50%,10px) } }
 @media (prefers-reduced-motion:reduce){ .toast{ animation:none } }
+
+/* ── Campanita de notificaciones ──────────────────────────────────────── */
+.cab__der{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.campana{ position:relative; }
+.campana__btn{
+  position:relative; width:42px; height:42px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--line-2); background:var(--ink-2); color:var(--txt);
+  display:grid; place-items:center;
+}
+.campana__btn:hover{ border-color:var(--amber); }
+.campana__btn svg{ width:20px; height:20px; fill:none; stroke:currentColor;
+  stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+.campana__num{
+  position:absolute; top:-6px; right:-6px; min-width:20px; height:20px; padding:0 5px;
+  border-radius:10px; background:var(--amber); color:#fff; font-size:.72rem; font-weight:700;
+  display:grid; place-items:center; box-shadow:0 0 0 2px var(--ink);
+}
+/* Explícito: el display de arriba anula el atributo hidden. */
+.campana__num[hidden], .campana__panel[hidden]{ display:none; }
+.campana__panel{
+  position:absolute; right:0; top:calc(100% + 8px); z-index:40;
+  width:min(340px, calc(100vw - 32px)); max-height:min(460px, 70vh); overflow-y:auto;
+  background:var(--ink-2); border:1px solid var(--line-2); border-radius:12px;
+  box-shadow:0 18px 40px rgba(0,0,0,.42);
+}
+.campana__cab{
+  display:flex; justify-content:space-between; padding:12px 14px;
+  font-size:.74rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--muted); border-bottom:1px solid var(--line);
+}
+.campana__cab span{ color:var(--amber); }
+.campana__item, .campana__todas{
+  display:block; width:100%; text-align:left; padding:11px 14px; border:0; cursor:pointer;
+  background:none; color:var(--txt); font:inherit;
+}
+.campana__item{ border-bottom:1px solid var(--line); }
+.campana__item:hover, .campana__todas:hover{ background:rgba(255,255,255,.04); }
+.campana__item b{ display:block; font-size:.9rem; }
+.campana__item span{ display:block; font-size:.8rem; color:var(--muted); margin-top:2px; }
+.campana__todas{ color:var(--amber); font-size:.86rem; font-weight:600; }
+.campana__vacio{ padding:18px 14px; color:var(--muted); font-size:.88rem; }
+
+/* ── Estado editable en la fila ───────────────────────────────────────── */
+.estado-rapido{
+  -webkit-appearance:none; appearance:none; cursor:pointer;
+  border:1px solid var(--line-2); border-radius:999px; background-color:var(--ink-3);
+  color:var(--txt); font:inherit; font-size:.78rem; font-weight:600;
+  padding:4px 26px 4px 11px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239AA0AA' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 8px center; background-size:12px;
+}
+.estado-rapido:disabled{ opacity:.6; cursor:progress; }
+.estado-rapido--pendiente{ border-color:rgba(249,115,22,.55); color:var(--amber); }
+.estado-rapido--atendida{ border-color:rgba(74,222,128,.45); color:var(--verde); }
+.estado-rapido--descartada{ color:var(--muted); }
+.estado-rapido option{ background:var(--ink-2); color:var(--txt); }
