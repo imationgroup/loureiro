@@ -200,6 +200,68 @@ def borrar(recurso: str, id_: int, _: str = Depends(sesion_actual)):
     return {"ok": True}
 
 
+SALTO = chr(10)   # separador dentro de las notas del cliente
+
+
+# ═══ Solicitud → cliente ════════════════════════════════════════════════
+
+@router.post("/solicitudes/{id_}/convertir", status_code=201)
+def convertir_en_cliente(id_: int, _: str = Depends(sesion_actual)):
+    """Da de alta como cliente a quien ha mandado una solicitud.
+
+    No crea un cliente a ciegas. Si esa solicitud ya se convirtió, devuelve el
+    cliente que salió de ella; y si ya existe un cliente con el mismo correo
+    —lo normal cuando alguien rellena el formulario dos veces, o cuando un
+    cliente de siempre pide otra cosa— se enlaza con el que hay en vez de
+    duplicarlo. Un fichero de clientes con la misma persona tres veces es
+    justo lo que hace inútil el listado.
+    """
+    s = db.fila("SELECT * FROM solicitudes WHERE id = ?", (id_,))
+    if not s:
+        raise HTTPException(404, "La solicitud no existe")
+
+    if s.get("cliente_id"):
+        ya = db.fila("SELECT * FROM clientes WHERE id = ?", (s["cliente_id"],))
+        if ya:
+            return {"cliente": ya, "creado": False, "motivo": "ya_convertida"}
+
+    email = (s.get("email") or "").strip()
+    existente = None
+    if email:
+        existente = db.fila(
+            "SELECT * FROM clientes WHERE lower(trim(email)) = lower(?)", (email,))
+
+    with db.tx() as con:
+        if existente:
+            cliente_id, creado = existente["id"], False
+        else:
+            # El mensaje del formulario se guarda en las notas: es el contexto
+            # de por qué esta persona está en la ficha, y si no se copia aquí
+            # se queda solo en la solicitud.
+            notas = "Alta desde una solicitud de la web"
+            if s.get("servicio"):
+                notas += f" ({s['servicio']})"
+            if s.get("mensaje"):
+                notas += "." + SALTO + SALTO + s["mensaje"]
+            cur = con.execute(
+                """INSERT INTO clientes (nombre, email, telefono, notas)
+                   VALUES (?,?,?,?)""",
+                (s["nombre"], email or None, s.get("telefono"), notas))
+            cliente_id, creado = cur.lastrowid, True
+
+        con.execute("UPDATE solicitudes SET cliente_id = ? WHERE id = ?",
+                    (cliente_id, id_))
+        # Si seguía sin tocar, pasa a contactada: convertirla en cliente ya es
+        # haberla atendido, y dejarla en «nueva» falsea el aviso del panel.
+        if s.get("estado") == "nueva":
+            con.execute("UPDATE solicitudes SET estado = 'contactada' WHERE id = ?",
+                        (id_,))
+
+    return {"cliente": db.fila("SELECT * FROM clientes WHERE id = ?", (cliente_id,)),
+            "creado": creado,
+            "motivo": "nuevo" if creado else "email_existente"}
+
+
 # ═══ Asignación de profesionales a obras ════════════════════════════════
 
 class Asignacion(BaseModel):

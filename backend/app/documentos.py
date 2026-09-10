@@ -9,12 +9,13 @@ Un total almacenado acaba descuadrado en cuanto alguien edita una línea y
 falla el recálculo.
 """
 
+from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
-from . import db
+from . import db, pdf
 from .auth import sesion_actual
 
 router = APIRouter(prefix="/api/admin", tags=["documentos"])
@@ -33,6 +34,28 @@ DOCUMENTOS = {
                    "fecha", "vencimiento", "estado", "notas"],
     },
 }
+
+
+# Series con numeración automática. Las facturas se dejan fuera a propósito:
+# su numeración tiene requisitos legales de correlatividad y, si ya hay una
+# serie en uso, cambiarla por sorpresa desde el panel haría más daño que bien.
+SERIES = {"presupuestos": "P"}
+
+
+def siguiente_numero(con, serie: str, anio: int) -> str:
+    """Reserva y devuelve el siguiente número de la serie, tipo P-2026-078.
+
+    Se llama dentro de la transacción que crea el documento: en SQLite las
+    escrituras se serializan, así que dos altas simultáneas no pueden llevarse
+    el mismo número.
+    """
+    con.execute("INSERT OR IGNORE INTO contadores (serie, anio, ultimo) VALUES (?,?,0)",
+                (serie, anio))
+    con.execute("UPDATE contadores SET ultimo = ultimo + 1 WHERE serie = ? AND anio = ?",
+                (serie, anio))
+    n = con.execute("SELECT ultimo FROM contadores WHERE serie = ? AND anio = ?",
+                    (serie, anio)).fetchone()[0]
+    return f"{SERIES[serie]}-{anio}-{n:03d}"
 
 
 class Linea(BaseModel):
@@ -142,6 +165,11 @@ def crear(tipo: str, doc: Documento, _: str = Depends(sesion_actual)):
     d = _doc(tipo)
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"] and v is not None}
     with db.tx() as con:
+        # El número se genera solo, salvo que venga escrito a mano: el campo
+        # sigue siendo editable para poder corregir uno concreto.
+        if tipo in SERIES and not str(cab.get("numero") or "").strip():
+            anio = int(str(cab.get("fecha") or date.today().isoformat())[:4])
+            cab["numero"] = siguiente_numero(con, tipo, anio)
         if cab:
             cols = ", ".join(cab)
             cur = con.execute(
@@ -186,6 +214,18 @@ def borrar(tipo: str, id_: int, _: str = Depends(sesion_actual)):
         if cur.rowcount == 0:
             raise HTTPException(404, "No encontrado")
     return {"ok": True}
+
+
+@router.get("/documentos/presupuestos/{id_}/pdf")
+def descargar_pdf(id_: int, _: str = Depends(sesion_actual)):
+    """El presupuesto en PDF, listo para mandar al cliente."""
+    datos, nombre = pdf.presupuesto_pdf(id_)
+    if datos is None:
+        raise HTTPException(404, "El presupuesto no existe")
+    return Response(
+        content=datos,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
 
 @router.post("/documentos/presupuestos/{id_}/facturar", status_code=201)

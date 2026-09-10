@@ -384,3 +384,21 @@ td.acciones button.borrar:hover{color:var(--rojo)}
   .linea .l-borrar{position:absolute;right:0}
   .lineas-cab{display:none}
 }
+
+/* ── Aviso flotante ───────────────────────────────────────────────────── */
+/* Va fijo sobre la página, no dentro de la vista: la vista se repinta al
+   volver de la API y se comía el aviso antes de poder leerlo. */
+.toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+  z-index:60; max-width:min(560px,calc(100vw - 32px));
+  /* Fondo oscuro con el verde de acento en el borde. --verde es un verde
+     claro pensado para texto, y usarlo de fondo con letra blanca deja un
+     contraste ilegible. */
+  background:var(--ink-3); color:var(--txt); border-left:3px solid var(--verde);
+  padding:12px 18px; border-radius:10px; font-size:.9rem; line-height:1.45;
+  box-shadow:0 12px 28px rgba(0,0,0,.28);
+  animation:toastEntra .22s ease both;
+}
+.toast--fuera{ opacity:0; transition:opacity .35s ease; }
+@keyframes toastEntra{ from{ opacity:0; transform:translate(-50%,10px) } }
+@media (prefers-reduced-motion:reduce){ .toast{ animation:none } }
