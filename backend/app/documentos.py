@@ -33,13 +33,22 @@ DOCUMENTOS = {
         "campos": ["numero", "cliente_id", "obra_id", "presupuesto_id",
                    "fecha", "vencimiento", "estado", "notas"],
     },
+    "proformas": {
+        "tabla": "proformas", "lineas": "proforma_lineas",
+        "fk": "proforma_id",
+        "campos": ["numero", "cliente_id", "obra_id", "presupuesto_id",
+                   "fecha", "validez", "estado", "notas"],
+    },
 }
 
 
 # Series con numeración automática. Las facturas se dejan fuera a propósito:
 # su numeración tiene requisitos legales de correlatividad y, si ya hay una
 # serie en uso, cambiarla por sorpresa desde el panel haría más daño que bien.
-SERIES = {"presupuestos": "P"}
+# Las proformas llevan su propia serie (PF) y nunca la de facturas: una
+# proforma no es una factura, y si consumiese números de esa serie dejaría
+# huecos en una numeración que tiene que ser correlativa.
+SERIES = {"presupuestos": "P", "proformas": "PF"}
 
 
 def siguiente_numero(con, serie: str, anio: int) -> str:
@@ -216,43 +225,76 @@ def borrar(tipo: str, id_: int, _: str = Depends(sesion_actual)):
     return {"ok": True}
 
 
-@router.get("/documentos/presupuestos/{id_}/pdf")
-def descargar_pdf(id_: int, _: str = Depends(sesion_actual)):
-    """El presupuesto en PDF, listo para mandar al cliente."""
-    datos, nombre = pdf.presupuesto_pdf(id_)
+@router.get("/documentos/{tipo}/{id_}/pdf")
+def descargar_pdf(tipo: str, id_: int, _: str = Depends(sesion_actual)):
+    """Presupuesto, proforma o factura en PDF, listo para mandar al cliente."""
+    _doc(tipo)
+    try:
+        datos, nombre = pdf.documento_pdf(tipo, id_)
+    except pdf.DocumentoIncompleto as e:
+        raise HTTPException(422, str(e))
     if datos is None:
-        raise HTTPException(404, "El presupuesto no existe")
+        raise HTTPException(404, "El documento no existe")
     return Response(
         content=datos,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
 
-@router.post("/documentos/presupuestos/{id_}/facturar", status_code=201)
-def facturar(id_: int, _: str = Depends(sesion_actual)):
-    """Convierte un presupuesto aceptado en factura, copiando sus líneas."""
-    p = db.fila("SELECT * FROM presupuestos WHERE id = ?", (id_,))
-    if not p:
-        raise HTTPException(404, "El presupuesto no existe")
-    lineas = db.filas(
-        "SELECT * FROM presupuesto_lineas WHERE presupuesto_id = ? ORDER BY orden, id",
-        (id_,))
-    if not lineas:
-        raise HTTPException(422, "El presupuesto no tiene líneas que facturar")
+def _copiar(origen: str, id_: int, destino: str, estado_origen: str) -> int:
+    """Crea un documento `destino` con el cliente, la obra y las líneas de otro.
 
+    Sirve para los tres pasos del circuito: presupuesto → proforma,
+    presupuesto → factura y proforma → factura. El enlace con el presupuesto
+    se conserva a lo largo de la cadena.
+    """
+    o, d = _doc(origen), _doc(destino)
+    doc = db.fila(f"SELECT * FROM {o['tabla']} WHERE id = ?", (id_,))
+    if not doc:
+        raise HTTPException(404, "El documento de origen no existe")
+    lineas = db.filas(
+        f"SELECT * FROM {o['lineas']} WHERE {o['fk']} = ? ORDER BY orden, id", (id_,))
+    if not lineas:
+        raise HTTPException(422, "El documento no tiene líneas que copiar")
+
+    etiqueta = "el presupuesto" if origen == "presupuestos" else "la proforma"
+    cab = {
+        "cliente_id": doc["cliente_id"],
+        "obra_id": doc["obra_id"],
+        "presupuesto_id": id_ if origen == "presupuestos" else doc.get("presupuesto_id"),
+        "notas": f"Generada desde {etiqueta} {doc['numero'] or doc['id']}",
+    }
     with db.tx() as con:
-        cur = con.execute(
-            """INSERT INTO facturas (cliente_id, obra_id, presupuesto_id, notas)
-               VALUES (?,?,?,?)""",
-            (p["cliente_id"], p["obra_id"], id_,
-             f"Generada desde el presupuesto {p['numero'] or p['id']}"))
-        nueva = cur.lastrowid
+        if destino in SERIES:
+            cab["numero"] = siguiente_numero(con, destino, date.today().year)
+        cols = ", ".join(cab)
+        nuevo = con.execute(
+            f"INSERT INTO {d['tabla']} ({cols}) VALUES ({', '.join('?' * len(cab))})",
+            tuple(cab.values())).lastrowid
         for i, l in enumerate(lineas):
             con.execute(
-                """INSERT INTO factura_lineas (factura_id, concepto, cantidad,
-                   unidad, precio, iva, orden) VALUES (?,?,?,?,?,?,?)""",
-                (nueva, l["concepto"], l["cantidad"], l["unidad"], l["precio"],
+                f"""INSERT INTO {d['lineas']} ({d['fk']}, concepto, cantidad,
+                    unidad, precio, iva, orden) VALUES (?,?,?,?,?,?,?)""",
+                (nuevo, l["concepto"], l["cantidad"], l["unidad"], l["precio"],
                  l["iva"], i))
-        con.execute("UPDATE presupuestos SET estado = 'aceptado' WHERE id = ?", (id_,))
+        con.execute(f"UPDATE {o['tabla']} SET estado = ? WHERE id = ?",
+                    (estado_origen, id_))
+    return nuevo
+
+
+@router.post("/documentos/{tipo}/{id_}/facturar", status_code=201)
+def facturar(tipo: str, id_: int, _: str = Depends(sesion_actual)):
+    """Presupuesto o proforma → factura, copiando sus líneas."""
+    if tipo not in ("presupuestos", "proformas"):
+        raise HTTPException(404, "Solo se facturan presupuestos y proformas")
+    nueva = _copiar(tipo, id_, "facturas",
+                    "aceptado" if tipo == "presupuestos" else "facturada")
     sincronizar_ingreso(nueva)
     return ver("facturas", nueva)
+
+
+@router.post("/documentos/presupuestos/{id_}/proforma", status_code=201)
+def a_proforma(id_: int, _: str = Depends(sesion_actual)):
+    """Presupuesto aceptado → factura proforma, típicamente para pedir la señal."""
+    nueva = _copiar("presupuestos", id_, "proformas", "aceptado")
+    return ver("proformas", nueva)
