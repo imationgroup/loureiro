@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS solicitudes (
   servicio  TEXT,
   mensaje   TEXT NOT NULL,
   ip        TEXT,
-  estado    TEXT NOT NULL DEFAULT 'nueva',       -- nueva|contactada|presupuestada|ganada|perdida
+  estado    TEXT NOT NULL DEFAULT 'pendiente',   -- pendiente|atendida|descartada
   notas     TEXT,
   creado    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -316,12 +316,26 @@ MIGRACIONES = [
 ]
 
 
+# Estados de las solicitudes, simplificados el 2026-09-10 a tres: pendiente,
+# atendida y descartada. Los antiguos se traducen al arrancar; es idempotente,
+# así que da igual cuántas veces se ejecute.
+ESTADOS_SOLICITUD_ANTIGUOS = {
+    "nueva": "pendiente",
+    "contactada": "atendida",
+    "presupuestada": "atendida",
+    "ganada": "atendida",
+    "perdida": "descartada",
+}
+
+
 def migrar():
     con = conexion()
     for tabla, columna, tipo in MIGRACIONES:
         existentes = {r["name"] for r in con.execute(f"PRAGMA table_info({tabla})")}
         if columna not in existentes:
             con.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
+    for viejo, nuevo in ESTADOS_SOLICITUD_ANTIGUOS.items():
+        con.execute("UPDATE solicitudes SET estado = ? WHERE estado = ?", (nuevo, viejo))
     con.commit()
 
 
