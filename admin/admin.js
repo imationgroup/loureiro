@@ -46,6 +46,8 @@ var ico = {
   recibo:'<path d="M4 2h16v20l-3-2-3 2-2-2-2 2-3-2-3 2z"/><path d="M8 8h8M8 12h8M8 16h4"/>',
   descarga:'<path d="M12 3v12"/><path d="M7 12l5 5 5-5"/><path d="M4 20h16"/>',
   mapa:'<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  calendario:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
+  sincro:'<path d="M4 12a8 8 0 0 1 14-5.3L20 8"/><path d="M20 3v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 16"/><path d="M4 21v-5h5"/>',
   proforma:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 14h6M12 11v6"/>',
   altaCliente:'<path d="M14 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M15 11h6"/>',
   equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
@@ -125,6 +127,8 @@ var CATEGORIAS_PRO = ["Electricista", "Albañil", "Fontanero", "Pintor", "Carpin
 
 var ESTADOS_OBRA = ["presupuesto", "en curso", "pausada", "terminada", "cancelada"];
 var ESTADOS_SOL  = ["pendiente", "atendida", "descartada"];
+var TIPOS_CITA   = ["visita", "presupuesto", "obra", "revisión", "otro"];
+var ESTADOS_CITA = ["pendiente", "hecha", "cancelada"];
 var CAT_COSTE    = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata", "otros"];
 
 /* ── Provincias y municipios ──────────────────────────────────────────────
@@ -203,6 +207,23 @@ var MUNICIPIOS = {
 
 var MODULOS = {
   dashboard: { titulo: "Panel", sub: "Resumen de la empresa", icono: ico.panel, especial: "dashboard" },
+
+  agenda: {
+    titulo: "Agenda", sub: "Citas y visitas con clientes", icono: ico.calendario,
+    recurso: "citas", especial: "agenda", uno: "cita", borrarDesdeFicha: true,
+    campos: [
+      { c: "titulo", t: "Qué es", req: true, ayuda: "Por ejemplo: visita para presupuesto de baño" },
+      { c: "tipo", t: "Tipo", tipo: "select", ops: TIPOS_CITA, mitad: true },
+      { c: "estado", t: "Estado", tipo: "select", ops: ESTADOS_CITA, mitad: true },
+      { c: "inicio", t: "Empieza", tipo: "fechahora", req: true, mitad: true },
+      { c: "fin", t: "Termina", tipo: "fechahora", mitad: true, ayuda: "Si lo dejas vacío, dura una hora" },
+      { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true },
+      { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
+      { c: "obra_id", t: "Obra", tipo: "ref", de: "obras" },
+      { c: "direccion", t: "Dirección", ayuda: "Si la dejas vacía se usa la de la obra o, si no hay obra, la del cliente" },
+      { c: "notas", t: "Notas", tipo: "area" }
+    ]
+  },
 
   solicitudes: {
     titulo: "Solicitudes", sub: "Peticiones llegadas desde la web", icono: ico.buzon,
@@ -410,7 +431,7 @@ var MODULOS = {
 };
 
 var ORDEN_MENU = [
-  { sep: null, items: ["dashboard", "solicitudes"] },
+  { sep: null, items: ["dashboard", "agenda", "solicitudes"] },
   { sep: "Gestión", items: ["obras", "clientes", "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "costes", "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] }
@@ -463,6 +484,7 @@ function ir(k) {
   $("#vista").innerHTML = '<div class="vacia">Cargando…</div>';
 
   if (m.especial === "dashboard") return verDashboard();
+  if (m.especial === "agenda") return verAgenda();
   if (m.especial === "contabilidad") return verContabilidad();
   if (m.especial === "obras") return verObras();
   if (m.especial === "stock") return verStock();
@@ -622,6 +644,7 @@ function cerrarModal() {
 
 function campoHTML(campo, valor, esNuevo) {
   var v = valor === null || valor === undefined ? "" : valor;
+  if (campo.tipo === "fechahora" && v) v = String(v).slice(0, 16);
   if (esNuevo && v === "" && campo.pordefecto !== undefined) {
     v = (campo.pordefecto === "hoy") ? new Date().toISOString().slice(0, 10)
                                      : campo.pordefecto;
@@ -669,6 +692,7 @@ function campoHTML(campo, valor, esNuevo) {
     h += "</select>";
   } else {
     var tipo = campo.tipo === "numero" ? "number" : campo.tipo === "fecha" ? "date"
+             : campo.tipo === "fechahora" ? "datetime-local"
              : campo.tipo === "email" ? "email" : "text";
     h += '<input id="c-' + campo.c + '" data-c="' + campo.c + '" type="' + tipo + '"' +
          (campo.tipo === "numero" ? ' step="any"' : "") +
@@ -678,8 +702,11 @@ function campoHTML(campo, valor, esNuevo) {
   return h + "</div>";
 }
 
-function abrirFormulario(clave, registro) {
+function abrirFormulario(clave, registro, inicial) {
   var m = MODULOS[clave], editando = !!registro;
+  // "inicial": valores de partida para uno NUEVO (la agenda abre la cita en
+  // el día que se pinchó). No es un registro: se crea, no se edita.
+  var vals = registro || inicial || null;
   var refs = [];
   m.campos.forEach(function (c) { if (c.tipo === "ref" && refs.indexOf(c.de) < 0) refs.push(c.de); });
 
@@ -691,22 +718,26 @@ function abrirFormulario(clave, registro) {
         buffer.push(campo);
         if (buffer.length === 2) {
           cuerpo += '<div class="rejilla-2">' +
-            campoHTML(buffer[0], registro && registro[buffer[0].c], !editando) +
-            campoHTML(buffer[1], registro && registro[buffer[1].c], !editando) + "</div>";
+            campoHTML(buffer[0], vals && vals[buffer[0].c], !editando) +
+            campoHTML(buffer[1], vals && vals[buffer[1].c], !editando) + "</div>";
           buffer = [];
         }
       } else {
         if (buffer.length) {
-          cuerpo += campoHTML(buffer[0], registro && registro[buffer[0].c], !editando);
+          cuerpo += campoHTML(buffer[0], vals && vals[buffer[0].c], !editando);
           buffer = [];
         }
-        cuerpo += campoHTML(campo, registro && registro[campo.c], !editando);
+        cuerpo += campoHTML(campo, vals && vals[campo.c], !editando);
       }
     });
-    if (buffer.length) cuerpo += campoHTML(buffer[0], registro && registro[buffer[0].c], !editando);
+    if (buffer.length) cuerpo += campoHTML(buffer[0], vals && vals[buffer[0].c], !editando);
     cuerpo += "</form>";
 
-    modal((editando ? "Editar " : "Nuevo en ") + m.titulo.toLowerCase(), cuerpo,
+    modal(m.uno ? (editando ? "Editar " : "Nueva ") + m.uno
+               : (editando ? "Editar " : "Nuevo en ") + m.titulo.toLowerCase(), cuerpo,
+      (editando && m.borrarDesdeFicha
+        ? '<button class="btn btn--peligro" id="f-borrar" style="margin-right:auto">Borrar</button>'
+        : "") +
       '<button class="btn btn--fant" id="f-cancelar">Cancelar</button>' +
       '<button class="btn btn--amber" id="f-guardar">Guardar</button>');
 
@@ -738,6 +769,9 @@ function abrirFormulario(clave, registro) {
     }
 
     $("#f-cancelar").addEventListener("click", cerrarModal);
+    if ($("#f-borrar")) $("#f-borrar").addEventListener("click", function () {
+      confirmarBorrado(clave, registro.id);
+    });
     $("#f-guardar").addEventListener("click", function () {
       var datos = {}, falta = null;
       $$("#f-form [data-multi]").forEach(function (caja) {
@@ -1481,6 +1515,203 @@ function verContabilidad() {
 
     $("#vista").innerHTML = h;
   }).catch(error);
+}
+
+/* ── Agenda ───────────────────────────────────────────────────────────── */
+// Estado de la vista. Se conserva al volver de guardar una cita, para no
+// saltar al mes actual cada vez que se toca algo.
+var AG = { mes: null, vista: null, pro: "", citas: [] };
+var AG_DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+var AG_MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+                "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+function dos(n) { return (n < 10 ? "0" : "") + n; }
+function isoDia(d) { return d.getFullYear() + "-" + dos(d.getMonth() + 1) + "-" + dos(d.getDate()); }
+function horaDe(s) { return String(s || "").slice(11, 16); }
+function diaLargo(iso) {
+  var p = iso.split("-");
+  return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString("es-ES",
+    { weekday: "long", day: "numeric", month: "long" });
+}
+
+function nuevaCita(dia) {
+  abrirFormulario("agenda", null, {
+    inicio: dia + "T09:00", fin: dia + "T10:00", tipo: "visita", estado: "pendiente",
+    profesional_id: AG.pro ? Number(AG.pro) : null
+  });
+}
+
+function abrirCita(id) {
+  var c = AG.citas.filter(function (x) { return String(x.id) === String(id); })[0];
+  if (c) abrirFormulario("agenda", c);
+}
+
+function chipCita(c) {
+  var titulo = horaDe(c.inicio) + "–" + horaDe(c.fin_efectivo) + " " + c.titulo +
+    (c.cliente ? " · " + c.cliente : "") + (c.profesional ? " (" + c.profesional + ")" : "") +
+    (c.solapa ? ". ¡Este profesional tiene otra cita a la vez!" : "");
+  return '<button type="button" class="ag-cita ag-cita--' + esc(c.estado) +
+    (c.solapa ? " ag-cita--solapa" : "") + '" data-cita="' + c.id + '" title="' + esc(titulo) + '">' +
+    "<b>" + esc(horaDe(c.inicio)) + "</b> " + esc(c.titulo) + "</button>";
+}
+
+function pintarMes(desde, hasta, primero, citas) {
+  var porDia = {}, hoy = isoDia(new Date());
+  citas.forEach(function (c) {
+    var k = c.inicio.slice(0, 10);
+    (porDia[k] = porDia[k] || []).push(c);
+  });
+  var h = '<div class="ag-mesgrid"><div class="ag-cab">' +
+    AG_DIAS.map(function (d) { return "<div>" + d + "</div>"; }).join("") + '</div><div class="ag-dias">';
+  for (var d = new Date(desde); d <= hasta; d.setDate(d.getDate() + 1)) {
+    var k = isoDia(d);
+    h += '<div class="ag-dia' + (d.getMonth() !== primero.getMonth() ? " ag-dia--fuera" : "") +
+      (k === hoy ? " ag-dia--hoy" : "") + '" data-dia="' + k + '">' +
+      '<span class="ag-num">' + d.getDate() + "</span>" +
+      (porDia[k] || []).map(chipCita).join("") + "</div>";
+  }
+  return h + "</div></div>";
+}
+
+function pintarLista(primero, citas) {
+  var mes = isoDia(primero).slice(0, 7);
+  var delMes = citas.filter(function (c) { return c.inicio.slice(0, 7) === mes; });
+  if (!delMes.length) {
+    return '<div class="tabla-caja"><div class="vacia">No hay citas este mes. ' +
+      "Pulsa «Nueva cita» para crear la primera.</div></div>";
+  }
+  var h = '<div class="ag-lista">', dia = "";
+  delMes.forEach(function (c) {
+    var k = c.inicio.slice(0, 10);
+    if (k !== dia) {
+      if (dia) h += "</div>";
+      dia = k;
+      h += '<div class="ag-grupo"><h3>' + esc(diaLargo(k)) + "</h3>";
+    }
+    var detalle = [c.cliente, c.profesional, c.direccion_efectiva].filter(Boolean).join(" · ");
+    var clase = c.estado === "hecha" ? " tag--verde" : c.estado === "cancelada" ? " tag--rojo" : " tag--amber";
+    h += '<button type="button" class="ag-item ag-item--' + esc(c.estado) + '" data-cita="' + c.id + '">' +
+      '<span class="ag-hora">' + esc(horaDe(c.inicio)) + "–" + esc(horaDe(c.fin_efectivo)) + "</span>" +
+      '<span class="ag-txt"><b>' + esc(c.titulo) + "</b>" +
+      (detalle ? "<small>" + esc(detalle) + "</small>" : "") +
+      (c.solapa ? '<small class="ag-solapa">Este profesional tiene otra cita a la vez</small>' : "") +
+      "</span>" + '<span class="tag' + clase + '">' + esc(c.estado) + "</span></button>";
+  });
+  return h + "</div></div>";
+}
+
+function verAgenda() {
+  var hoy = new Date();
+  if (!AG.mes) AG.mes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  if (!AG.vista) AG.vista = window.innerWidth < 760 ? "lista" : "mes";
+
+  $("#vista-acciones").innerHTML =
+    '<button class="btn btn--fant" id="ag-sync">' + svg(ico.sincro) + "Google Calendar</button>" +
+    '<button class="btn btn--amber" id="ag-nueva">' + svg(ico.mas) + "Nueva cita</button>";
+  $("#ag-nueva").addEventListener("click", function () { nuevaCita(isoDia(new Date())); });
+  $("#ag-sync").addEventListener("click", verSuscripcion);
+
+  // La rejilla va de lunes a domingo: empieza el lunes de la semana del día 1
+  // y acaba el domingo de la semana del último día del mes.
+  var primero = AG.mes;
+  var desde = new Date(primero);
+  desde.setDate(1 - ((primero.getDay() + 6) % 7));
+  var ultimo = new Date(primero.getFullYear(), primero.getMonth() + 1, 0);
+  var hasta = new Date(ultimo);
+  hasta.setDate(ultimo.getDate() + (6 - ((ultimo.getDay() + 6) % 7)));
+
+  Promise.all([api("/api/admin/agenda?desde=" + isoDia(desde) + "&hasta=" + isoDia(hasta)),
+               cargarRef("profesionales")])
+    .then(function (res) {
+      AG.citas = res[0];
+      var citas = AG.citas.filter(function (c) { return !AG.pro || String(c.profesional_id) === AG.pro; });
+      var h = '<div class="ag-barra"><div class="ag-nav">' +
+        '<button class="btn btn--fant btn--sm" id="ag-prev" aria-label="Mes anterior">‹</button>' +
+        '<button class="btn btn--fant btn--sm" id="ag-hoy">Hoy</button>' +
+        '<button class="btn btn--fant btn--sm" id="ag-sig" aria-label="Mes siguiente">›</button>' +
+        '<h2 class="ag-mes">' + AG_MESES[primero.getMonth()] + " " + primero.getFullYear() + "</h2></div>" +
+        '<div class="ag-filtros"><select id="ag-pro" aria-label="Profesional">' +
+        '<option value="">Todos los profesionales</option>' +
+        (cache.profesionales || []).map(function (p) {
+          return '<option value="' + p.id + '"' + (String(p.id) === AG.pro ? " selected" : "") + ">" +
+                 esc(p.nombre) + "</option>";
+        }).join("") + "</select>" +
+        '<div class="ag-vistas">' +
+        '<button type="button" data-agvista="mes"' + (AG.vista === "mes" ? ' class="is-on"' : "") + ">Mes</button>" +
+        '<button type="button" data-agvista="lista"' + (AG.vista === "lista" ? ' class="is-on"' : "") + ">Lista</button>" +
+        "</div></div></div>";
+      h += AG.vista === "mes" ? pintarMes(desde, hasta, primero, citas) : pintarLista(primero, citas);
+      $("#vista").innerHTML = h;
+
+      var v = $("#vista");
+      $("#ag-prev").addEventListener("click", function () {
+        AG.mes = new Date(primero.getFullYear(), primero.getMonth() - 1, 1); verAgenda();
+      });
+      $("#ag-sig").addEventListener("click", function () {
+        AG.mes = new Date(primero.getFullYear(), primero.getMonth() + 1, 1); verAgenda();
+      });
+      $("#ag-hoy").addEventListener("click", function () { AG.mes = null; verAgenda(); });
+      $("#ag-pro").addEventListener("change", function () { AG.pro = this.value; verAgenda(); });
+      $$("[data-agvista]", v).forEach(function (b) {
+        b.addEventListener("click", function () { AG.vista = b.dataset.agvista; verAgenda(); });
+      });
+      $$("[data-cita]", v).forEach(function (b) {
+        b.addEventListener("click", function (e) { e.stopPropagation(); abrirCita(b.dataset.cita); });
+      });
+      // Pinchar en un hueco del día abre una cita nueva ese día.
+      $$("[data-dia]", v).forEach(function (celda) {
+        celda.addEventListener("click", function () { nuevaCita(celda.dataset.dia); });
+      });
+    })
+    .catch(error);
+}
+
+function verSuscripcion() {
+  api("/api/admin/agenda/suscripcion").then(function (r) {
+    modal("Ver la agenda en Google Calendar",
+      '<p style="color:var(--muted);line-height:1.55">Añade este enlace <b>una sola vez</b> en ' +
+      "Google Calendar y las citas del panel aparecerán solas, también en el móvil.</p>" +
+      '<div class="ag-url"><input id="ag-url" readonly value="' + esc(r.url) + '">' +
+      '<button class="btn btn--fant btn--sm" id="ag-copiar">Copiar</button></div>' +
+      '<ol class="ag-pasos">' +
+        "<li>Abre <b>Google Calendar en el ordenador</b> (calendar.google.com). Desde la app del móvil no se puede añadir por enlace.</li>" +
+        "<li>En la columna de la izquierda, junto a <b>Otros calendarios</b>, pulsa <b>+</b> y elige <b>Desde URL</b>.</li>" +
+        "<li>Pega el enlace y pulsa <b>Añadir calendario</b>. En poco rato lo verás también en el móvil.</li>" +
+      "</ol>" +
+      '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55">Va solo del panel a Google: las citas ' +
+      "se crean y se cambian aquí. Google vuelve a leer el enlace cada varias horas, así que un cambio " +
+      "puede tardar en verse allí. <b>El enlace da acceso a tu agenda</b>: no lo compartas. Si se filtra, " +
+      "pulsa «Cambiar enlace» y el anterior deja de funcionar.</p>",
+      '<button class="btn btn--fant" id="ag-renovar">Cambiar enlace</button>' +
+      '<button class="btn btn--amber" id="ag-cerrar">Hecho</button>');
+    $("#ag-cerrar").addEventListener("click", cerrarModal);
+    $("#ag-copiar").addEventListener("click", function () {
+      var inp = $("#ag-url");
+      inp.select();
+      var hecho = function () { avisar("Enlace copiado"); };
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(inp.value).then(hecho, function () { document.execCommand("copy"); hecho(); });
+      } else { document.execCommand("copy"); hecho(); }
+    });
+    $("#ag-renovar").addEventListener("click", function () {
+      // Primer clic avisa, el segundo cambia: cambiarlo rompe la suscripción
+      // que ya esté puesta en Google.
+      var b = this;
+      if (!b.dataset.seguro) {
+        b.dataset.seguro = "1";
+        b.textContent = "¿Seguro? El enlace actual dejará de funcionar";
+        b.className = "btn btn--peligro";
+        return;
+      }
+      api("/api/admin/agenda/suscripcion/renovar", { metodo: "POST" }).then(function (n) {
+        $("#ag-url").value = n.url;
+        b.dataset.seguro = "";
+        b.textContent = "Cambiar enlace";
+        b.className = "btn btn--fant";
+        avisar("Enlace nuevo creado. Tendrás que añadirlo otra vez en Google Calendar.");
+      }).catch(function (e) { avisar(e.message, "err"); });
+    });
+  }).catch(function (e) { avisar(e.message, "err"); });
 }
 
 /* ── Campanita de notificaciones ──────────────────────────────────────── */

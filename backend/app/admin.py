@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from . import db
+from .agenda import validar_cita
 from .auth import (ADMIN_EMAIL, ADMIN_PASSWORD_HASH, cerrar_sesion,
                    configurado, crear_sesion, limpiar_intentos,
                    registrar_intento, sesion_actual, verificar_password)
@@ -87,11 +88,14 @@ def logout(request: Request, _: str = Depends(sesion_actual)):
 
 class Tabla:
     def __init__(self, nombre: str, campos: list[str], orden: str = "id DESC",
-                 obligatorios: tuple[str, ...] = ()):
+                 obligatorios: tuple[str, ...] = (), validar=None):
         self.nombre = nombre
         self.campos = campos
         self.orden = orden
         self.obligatorios = obligatorios
+        # Comprobaciones propias de la tabla, además de los obligatorios.
+        # Recibe (datos nuevos, registro guardado o None al crear).
+        self.validar = validar
 
     def limpiar(self, datos: dict, creando: bool = False) -> dict:
         """Se queda solo con columnas conocidas: nadie inyecta campos raros.
@@ -140,6 +144,11 @@ TABLAS = {
     "solicitudes": Tabla("solicitudes",
         ["nombre", "email", "telefono", "servicio", "mensaje", "estado", "notas"],
         obligatorios=("nombre",)),
+    "citas": Tabla("citas",
+        ["titulo", "tipo", "inicio", "fin", "profesional_id", "cliente_id",
+         "obra_id", "direccion", "estado", "notas"],
+        orden="inicio DESC", obligatorios=("titulo", "inicio"),
+        validar=validar_cita),
 }
 
 
@@ -165,6 +174,8 @@ def crear(recurso: str, datos: dict[str, Any], _: str = Depends(sesion_actual)):
             raise HTTPException(422, f"Falta el campo obligatorio: {campo}")
     if not d:
         raise HTTPException(422, "No hay datos que guardar")
+    if t.validar:
+        t.validar(d, None)
     cols = ", ".join(d)
     marcas = ", ".join("?" for _ in d)
     with db.tx() as con:
@@ -181,6 +192,11 @@ def actualizar(recurso: str, id_: int, datos: dict[str, Any],
     d = t.limpiar(datos)
     if not d:
         raise HTTPException(422, "No hay datos que actualizar")
+    if t.validar:
+        existente = db.fila(f"SELECT * FROM {t.nombre} WHERE id = ?", (id_,))
+        if not existente:
+            raise HTTPException(404, "No encontrado")
+        t.validar(d, existente)
     sets = ", ".join(f"{k} = ?" for k in d)
     with db.tx() as con:
         cur = con.execute(f"UPDATE {t.nombre} SET {sets} WHERE id = ?",

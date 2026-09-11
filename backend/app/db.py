@@ -279,6 +279,30 @@ CREATE TABLE IF NOT EXISTS proforma_lineas (
   orden       INTEGER NOT NULL DEFAULT 0
 );
 
+-- ── Agenda ───────────────────────────────────────────────────────────
+-- Las horas van en hora local de Ourense y sin zona: "2026-09-15T10:00".
+CREATE TABLE IF NOT EXISTS citas (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo         TEXT NOT NULL,
+  tipo           TEXT NOT NULL DEFAULT 'visita',    -- visita|presupuesto|obra|revisión|otro
+  inicio         TEXT NOT NULL,
+  fin            TEXT,                              -- vacío = una hora
+  profesional_id INTEGER REFERENCES profesionales(id) ON DELETE SET NULL,
+  cliente_id     INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  obra_id        INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  direccion      TEXT,                              -- vacío = la de la obra o la del cliente
+  estado         TEXT NOT NULL DEFAULT 'pendiente', -- pendiente|hecha|cancelada
+  notas          TEXT,
+  creado         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Ajustes sueltos del panel (clave -> valor). Hoy solo el token secreto del
+-- enlace de la agenda para Google Calendar.
+CREATE TABLE IF NOT EXISTS ajustes (
+  clave TEXT PRIMARY KEY,
+  valor TEXT
+);
+
 -- ── Contadores de numeración ─────────────────────────────────────────
 -- La numeración NO se deduce del máximo existente. Si se deduce y alguien
 -- borra el último documento, el siguiente reutiliza su número, y dos
@@ -294,6 +318,7 @@ CREATE TABLE IF NOT EXISTS contadores (
 CREATE INDEX IF NOT EXISTS idx_plineas ON presupuesto_lineas(presupuesto_id);
 CREATE INDEX IF NOT EXISTS idx_flineas ON factura_lineas(factura_id);
 CREATE INDEX IF NOT EXISTS idx_prlineas ON proforma_lineas(proforma_id);
+CREATE INDEX IF NOT EXISTS idx_citas_inicio ON citas(inicio);
 
 CREATE INDEX IF NOT EXISTS idx_costes_obra       ON costes(obra_id);
 CREATE INDEX IF NOT EXISTS idx_ingresos_obra     ON ingresos(obra_id);
