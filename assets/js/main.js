@@ -106,6 +106,18 @@
   var msg = $("#form-msg");
   var submit = $("#submit");
 
+  // Qué decir según el campo que falla, tanto si lo detecta el navegador como
+  // si lo rechaza el servidor. Un "revisa los campos" a secas no dice nada.
+  var AVISOS_CAMPO = {
+    name: "Escribe tu nombre.",
+    email: "Revisa el correo: tiene que ser del tipo nombre@dominio.com.",
+    phone: "Revisa el teléfono: es demasiado largo.",
+    service: "Elige el servicio que necesitas.",
+    message: "Cuéntanos un poco más en el mensaje (al menos 4 caracteres).",
+    privacy: "Tienes que aceptar la política de privacidad para enviarlo.",
+    _: "Revisa los datos del formulario e inténtalo de nuevo."
+  };
+
   var say = function (text, kind) {
     msg.textContent = text;
     msg.className = "form__msg" + (kind ? " " + kind : "");
@@ -137,7 +149,7 @@
       if (bad) {
         bad.classList.add("is-err");
         bad.focus();
-        say("Revisa los campos marcados antes de enviar.", "err");
+        say(AVISOS_CAMPO[bad.name] || "Revisa los campos marcados antes de enviar.", "err");
       }
       return;
     }
@@ -155,6 +167,18 @@
     // Honeypot relleno = bot. Fingimos éxito y no mandamos nada.
     if (data.website) { say("Gracias, te contactaremos pronto.", "ok"); form.reset(); return; }
 
+    // El navegador no comprueba lo mismo que el servidor: minlength cuenta los
+    // espacios y aquí se envía el texto recortado, así que "ok  " pasaría el
+    // navegador y el servidor lo rechazaría. Se comprueba lo que se envía.
+    var corto = !data.name ? "name" : (data.message.length < 4 ? "message" : null);
+    if (corto) {
+      var campoCorto = form.elements[corto];
+      campoCorto.classList.add("is-err");
+      campoCorto.focus();
+      say(AVISOS_CAMPO[corto], "err");
+      return;
+    }
+
     submit.disabled = true;
     submit.textContent = "Enviando…";
     say("");
@@ -168,12 +192,37 @@
 
     if (!API) { giveUp(); return; }
 
+    // Error que el visitante puede corregir: se le dice qué pasa y se deja el
+    // botón listo para reintentar, sin tocar lo que ha escrito.
+    var reintentar = function (texto, campo) {
+      say(texto, "err");
+      submit.disabled = false;
+      submit.textContent = "Enviar solicitud";
+      if (campo) { campo.classList.add("is-err"); campo.focus(); }
+    };
+
     fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     })
       .then(function (res) {
+        // 422 = datos que el servidor no acepta; 429 = demasiados envíos
+        // seguidos. Ninguno es "la web está caída", así que no se manda al
+        // visitante a su correo: eso queda para los fallos de verdad.
+        if (res.status === 422) {
+          return res.json().catch(function () { return {}; }).then(function (j) {
+            var loc = (j && j.detail && j.detail[0] && j.detail[0].loc) || [];
+            var err = new Error("validacion");
+            err.campo = loc[loc.length - 1];
+            throw err;
+          });
+        }
+        if (res.status === 429) {
+          var lim = new Error("limite");
+          lim.limite = true;
+          throw lim;
+        }
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json();
       })
@@ -183,6 +232,15 @@
         say("¡Recibido! Te respondemos lo antes posible.", "ok");
         submit.textContent = "Solicitud enviada";
       })
-      .catch(giveUp);
+      .catch(function (err) {
+        if (err && err.limite) {
+          reintentar("Has enviado varias solicitudes seguidas. Espera un rato o llámanos al 603 905 128.");
+        } else if (err && err.message === "validacion") {
+          reintentar(AVISOS_CAMPO[err.campo] || AVISOS_CAMPO._,
+                     err.campo ? form.elements[err.campo] : null);
+        } else {
+          giveUp();
+        }
+      });
   });
 })();
