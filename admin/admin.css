@@ -459,3 +459,67 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .estado-rapido--atendida{ border-color:rgba(74,222,128,.45); color:var(--verde); }
 .estado-rapido--descartada{ color:var(--muted); }
 .estado-rapido option{ background:var(--ink-2); color:var(--txt); }
+
+/* ── Agenda ───────────────────────────────────────────────────────────── */
+.ag-barra{ display:flex; justify-content:space-between; align-items:center; gap:12px;
+  flex-wrap:wrap; margin-bottom:14px; }
+.ag-nav{ display:flex; align-items:center; gap:6px; }
+.ag-mes{ font-size:1.15rem; margin-left:8px; text-transform:capitalize; }
+.ag-filtros{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.ag-filtros select{ background:var(--ink-2); border:1px solid var(--line-2); color:var(--txt);
+  border-radius:8px; padding:7px 10px; font:inherit; font-size:.86rem; }
+.ag-vistas{ display:inline-flex; border:1px solid var(--line-2); border-radius:8px; overflow:hidden; }
+.ag-vistas button{ background:none; border:0; color:var(--muted); padding:7px 12px; font:inherit;
+  font-size:.86rem; cursor:pointer; }
+.ag-vistas button.is-on{ background:var(--amber); color:#fff; }
+
+.ag-mesgrid{ border:1px solid var(--line); border-radius:var(--r); overflow:hidden; background:var(--ink-2); }
+.ag-cab, .ag-dias{ display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); }
+.ag-cab div{ padding:8px 10px; font-size:.72rem; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--muted-2); border-bottom:1px solid var(--line); }
+.ag-dia{ min-height:112px; min-width:0; padding:6px; display:flex; flex-direction:column; gap:3px;
+  border-right:1px solid var(--line); border-bottom:1px solid var(--line); cursor:pointer; }
+.ag-dia:nth-child(7n){ border-right:0; }
+.ag-dia:hover{ background:rgba(255,255,255,.025); }
+.ag-dia--fuera{ opacity:.42; }
+.ag-num{ align-self:flex-end; min-width:22px; height:22px; display:grid; place-items:center;
+  border-radius:11px; font-size:.8rem; color:var(--muted); }
+.ag-dia--hoy .ag-num{ background:var(--amber); color:#fff; font-weight:700; }
+.ag-cita{ display:block; width:100%; text-align:left; cursor:pointer; font:inherit; font-size:.74rem;
+  line-height:1.3; color:var(--txt); background:rgba(96,165,250,.13); border:0;
+  border-left:3px solid var(--azul); border-radius:5px; padding:3px 6px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ag-cita:hover{ background:rgba(96,165,250,.24); }
+.ag-cita b{ font-weight:700; }
+.ag-cita--hecha{ border-left-color:var(--verde); background:var(--verde-soft); opacity:.8; }
+.ag-cita--cancelada{ border-left-color:var(--muted-2); background:rgba(255,255,255,.04);
+  color:var(--muted); text-decoration:line-through; }
+/* Dos citas a la vez del mismo profesional */
+.ag-cita--solapa{ box-shadow:inset 0 0 0 1px var(--rojo); }
+
+.ag-grupo h3{ font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);
+  margin:18px 0 8px; }
+.ag-grupo:first-child h3{ margin-top:0; }
+.ag-item{ display:flex; align-items:center; gap:14px; width:100%; text-align:left; cursor:pointer;
+  font:inherit; color:var(--txt); background:var(--ink-2); border:1px solid var(--line);
+  border-radius:10px; padding:12px 14px; margin-bottom:8px; }
+.ag-item:hover{ border-color:var(--line-2); }
+.ag-item--cancelada{ opacity:.6; }
+.ag-hora{ min-width:96px; font-weight:700; font-size:.88rem; color:var(--amber); }
+.ag-txt{ flex:1; min-width:0; }
+.ag-txt b{ display:block; }
+.ag-txt small{ display:block; margin-top:2px; font-size:.8rem; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ag-txt small.ag-solapa{ color:var(--rojo); font-weight:600; }
+
+.ag-url{ display:flex; gap:8px; margin:12px 0; }
+.ag-url input{ flex:1; min-width:0; background:var(--ink); border:1px solid var(--line-2);
+  border-radius:8px; color:var(--txt); padding:9px 10px; font:inherit; font-size:.8rem; }
+.ag-pasos{ margin:0 0 12px 18px; line-height:1.6; font-size:.9rem; }
+
+@media (max-width:760px){
+  .ag-dia{ min-height:62px; padding:4px; }
+  /* En el móvil el mes solo marca que hay citas; el detalle, en la lista. */
+  .ag-cita{ font-size:0; height:6px; padding:0; border-left:0; border-radius:3px; }
+  .ag-hora{ min-width:74px; }
+}
