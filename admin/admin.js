@@ -1634,54 +1634,106 @@ function diasDeCita(c) {
   return dias;
 }
 
-/* Ficha de una cita en un día del mes. "parte" dice qué trozo es en las de
-   varios días: el primero lleva la hora de inicio, el último la de fin y los
-   del medio solo el título; así se leen como una barra que cruza los días. */
-function chipCita(c, parte) {
-  parte = parte || "unico";
-  var varios = parte !== "unico";
+var CLASE_TIPO = { "visita": "visita", "presupuesto": "presupuesto", "obra": "obra",
+                   "revisión": "revision", "otro": "otro" };
+function claseTipo(t) { return "tipo-" + (CLASE_TIPO[t] || "otro"); }
+function nombreTipo(t) { t = String(t || "otro"); return t.charAt(0).toUpperCase() + t.slice(1); }
+
+function textoCita(c, varios) {
   var rango = varios ? fechaHora(c.inicio) + " → " + fechaHora(c.fin_efectivo)
                      : horaDe(c.inicio) + "–" + horaDe(c.fin_efectivo);
-  var titulo = rango + " " + c.titulo + (c.cliente ? " · " + c.cliente : "") +
-    (c.profesional ? " (" + c.profesional + ")" : "") +
+  return nombreTipo(c.tipo) + ": " + c.titulo + " · " + rango +
+    (c.cliente ? " · " + c.cliente : "") + (c.profesional ? " (" + c.profesional + ")" : "") +
+    (c.estado !== "pendiente" ? " · " + c.estado : "") +
     (c.solapa ? ". ¡Este profesional tiene otra cita a la vez!" : "");
-  var hFin = horaDe(c.fin_efectivo);
-  var etiqueta = (parte === "unico" || parte === "ini") ? "<b>" + esc(horaDe(c.inicio)) + "</b> " + esc(c.titulo)
-    : (parte === "fin" && hFin !== "00:00") ? "hasta <b>" + esc(hFin) + "</b> " + esc(c.titulo)
-    : esc(c.titulo);
-  return '<button type="button" class="ag-cita ag-cita--' + esc(c.estado) +
-    (varios ? " ag-cita--" + parte : "") + (c.solapa ? " ag-cita--solapa" : "") +
-    '" data-cita="' + c.id + '" title="' + esc(titulo) + '">' + etiqueta + "</button>";
+}
+function clasesCita(c) {
+  return claseTipo(c.tipo) + " ag-est--" + esc(c.estado) + (c.solapa ? " ag-cita--solapa" : "");
+}
+function etiquetaCita(c) {
+  return (c.estado === "hecha" ? "✓ " : "") + "<b>" + esc(horaDe(c.inicio)) + "</b> " + esc(c.titulo);
 }
 
+/* Cita de un solo día: una ficha dentro de la celda. */
+function chipCita(c) {
+  return '<button type="button" class="ag-cita ' + clasesCita(c) + '" data-cita="' + c.id +
+    '" title="' + esc(textoCita(c, false)) + '">' + etiquetaCita(c) + "</button>";
+}
+
+/* El mes se pinta por semanas. Las citas de varios días NO van dentro de las
+   celdas: son una barra por semana, pintada encima de la fila y con fondo
+   opaco, así que se ve como una línea seguida sin que la corten los bordes de
+   los días. Cada barra ocupa un carril (una altura) y las celdas dejan ese
+   hueco arriba para que las fichas de un solo día queden debajo. */
 function pintarMes(desde, hasta, primero, citas) {
-  var porDia = {}, hoy = isoDia(new Date());
+  var hoy = isoDia(new Date()), inicioRejilla = isoDia(desde);
+  var barras = [], porDia = {};
   citas.forEach(function (c) {
     var dias = diasDeCita(c);
-    dias.forEach(function (k, i) {
-      var parte = dias.length === 1 ? "unico" : i === 0 ? "ini" : i === dias.length - 1 ? "fin" : "medio";
-      (porDia[k] = porDia[k] || []).push({ c: c, parte: parte });
-    });
-  });
-  // Primero las de varios días, para que sus barras tiendan a quedar a la
-  // misma altura de un día al siguiente; luego por hora.
-  Object.keys(porDia).forEach(function (k) {
-    porDia[k].sort(function (a, b) {
-      var va = a.parte === "unico" ? 1 : 0, vb = b.parte === "unico" ? 1 : 0;
-      if (va !== vb) return va - vb;
-      return a.c.inicio < b.c.inicio ? -1 : a.c.inicio > b.c.inicio ? 1 : a.c.id - b.c.id;
-    });
+    if (dias.length > 1) barras.push({ c: c, dias: dias });
+    else (porDia[dias[0]] = porDia[dias[0]] || []).push(c);
   });
   var h = '<div class="ag-mesgrid"><div class="ag-cab">' +
     AG_DIAS.map(function (d) { return "<div>" + d + "</div>"; }).join("") + '</div><div class="ag-dias">';
-  for (var d = new Date(desde); d <= hasta; d.setDate(d.getDate() + 1)) {
-    var k = isoDia(d);
-    h += '<div class="ag-dia' + (d.getMonth() !== primero.getMonth() ? " ag-dia--fuera" : "") +
-      (k === hoy ? " ag-dia--hoy" : "") + '" data-dia="' + k + '">' +
-      '<span class="ag-num">' + d.getDate() + "</span>" +
-      (porDia[k] || []).map(function (x) { return chipCita(x.c, x.parte); }).join("") + "</div>";
+  var d = new Date(desde);
+  while (d <= hasta) {
+    var semana = [];
+    for (var i = 0; i < 7; i++) { semana.push(isoDia(d)); d.setDate(d.getDate() + 1); }
+
+    // Trozo de cada cita de varios días que cae en esta semana
+    var trozos = [];
+    barras.forEach(function (b) {
+      var cols = [];
+      semana.forEach(function (k, col) { if (b.dias.indexOf(k) >= 0) cols.push(col); });
+      if (!cols.length) return;
+      var a = cols[0], z = cols[cols.length - 1];
+      var empieza = b.dias[0] === semana[a];
+      trozos.push({
+        c: b.c, a: a, z: z, empieza: empieza,
+        acaba: b.dias[b.dias.length - 1] === semana[z],
+        // El título va una sola vez: el día que empieza o, si empezó antes de
+        // lo que se ve, en el primer día visible para que no quede sin nombre.
+        titulo: empieza || (semana[a] === inicioRejilla && b.dias[0] < inicioRejilla)
+      });
+    });
+    // Carriles: cada barra en la primera altura libre; antes las que empiezan
+    // antes y, a igualdad, las más largas.
+    trozos.sort(function (x, y) { return x.a - y.a || (y.z - y.a) - (x.z - x.a) || x.c.id - y.c.id; });
+    var carriles = [];
+    trozos.forEach(function (s) {
+      var n = 0;
+      while (carriles[n] !== undefined && carriles[n] >= s.a) n++;
+      carriles[n] = s.z;
+      s.carril = n;
+    });
+
+    h += '<div class="ag-semana" style="--carriles:' + carriles.length + '">';
+    semana.forEach(function (k) {
+      var dd = leerLocal(k + "T00:00");
+      var fichas = (porDia[k] || []).sort(function (x, y) {
+        return x.inicio < y.inicio ? -1 : x.inicio > y.inicio ? 1 : x.id - y.id;
+      });
+      h += '<div class="ag-dia' + (dd.getMonth() !== primero.getMonth() ? " ag-dia--fuera" : "") +
+        (k === hoy ? " ag-dia--hoy" : "") + '" data-dia="' + k + '">' +
+        '<span class="ag-num">' + dd.getDate() + "</span>" + fichas.map(chipCita).join("") + "</div>";
+    });
+    trozos.forEach(function (s) {
+      h += '<button type="button" class="ag-barra-cita ' + clasesCita(s.c) +
+        (s.empieza ? "" : " ag-barra-cita--viene") + (s.acaba ? "" : " ag-barra-cita--sigue") +
+        '" style="--col:' + s.a + ";--span:" + (s.z - s.a + 1) + ";--carril:" + s.carril +
+        ";--mi:" + (s.empieza ? "3px" : "0px") + ";--md:" + (s.acaba ? "3px" : "0px") + '"' +
+        ' data-cita="' + s.c.id + '" title="' + esc(textoCita(s.c, true)) + '">' +
+        (s.titulo ? etiquetaCita(s.c) : "") + "</button>";
+    });
+    h += "</div>";
   }
   return h + "</div></div>";
+}
+
+function leyendaTipos() {
+  return '<div class="ag-leyenda">' + TIPOS_CITA.map(function (t) {
+    return '<span class="' + claseTipo(t) + '">' + esc(nombreTipo(t)) + "</span>";
+  }).join("") + "</div>";
 }
 
 function pintarLista(primero, citas) {
@@ -1711,9 +1763,11 @@ function pintarLista(primero, citas) {
     var varios = diasDeCita(c).length > 1;
     var horas = varios ? fechaHora(c.inicio) + " → " + fechaHora(c.fin_efectivo)
                        : horaDe(c.inicio) + "–" + horaDe(c.fin_efectivo);
-    var detalle = [c.cliente, c.profesional, c.direccion_efectiva].filter(Boolean).join(" · ");
+    var detalle = [nombreTipo(c.tipo), c.cliente, c.profesional, c.direccion_efectiva]
+      .filter(Boolean).join(" · ");
     var clase = c.estado === "hecha" ? " tag--verde" : c.estado === "cancelada" ? " tag--rojo" : " tag--amber";
-    h += '<button type="button" class="ag-item ag-item--' + esc(c.estado) + '" data-cita="' + c.id + '">' +
+    h += '<button type="button" class="ag-item ' + claseTipo(c.tipo) + ' ag-item--' + esc(c.estado) +
+      '" data-cita="' + c.id + '">' +
       '<span class="ag-hora' + (varios ? " ag-hora--varios" : "") + '">' + esc(horas) + "</span>" +
       '<span class="ag-txt"><b>' + esc(c.titulo) + "</b>" +
       (detalle ? "<small>" + esc(detalle) + "</small>" : "") +
@@ -1764,6 +1818,7 @@ function verAgenda() {
         '<button type="button" data-agvista="lista"' + (AG.vista === "lista" ? ' class="is-on"' : "") + ">Lista</button>" +
         "</div></div></div>";
       h += AG.vista === "mes" ? pintarMes(desde, hasta, primero, citas) : pintarLista(primero, citas);
+      h += leyendaTipos();
       $("#vista").innerHTML = h;
 
       var v = $("#vista");
@@ -1780,6 +1835,13 @@ function verAgenda() {
       });
       $$("[data-cita]", v).forEach(function (b) {
         b.addEventListener("click", function (e) { e.stopPropagation(); abrirCita(b.dataset.cita); });
+      });
+      // Al pasar por encima de una cita de varios días se iluminan todos sus
+      // trozos, también los de las otras semanas.
+      $$("[data-cita]", v).forEach(function (b) {
+        var todos = function () { return $$('[data-cita="' + b.dataset.cita + '"]', v); };
+        b.addEventListener("mouseenter", function () { todos().forEach(function (x) { x.classList.add("is-hover"); }); });
+        b.addEventListener("mouseleave", function () { todos().forEach(function (x) { x.classList.remove("is-hover"); }); });
       });
       // Pinchar en un hueco del día abre una cita nueva ese día.
       $$("[data-dia]", v).forEach(function (celda) {
