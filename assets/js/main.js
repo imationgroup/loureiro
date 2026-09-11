@@ -10,6 +10,10 @@
      cae automáticamente a abrir el cliente de correo del visitante.     */
   var API = "https://api.loureirosoluciones.es/api/contact";
   var EMAIL = "contacto@loureirosoluciones.es";
+  // Página a la que se sale tras un envío correcto. Es la que mide Google
+  // Ads como solicitud conseguida, así que solo se llega a ella cuando el
+  // servidor confirma el envío.
+  var GRACIAS = "/gracias.html";
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
 
@@ -231,6 +235,12 @@
         form.reset();
         say("¡Recibido! Te respondemos lo antes posible.", "ok");
         submit.textContent = "Solicitud enviada";
+        // Se sale a una página propia en vez de quedarse aquí: el formulario
+        // no recarga, así que sin una URL de destino no hay forma de medir el
+        // envío en Google Ads. El aviso de arriba queda visible mientras
+        // carga, y si la navegación no llegase a ocurrir, el visitante sigue
+        // viendo que su mensaje se envió.
+        window.location.assign(GRACIAS);
       })
       .catch(function (err) {
         if (err && err.limite) {
