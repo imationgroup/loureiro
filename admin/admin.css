@@ -494,6 +494,15 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .ag-cita--hecha{ border-left-color:var(--verde); background:var(--verde-soft); opacity:.8; }
 .ag-cita--cancelada{ border-left-color:var(--muted-2); background:rgba(255,255,255,.04);
   color:var(--muted); text-decoration:line-through; }
+/* Citas de varios días: la ficha se estira hasta el borde de la celda para
+   que se lea como una barra que cruza de un día al siguiente. La rejilla
+   tiene overflow:hidden, así que en los bordes de la semana queda cortada. */
+.ag-cita--ini{ width:calc(100% + 7px); border-radius:5px 0 0 5px; }
+.ag-cita--medio{ width:calc(100% + 14px); margin-left:-7px; border-radius:0;
+  border-left-color:transparent; }
+.ag-cita--fin{ width:calc(100% + 7px); margin-left:-7px; border-radius:0 5px 5px 0;
+  border-left-color:transparent; }
+.ag-hora--varios{ min-width:150px; font-size:.82rem; }
 /* Dos citas a la vez del mismo profesional */
 .ag-cita--solapa{ box-shadow:inset 0 0 0 1px var(--rojo); }
 
