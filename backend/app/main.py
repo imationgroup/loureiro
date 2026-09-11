@@ -23,6 +23,8 @@ from typing import Deque, Dict
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
@@ -89,6 +91,22 @@ def _error_no_previsto(request: Request, exc: Exception):
         content={"detail": f"Error del servidor: {type(exc).__name__}. "
                            "Revisa que los campos obligatorios estén completos."},
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def _datos_no_validos(request: Request, exc: RequestValidationError):
+    """Registra qué campo no pasa la validación y responde el 422 de siempre.
+
+    Sin esto, un 422 solo deja en el registro la línea de acceso y no hay forma
+    de saber qué falló: pasó con el formulario, que la web tapaba con un error
+    genérico. Se registran el campo y el tipo de error, nunca el valor, que es
+    lo que ha escrito el visitante.
+    """
+    fallos = ", ".join(
+        f"{'.'.join(str(p) for p in e.get('loc', ())[1:]) or '?'}({e.get('type')})"
+        for e in exc.errors())
+    log.info("[validación] %s %s: %s", request.method, request.url.path, fallos)
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.on_event("startup")
