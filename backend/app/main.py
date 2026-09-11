@@ -298,7 +298,7 @@ def _acuse(nombre: str, telefono: str, servicio: str, mensaje: str) -> tuple[str
     return asunto, texto, html
 
 
-def _aviso(servicio: str, pendientes: int) -> tuple[str, str]:
+def _aviso(servicio: str, pendientes: int, solicitud_id: int | None = None) -> tuple[str, str]:
     """Aviso corto para el dueño: que hay trabajo, sin los datos del cliente.
 
     No lleva nombre, teléfono ni mensaje a propósito: va a una cuenta personal
@@ -306,11 +306,18 @@ def _aviso(servicio: str, pendientes: int) -> tuple[str, str]:
     ceder ahí los datos de los clientes. Para verlos está el enlace al panel.
     """
     if pendientes <= 1:
-        asunto = "Tienes una solicitud pendiente en Loureiro"
         estado = "Es la única pendiente de atender."
     else:
-        asunto = f"Tienes {pendientes} solicitudes pendientes en Loureiro"
         estado = f"Ahora mismo tienes {pendientes} solicitudes pendientes de atender."
+    # Asunto distinto en cada aviso. Con uno fijo, Gmail mete todos en la misma
+    # conversación y el nuevo pasa desapercibido dentro del hilo de los viejos:
+    # parecía que no llegaba. El número de solicitud lo hace único sin meter
+    # datos del cliente.
+    if solicitud_id:
+        asunto = f"Solicitud pendiente #{solicitud_id} en Loureiro: {servicio}"
+    else:
+        asunto = ("Tienes una solicitud pendiente en Loureiro" if pendientes <= 1
+                  else f"Tienes {pendientes} solicitudes pendientes en Loureiro")
     texto = (
         f"Ha llegado una solicitud nueva desde la web: {servicio}.\n\n"
         f"{estado}\n\n"
@@ -320,7 +327,8 @@ def _aviso(servicio: str, pendientes: int) -> tuple[str, str]:
 
 
 def _correos_tras_solicitud(nombre: str, email: str, telefono: str, servicio: str,
-                            mensaje: str, guardada: bool) -> None:
+                            mensaje: str, guardada: bool,
+                            solicitud_id: int | None = None) -> None:
     """Acuse al visitante y aviso al dueño.
 
     Se ejecuta en segundo plano, después de contestar al formulario: cada envío
@@ -342,7 +350,7 @@ def _correos_tras_solicitud(nombre: str, email: str, telefono: str, servicio: st
     # Solo si la solicitud quedó guardada: el aviso dice que está en el panel.
     if AVISO_EMAILS and guardada:
         pendientes = db.escalar("SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente'")
-        asunto, texto = _aviso(servicio, pendientes)
+        asunto, texto = _aviso(servicio, pendientes, solicitud_id)
         send_email(to=AVISO_EMAILS, subject=asunto, body=texto)
 
 
@@ -396,9 +404,10 @@ def contact(payload: ContactPayload, request: Request, tareas: BackgroundTasks):
     # Se guarda antes de enviar: si el correo falla, el aviso no se pierde
     # y queda en el panel para atenderlo igualmente.
     guardada = False
+    solicitud_id = None
     try:
         with db.tx() as con:
-            con.execute(
+            solicitud_id = con.execute(
                 # El estado va explícito: en la base de producción la columna se
                 # creó con DEFAULT 'nueva', y SQLite no deja cambiar un valor por
                 # defecto sin rehacer la tabla entera.
@@ -406,7 +415,7 @@ def contact(payload: ContactPayload, request: Request, tareas: BackgroundTasks):
                    VALUES (?,?,?,?,?,?,'pendiente')""",
                 (name, sender_email, phone if phone != "No facilitado" else None,
                  service, payload.message.strip(), ip),
-            )
+            ).lastrowid
         guardada = True
     except Exception:  # noqa: BLE001
         log.exception("[contact] no se pudo guardar la solicitud en la BD")
@@ -424,5 +433,5 @@ def contact(payload: ContactPayload, request: Request, tareas: BackgroundTasks):
     # correo principal ha salido: si no, al visitante se le acaba de decir que
     # escriba por correo, y un acuse de recibo lo confundiría.
     tareas.add_task(_correos_tras_solicitud, name, sender_email, phone, service,
-                    payload.message.strip(), guardada)
+                    payload.message.strip(), guardada, solicitud_id)
     return ContactResponse(sent=True)
