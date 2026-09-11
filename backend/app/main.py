@@ -204,11 +204,18 @@ def send_email(to: str | list[str], subject: str, body: str,
         msg["Reply-To"] = reply_to
     for clave, valor in (cabeceras or {}).items():
         msg[clave] = valor
-    msg.set_content(body)
+    # Siempre quoted-printable, nunca 8bit. Raiola firma con DKIM al recibir el
+    # correo y luego lo reenvía por sus relays; con un cuerpo en 8bit algún
+    # salto lo recodifica, la firma deja de cuadrar y Gmail lo rechaza
+    # ("DKIM = did not pass"). Pasaba con el aviso, que es texto corto con
+    # tildes y Python lo mandaba en 8bit, y no con el acuse, que ya salía en
+    # quoted-printable por tener líneas largas. En quoted-printable el cuerpo
+    # es ASCII puro y nadie tiene motivo para tocarlo.
+    msg.set_content(body, cte="quoted-printable")
     if html:
         # Texto plano y HTML a la vez: el cliente de correo elige. Hay quien
         # lee sin HTML, y un correo solo HTML puntúa peor en los filtros.
-        msg.add_alternative(html, subtype="html")
+        msg.add_alternative(html, subtype="html", cte="quoted-printable")
 
     try:
         if SMTP_USE_TLS:
