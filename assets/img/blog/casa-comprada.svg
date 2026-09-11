@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de una casa recién comprada: cajas de mudanza con las llaves, cuadro eléctrico nuevo, enchufes y lámpara">
+  <defs>
+    <linearGradient id="cc-w" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+    <linearGradient id="cc-f" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D3AC7E"/><stop offset="1" stop-color="#C09A6E"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#cc-w)"/>
+  <!-- Tarima -->
+  <rect y="330" width="800" height="120" fill="url(#cc-f)"/>
+  <g stroke="#B98F63" stroke-width="1.5" opacity=".8">
+    <path d="M0 364h800M0 400h800"/>
+    <path d="M110 330v34M300 330v34M520 330v34M700 330v34"/>
+    <path d="M60 364v36M240 364v36M430 364v36M640 364v36"/>
+    <path d="M150 400v50M380 400v50M600 400v50"/>
+  </g>
+  <rect y="320" width="800" height="12" fill="#FFFFFF"/>
+
+  <!-- Cajas de la mudanza -->
+  <ellipse cx="154" cy="332" rx="92" ry="6" fill="#A8845C" opacity=".35"/>
+  <rect x="78" y="238" width="152" height="92" rx="3" fill="#D9B98C"/>
+  <rect x="78" y="238" width="152" height="9" fill="#C9A677"/>
+  <rect x="140" y="238" width="14" height="92" fill="#E8D3AE"/>
+  <rect x="168" y="264" width="48" height="28" rx="3" fill="#FFFFFF"/>
+  <rect x="175" y="273" width="34" height="3" rx="1.5" fill="#D6D1C8"/>
+  <rect x="175" y="281" width="22" height="3" rx="1.5" fill="#D6D1C8"/>
+
+  <rect x="96" y="166" width="118" height="72" rx="3" fill="#DDBF94"/>
+  <rect x="96" y="166" width="118" height="8" fill="#CBAA7C"/>
+  <rect x="120" y="166" width="12" height="72" fill="#EAD7B4"/>
+
+  <!-- Llaves con llavero de casa -->
+  <circle cx="170" cy="176" r="9" fill="none" stroke="#8B93A0" stroke-width="3"/>
+  <g fill="#C9CDD3">
+    <circle cx="160" cy="195" r="8"/>
+    <rect x="157" y="200" width="6" height="26" rx="2"/>
+    <rect x="163" y="214" width="5" height="4"/><rect x="163" y="221" width="4" height="4"/>
+  </g>
+  <circle cx="160" cy="195" r="3" fill="#DDBF94"/>
+  <path d="M176 183l9 10" stroke="#8B93A0" stroke-width="3" stroke-linecap="round"/>
+  <path d="M174 205l14-13 14 13v17h-28z" fill="#F97316"/>
+  <rect x="184" y="210" width="8" height="12" rx="1" fill="#FFFFFF"/>
+
+  <!-- Tubo que baja del techo al cuadro -->
+  <rect x="392" y="0" width="16" height="92" fill="#E6E0D7"/>
+  <path d="M392 30h16M392 62h16" stroke="#D6D1C8" stroke-width="2"/>
+
+  <!-- Cuadro eléctrico nuevo -->
+  <rect x="318" y="90" width="164" height="160" rx="8" fill="#FFFFFF"/>
+  <rect x="318" y="90" width="164" height="160" rx="8" fill="none" stroke="#D6D1C8" stroke-width="3"/>
+  <rect x="318" y="90" width="164" height="24" rx="8" fill="#2B3039"/>
+  <rect x="318" y="104" width="164" height="10" fill="#2B3039"/>
+  <circle cx="466" cy="102" r="4" fill="#4ADE80"/>
+
+  <rect x="330" y="130" width="140" height="5" rx="2" fill="#C8C3BA"/>
+  <!-- General -->
+  <rect x="332" y="135" width="24" height="50" rx="3" fill="#2B3039"/>
+  <rect x="338" y="143" width="12" height="16" rx="2" fill="#F97316"/>
+  <!-- Diferencial -->
+  <rect x="360" y="135" width="36" height="50" rx="3" fill="#3A414C"/>
+  <rect x="367" y="143" width="22" height="16" rx="2" fill="#E8E3DA"/>
+  <circle cx="378" cy="173" r="5" fill="#F97316"/>
+  <!-- Automáticos -->
+  <g fill="#4A515C">
+    <rect x="400" y="135" width="15" height="50" rx="3"/><rect x="418" y="135" width="15" height="50" rx="3"/>
+    <rect x="436" y="135" width="15" height="50" rx="3"/><rect x="454" y="135" width="15" height="50" rx="3"/>
+  </g>
+  <g fill="#E8E3DA">
+    <rect x="404" y="143" width="7" height="15" rx="1.5"/><rect x="422" y="143" width="7" height="15" rx="1.5"/>
+    <rect x="440" y="143" width="7" height="15" rx="1.5"/><rect x="458" y="143" width="7" height="15" rx="1.5"/>
+  </g>
+  <g fill="#9AA0AA">
+    <rect x="404" y="168" width="7" height="5" rx="2.5"/><rect x="422" y="168" width="7" height="5" rx="2.5"/>
+    <rect x="440" y="168" width="7" height="5" rx="2.5"/><rect x="458" y="168" width="7" height="5" rx="2.5"/>
+  </g>
+  <rect x="330" y="194" width="140" height="12" rx="3" fill="#F4F1EC"/>
+  <rect x="330" y="214" width="140" height="6" rx="2" fill="#F97316" opacity=".85"/>
+  <g stroke="#8B93A0" stroke-width="2.5" stroke-linecap="round">
+    <path d="M344 220v18M378 220v18M407 220v18M425 220v18M443 220v18M461 220v18"/>
+  </g>
+
+  <!-- Revisado -->
+  <circle cx="482" cy="250" r="22" fill="#5C7F5A"/>
+  <path d="M472 251l7 7 14-15" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Interruptor -->
+  <rect x="530" y="176" width="40" height="56" rx="6" fill="#FFFFFF"/>
+  <rect x="530" y="176" width="40" height="56" rx="6" fill="none" stroke="#E0DBD2" stroke-width="2"/>
+  <rect x="539" y="186" width="22" height="36" rx="4" fill="#FAF8F5" stroke="#E0DBD2" stroke-width="1.5"/>
+  <rect x="545" y="194" width="10" height="3" rx="1.5" fill="#F97316"/>
+
+  <!-- Lámpara -->
+  <circle cx="640" cy="88" r="30" fill="#FFD9A8" opacity=".3"/>
+  <circle cx="640" cy="82" r="15" fill="#FFD9A8" opacity=".7"/>
+  <path d="M640 0v48" stroke="#2B3039" stroke-width="3"/>
+  <path d="M612 48h56l-12 26h-32z" fill="#2B3039"/>
+
+  <!-- Enchufe doble -->
+  <rect x="584" y="262" width="112" height="54" rx="8" fill="#FFFFFF"/>
+  <rect x="584" y="262" width="112" height="54" rx="8" fill="none" stroke="#E0DBD2" stroke-width="2"/>
+  <g>
+    <circle cx="612" cy="289" r="18" fill="#FAF8F5" stroke="#E0DBD2" stroke-width="1.5"/>
+    <circle cx="605" cy="289" r="3.5" fill="#2B3039"/><circle cx="619" cy="289" r="3.5" fill="#2B3039"/>
+    <rect x="609" y="271" width="6" height="4" rx="2" fill="#5C7F5A"/><rect x="609" y="303" width="6" height="4" rx="2" fill="#5C7F5A"/>
+    <circle cx="668" cy="289" r="18" fill="#FAF8F5" stroke="#E0DBD2" stroke-width="1.5"/>
+    <circle cx="661" cy="289" r="3.5" fill="#2B3039"/><circle cx="675" cy="289" r="3.5" fill="#2B3039"/>
+    <rect x="665" y="271" width="6" height="4" rx="2" fill="#5C7F5A"/><rect x="665" y="303" width="6" height="4" rx="2" fill="#5C7F5A"/>
+  </g>
+
+  <!-- Planta -->
+  <rect x="716" y="292" width="36" height="38" rx="4" fill="#C4693A"/>
+  <path d="M734 292c-24-8-32-32-24-50 20 2 30 22 24 50z" fill="#5C7F5A"/>
+  <path d="M734 292c22-13 26-37 15-52-18 5-26 26-15 52z" fill="#6E9469"/>
+</svg>
