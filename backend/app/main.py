@@ -1,8 +1,9 @@
 """Backend del formulario de contacto de loureirosoluciones.es.
 
-Mismo patrón que imationgroup/web: FastAPI + SMTP via smtplib. Sin BD y sin
-auth — recibe el formulario, valida, aplica rate-limit y manda un correo a
-SUPPORT_EMAIL con Reply-To del visitante.
+Recibe el formulario, valida, aplica rate-limit, guarda la solicitud en la
+BD del panel y manda tres correos: la solicitud completa a SUPPORT_EMAIL (con
+Reply-To del visitante), un acuse de recibo al visitante y un aviso corto a
+AVISO_EMAIL. Además sirve la API del panel de gestión.
 
 Diferencia con el de imationgroup: aquí un fallo de SMTP se devuelve como
 error 502 en vez de fingir éxito, para que el front pueda ofrecer el
@@ -16,10 +17,11 @@ import smtplib
 import time
 from collections import deque
 from email.message import EmailMessage
+from html import escape
 from threading import Lock
 from typing import Deque, Dict
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
@@ -43,6 +45,13 @@ SMTP_PASSWORD = env("SMTP_PASSWORD")
 SMTP_FROM = env("SMTP_FROM", "contacto@loureirosoluciones.es")
 SMTP_USE_TLS = env("SMTP_USE_TLS", "true").lower() == "true"
 SUPPORT_EMAIL = env("SUPPORT_EMAIL", "contacto@loureirosoluciones.es")
+
+# Direcciones que reciben el aviso corto de "tienes una solicitud pendiente".
+# Van en el .env y no aquí porque el repositorio es público, y una dirección
+# personal escrita en el código acaba en las listas de spam que rastrean
+# GitHub. Admite varias separadas por comas. Vacío = no se avisa.
+AVISO_EMAILS = [e.strip() for e in env("AVISO_EMAIL").split(",") if e.strip()]
+PANEL_URL = "https://loureirosoluciones.es/admin/#solicitudes"
 
 ALLOWED_ORIGINS = [
     o.strip()
@@ -137,7 +146,33 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def send_email(to: str, subject: str, body: str, reply_to: str | None = None) -> bool:
+# ── Límite de acuses por destinatario ─────────────────────────────────────────
+# El acuse de recibo va a la dirección que escriba quien rellena el formulario,
+# sin verificarla. Sin límite, cualquiera podría usar el formulario para mandar
+# correos desde nuestro dominio a una víctima, con el texto que quiera dentro,
+# y hundir la reputación del dominio. El límite por IP no basta: se esquiva
+# cambiando de IP. Este es por dirección de destino.
+_ACUSE_VENTANA = 24 * 60 * 60   # 24 horas
+_ACUSE_MAX = 2                  # 2 acuses por dirección y día
+_ACUSES: Dict[str, Deque[float]] = {}
+
+
+def _permitir_acuse(email: str) -> bool:
+    now = time.time()
+    clave = email.strip().lower()
+    with _LOCK:
+        cola = _ACUSES.setdefault(clave, deque())
+        while cola and cola[0] < now - _ACUSE_VENTANA:
+            cola.popleft()
+        if len(cola) >= _ACUSE_MAX:
+            return False
+        cola.append(now)
+        return True
+
+
+def send_email(to: str | list[str], subject: str, body: str,
+               reply_to: str | None = None, html: str | None = None,
+               cabeceras: dict[str, str] | None = None) -> bool:
     if not SMTP_HOST:
         log.warning("SMTP no configurado; correo NO enviado. to=%s subject=%r", to, subject)
         log.info("body: %s", body)
@@ -146,10 +181,16 @@ def send_email(to: str, subject: str, body: str, reply_to: str | None = None) ->
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = SMTP_FROM
-    msg["To"] = to
+    msg["To"] = to if isinstance(to, str) else ", ".join(to)
     if reply_to:
         msg["Reply-To"] = reply_to
+    for clave, valor in (cabeceras or {}).items():
+        msg[clave] = valor
     msg.set_content(body)
+    if html:
+        # Texto plano y HTML a la vez: el cliente de correo elige. Hay quien
+        # lee sin HTML, y un correo solo HTML puntúa peor en los filtros.
+        msg.add_alternative(html, subtype="html")
 
     try:
         if SMTP_USE_TLS:
@@ -170,6 +211,116 @@ def send_email(to: str, subject: str, body: str, reply_to: str | None = None) ->
         return False
 
 
+# ── Correos que salen tras una solicitud ──────────────────────────────────────
+
+def _acuse(nombre: str, telefono: str, servicio: str, mensaje: str) -> tuple[str, str, str]:
+    """Acuse de recibo para quien rellena el formulario: (asunto, texto, html).
+
+    Todo lo que escribió el visitante se escapa antes de meterlo en el HTML:
+    si no, un mensaje con etiquetas se pintaría como parte del correo.
+    """
+    asunto = "Hemos recibido tu solicitud · Loureiro Soluciones"
+    citado = "\n".join("> " + l for l in mensaje.splitlines()) or "> (sin mensaje)"
+    texto = (
+        f"Hola {nombre},\n\n"
+        "Gracias por escribirnos. Hemos recibido tu solicitud y la atenderemos "
+        "lo antes posible.\n\n"
+        "Esto es lo que nos has enviado:\n\n"
+        f"Servicio: {servicio}\n"
+        f"Teléfono: {telefono}\n\n"
+        f"{citado}\n\n"
+        "Si quieres añadir algo, responde a este correo o llámanos al 603 905 128.\n\n"
+        "Un saludo,\n"
+        "Loureiro Soluciones\n"
+        "Reformas y mantenimiento del hogar en Ourense\n"
+        "https://loureirosoluciones.es\n"
+    )
+    n, s, t = escape(nombre), escape(servicio), escape(telefono)
+    m = escape(mensaje).replace("\n", "<br>")
+    # Maquetación con tablas y estilos en línea: es lo único que respetan
+    # Gmail, Outlook y compañía. Sin imágenes, que muchos clientes bloquean.
+    # El charset va también dentro del HTML: la cabecera MIME ya lo declara,
+    # pero hay webmails y reenvíos que la pierden y los acentos salen rotos.
+    html = f"""<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Hemos recibido tu solicitud</title></head><body style="margin:0;padding:0;background:#F4F5F7">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F7;padding:24px 12px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#22252B">
+  <tr><td style="background:#14161A;padding:20px 28px">
+    <span style="font-size:19px;font-weight:bold;color:#FFFFFF">Loureiro</span><span style="font-size:19px;color:#9AA0AA">soluciones</span>
+  </td></tr>
+  <tr><td style="padding:28px 28px 8px">
+    <p style="margin:0 0 14px;font-size:21px;font-weight:bold;color:#14161A">Hola {n},</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6">Gracias por escribirnos. Hemos recibido tu solicitud y <b>la atenderemos lo antes posible</b>.</p>
+    <p style="margin:24px 0 8px;font-size:12px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#6C7079">Esto es lo que nos has enviado</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F7F9;border-left:3px solid #F97316;border-radius:6px">
+      <tr><td style="padding:14px 16px;font-size:14px;line-height:1.6;color:#22252B">
+        <b>Servicio:</b> {s}<br>
+        <b>Teléfono:</b> {t}<br><br>
+        {m}
+      </td></tr>
+    </table>
+    <p style="margin:24px 0 0;font-size:15px;line-height:1.6">Si quieres añadir algo, responde a este correo o llámanos al <a href="tel:+34603905128" style="color:#F97316;font-weight:bold;text-decoration:none">603&nbsp;905&nbsp;128</a>.</p>
+    <p style="margin:22px 0 20px;font-size:15px;line-height:1.6">Un saludo,<br><b>Loureiro Soluciones</b></p>
+  </td></tr>
+  <tr><td style="padding:16px 28px;border-top:1px solid #E2E4E8;font-size:12px;color:#6C7079;line-height:1.5">
+    Reformas y mantenimiento del hogar en Ourense · <a href="https://loureirosoluciones.es" style="color:#6C7079">loureirosoluciones.es</a><br>
+    Recibes este correo porque has enviado una solicitud desde nuestra web.
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>"""
+    return asunto, texto, html
+
+
+def _aviso(servicio: str, pendientes: int) -> tuple[str, str]:
+    """Aviso corto para el dueño: que hay trabajo, sin los datos del cliente.
+
+    No lleva nombre, teléfono ni mensaje a propósito: va a una cuenta personal
+    fuera del correo de la empresa, y la política de privacidad no contempla
+    ceder ahí los datos de los clientes. Para verlos está el enlace al panel.
+    """
+    if pendientes <= 1:
+        asunto = "Tienes una solicitud pendiente en Loureiro"
+        estado = "Es la única pendiente de atender."
+    else:
+        asunto = f"Tienes {pendientes} solicitudes pendientes en Loureiro"
+        estado = f"Ahora mismo tienes {pendientes} solicitudes pendientes de atender."
+    texto = (
+        f"Ha llegado una solicitud nueva desde la web: {servicio}.\n\n"
+        f"{estado}\n\n"
+        f"Atiéndela en el panel: {PANEL_URL}\n"
+    )
+    return asunto, texto
+
+
+def _correos_tras_solicitud(nombre: str, email: str, telefono: str, servicio: str,
+                            mensaje: str, guardada: bool) -> None:
+    """Acuse al visitante y aviso al dueño.
+
+    Se ejecuta en segundo plano, después de contestar al formulario: cada envío
+    SMTP tarda uno o dos segundos y el visitante no tiene por qué esperarlos.
+    Si alguno falla se registra y ya está: la solicitud está guardada y el
+    correo principal ya ha salido.
+    """
+    if _permitir_acuse(email):
+        asunto, texto, html = _acuse(nombre, telefono, servicio, mensaje)
+        send_email(to=email, subject=asunto, body=texto, html=html,
+                   reply_to=SUPPORT_EMAIL,
+                   # RFC 3834: marca el correo como respuesta automática, para
+                   # que el contestador automático del otro lado (un «estoy de
+                   # vacaciones») no responda y se forme un bucle.
+                   cabeceras={"Auto-Submitted": "auto-replied"})
+    else:
+        log.warning("[contact] acuse NO enviado a %s: límite diario alcanzado", email)
+
+    # Solo si la solicitud quedó guardada: el aviso dice que está en el panel.
+    if AVISO_EMAILS and guardada:
+        pendientes = db.escalar("SELECT COUNT(*) FROM solicitudes WHERE estado = 'pendiente'")
+        asunto, texto = _aviso(servicio, pendientes)
+        send_email(to=AVISO_EMAILS, subject=asunto, body=texto)
+
+
 class ContactPayload(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     email: EmailStr
@@ -185,7 +336,7 @@ class ContactResponse(BaseModel):
 
 
 @app.post("/api/contact", response_model=ContactResponse)
-def contact(payload: ContactPayload, request: Request):
+def contact(payload: ContactPayload, request: Request, tareas: BackgroundTasks):
     ip = _client_ip(request)
 
     if payload.website:
@@ -219,6 +370,7 @@ def contact(payload: ContactPayload, request: Request):
 
     # Se guarda antes de enviar: si el correo falla, el aviso no se pierde
     # y queda en el panel para atenderlo igualmente.
+    guardada = False
     try:
         with db.tx() as con:
             con.execute(
@@ -230,6 +382,7 @@ def contact(payload: ContactPayload, request: Request):
                 (name, sender_email, phone if phone != "No facilitado" else None,
                  service, payload.message.strip(), ip),
             )
+        guardada = True
     except Exception:  # noqa: BLE001
         log.exception("[contact] no se pudo guardar la solicitud en la BD")
 
@@ -242,4 +395,9 @@ def contact(payload: ContactPayload, request: Request):
             "No se ha podido enviar el mensaje. Escríbenos directamente por correo.",
         )
 
+    # Acuse al visitante y aviso al dueño, después de responder. Solo si el
+    # correo principal ha salido: si no, al visitante se le acaba de decir que
+    # escriba por correo, y un acuse de recibo lo confundiría.
+    tareas.add_task(_correos_tras_solicitud, name, sender_email, phone, service,
+                    payload.message.strip(), guardada)
     return ContactResponse(sent=True)
