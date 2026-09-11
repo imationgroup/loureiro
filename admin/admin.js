@@ -211,12 +211,13 @@ var MODULOS = {
   agenda: {
     titulo: "Agenda", sub: "Citas y visitas con clientes", icono: ico.calendario,
     recurso: "citas", especial: "agenda", uno: "cita", borrarDesdeFicha: true,
+    duracion: { inicio: "inicio", fin: "fin", minutos: 60 },
     campos: [
       { c: "titulo", t: "Qué es", req: true, ayuda: "Por ejemplo: visita para presupuesto de baño" },
       { c: "tipo", t: "Tipo", tipo: "select", ops: TIPOS_CITA, mitad: true },
       { c: "estado", t: "Estado", tipo: "select", ops: ESTADOS_CITA, mitad: true },
       { c: "inicio", t: "Empieza", tipo: "fechahora", req: true, mitad: true },
-      { c: "fin", t: "Termina", tipo: "fechahora", mitad: true, ayuda: "Si lo dejas vacío, dura una hora" },
+      { c: "fin", t: "Termina", tipo: "fechahora", mitad: true, ayuda: "Se pone sola una hora después. Cámbiala si dura más, aunque sean varios días" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true },
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras" },
@@ -311,6 +312,8 @@ var MODULOS = {
   obras: {
     titulo: "Obras", sub: "Trabajos en marcha y cerrados", icono: ico.obra,
     recurso: "obras", especial: "obras",
+    // Al elegir el cliente se copia su dirección (ver abrirFormulario).
+    direccionDe: { campo: "cliente_id", de: "clientes" },
     campos: [
       { c: "titulo", t: "Título de la obra", req: true },
       { c: "codigo", t: "Código", mitad: true, ayuda: "Referencia interna, p. ej. OB-2026-014" },
@@ -772,6 +775,64 @@ function abrirFormulario(clave, registro, inicial) {
     if ($("#f-borrar")) $("#f-borrar").addEventListener("click", function () {
       confirmarBorrado(clave, registro.id);
     });
+
+    // Al elegir la hora de inicio, la de fin se pone sola una hora después.
+    // Si la cita ya duraba más (una obra de varios días), se desplaza entera
+    // y conserva lo que dura, para no deshacer el fin que se había puesto.
+    if (m.duracion) {
+      var inpIni = $("#c-" + m.duracion.inicio), inpFin = $("#c-" + m.duracion.fin);
+      var iniAntes = inpIni ? inpIni.value : "";
+      var moverFin = function () {
+        var nuevo = leerLocal(inpIni.value);
+        if (!nuevo) return;
+        var antes = leerLocal(iniAntes), fin = leerLocal(inpFin.value);
+        var dura = (antes && fin && fin > antes) ? fin - antes : m.duracion.minutos * 60000;
+        inpFin.value = escribirLocal(new Date(nuevo.getTime() + dura));
+        iniAntes = inpIni.value;
+      };
+      if (inpIni && inpFin) {
+        inpIni.addEventListener("input", moverFin);
+        inpIni.addEventListener("change", moverFin);
+      }
+    }
+
+    // Al elegir el cliente, la dirección se copia de su ficha. Solo se tocan
+    // los campos vacíos o los que se rellenaron solos con el cliente anterior:
+    // si alguien ya escribió otra dirección (una obra en una segunda vivienda),
+    // se respeta.
+    if (m.direccionDe) {
+      var selCli = $("#c-" + m.direccionDe.campo), puesto = {};
+      var libre = function (c) {
+        var el = $("#c-" + c);
+        return !!el && (!el.value.trim() || el.value === puesto[c]);
+      };
+      if (selCli) selCli.addEventListener("change", function () {
+        var cli = (cache[m.direccionDe.de] || []).filter(function (x) {
+          return String(x.id) === selCli.value;
+        })[0];
+        if (!cli) return;
+        var ciudadLibre = libre("ciudad"), copiado = false;
+        // La provincia va primero: al cambiarla se rehace la lista de
+        // municipios y se vacía una ciudad que no sea de esa provincia.
+        var prov = $("#c-provincia");
+        if (prov && cli.provincia && ciudadLibre && prov.value !== cli.provincia) {
+          prov.value = cli.provincia;
+          prov.dispatchEvent(new Event("change"));
+          copiado = true;
+        }
+        ["direccion", "cp", "ciudad"].forEach(function (c) {
+          var el = $("#c-" + c);
+          if (!el || !(c === "ciudad" ? ciudadLibre : libre(c))) return;
+          // Si el cliente nuevo no tiene ese dato, se vacía el que se rellenó
+          // con el anterior: mejor un hueco que el código postal de otra ciudad.
+          var valor = cli[c] || "";
+          if (valor && el.value !== valor) copiado = true;
+          el.value = valor;
+          puesto[c] = valor;
+        });
+        if (copiado) avisar("Dirección copiada de la ficha de " + cli.nombre);
+      });
+    }
     $("#f-guardar").addEventListener("click", function () {
       var datos = {}, falta = null;
       $$("#f-form [data-multi]").forEach(function (caja) {
@@ -1546,20 +1607,70 @@ function abrirCita(id) {
   if (c) abrirFormulario("agenda", c);
 }
 
-function chipCita(c) {
-  var titulo = horaDe(c.inicio) + "–" + horaDe(c.fin_efectivo) + " " + c.titulo +
-    (c.cliente ? " · " + c.cliente : "") + (c.profesional ? " (" + c.profesional + ")" : "") +
+// Fechas "AAAA-MM-DDTHH:MM" en hora local. Se leen a mano y no con
+// new Date(texto): así no hay dudas de si el navegador lo toma como UTC.
+function leerLocal(s) {
+  s = String(s || "");
+  if (s.length < 16) return null;
+  var f = s.slice(0, 10).split("-"), h = s.slice(11, 16).split(":");
+  var d = new Date(+f[0], +f[1] - 1, +f[2], +h[0], +h[1]);
+  return isNaN(d.getTime()) ? null : d;
+}
+function escribirLocal(d) { return isoDia(d) + "T" + dos(d.getHours()) + ":" + dos(d.getMinutes()); }
+function fechaHora(s) {
+  var d = leerLocal(s);
+  return d ? d.getDate() + " " + AG_MESES[d.getMonth()].slice(0, 3) + " " + horaDe(s) : "";
+}
+
+/* Días que ocupa una cita, del de inicio al de fin. Una que acaba justo a
+   las 00:00 no ocupa el día siguiente. */
+function diasDeCita(c) {
+  var ini = leerLocal(c.inicio), fin = leerLocal(c.fin_efectivo) || ini;
+  var ultimo = new Date(fin.getTime());
+  if (fin > ini && fin.getHours() === 0 && fin.getMinutes() === 0) ultimo.setDate(ultimo.getDate() - 1);
+  var dias = [], d = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate());
+  var tope = new Date(ultimo.getFullYear(), ultimo.getMonth(), ultimo.getDate());
+  while (d <= tope) { dias.push(isoDia(d)); d.setDate(d.getDate() + 1); }
+  return dias;
+}
+
+/* Ficha de una cita en un día del mes. "parte" dice qué trozo es en las de
+   varios días: el primero lleva la hora de inicio, el último la de fin y los
+   del medio solo el título; así se leen como una barra que cruza los días. */
+function chipCita(c, parte) {
+  parte = parte || "unico";
+  var varios = parte !== "unico";
+  var rango = varios ? fechaHora(c.inicio) + " → " + fechaHora(c.fin_efectivo)
+                     : horaDe(c.inicio) + "–" + horaDe(c.fin_efectivo);
+  var titulo = rango + " " + c.titulo + (c.cliente ? " · " + c.cliente : "") +
+    (c.profesional ? " (" + c.profesional + ")" : "") +
     (c.solapa ? ". ¡Este profesional tiene otra cita a la vez!" : "");
+  var hFin = horaDe(c.fin_efectivo);
+  var etiqueta = (parte === "unico" || parte === "ini") ? "<b>" + esc(horaDe(c.inicio)) + "</b> " + esc(c.titulo)
+    : (parte === "fin" && hFin !== "00:00") ? "hasta <b>" + esc(hFin) + "</b> " + esc(c.titulo)
+    : esc(c.titulo);
   return '<button type="button" class="ag-cita ag-cita--' + esc(c.estado) +
-    (c.solapa ? " ag-cita--solapa" : "") + '" data-cita="' + c.id + '" title="' + esc(titulo) + '">' +
-    "<b>" + esc(horaDe(c.inicio)) + "</b> " + esc(c.titulo) + "</button>";
+    (varios ? " ag-cita--" + parte : "") + (c.solapa ? " ag-cita--solapa" : "") +
+    '" data-cita="' + c.id + '" title="' + esc(titulo) + '">' + etiqueta + "</button>";
 }
 
 function pintarMes(desde, hasta, primero, citas) {
   var porDia = {}, hoy = isoDia(new Date());
   citas.forEach(function (c) {
-    var k = c.inicio.slice(0, 10);
-    (porDia[k] = porDia[k] || []).push(c);
+    var dias = diasDeCita(c);
+    dias.forEach(function (k, i) {
+      var parte = dias.length === 1 ? "unico" : i === 0 ? "ini" : i === dias.length - 1 ? "fin" : "medio";
+      (porDia[k] = porDia[k] || []).push({ c: c, parte: parte });
+    });
+  });
+  // Primero las de varios días, para que sus barras tiendan a quedar a la
+  // misma altura de un día al siguiente; luego por hora.
+  Object.keys(porDia).forEach(function (k) {
+    porDia[k].sort(function (a, b) {
+      var va = a.parte === "unico" ? 1 : 0, vb = b.parte === "unico" ? 1 : 0;
+      if (va !== vb) return va - vb;
+      return a.c.inicio < b.c.inicio ? -1 : a.c.inicio > b.c.inicio ? 1 : a.c.id - b.c.id;
+    });
   });
   var h = '<div class="ag-mesgrid"><div class="ag-cab">' +
     AG_DIAS.map(function (d) { return "<div>" + d + "</div>"; }).join("") + '</div><div class="ag-dias">';
@@ -1568,30 +1679,42 @@ function pintarMes(desde, hasta, primero, citas) {
     h += '<div class="ag-dia' + (d.getMonth() !== primero.getMonth() ? " ag-dia--fuera" : "") +
       (k === hoy ? " ag-dia--hoy" : "") + '" data-dia="' + k + '">' +
       '<span class="ag-num">' + d.getDate() + "</span>" +
-      (porDia[k] || []).map(chipCita).join("") + "</div>";
+      (porDia[k] || []).map(function (x) { return chipCita(x.c, x.parte); }).join("") + "</div>";
   }
   return h + "</div></div>";
 }
 
 function pintarLista(primero, citas) {
-  var mes = isoDia(primero).slice(0, 7);
-  var delMes = citas.filter(function (c) { return c.inicio.slice(0, 7) === mes; });
+  var mes = isoDia(primero).slice(0, 7), inicioMes = isoDia(primero);
+  // Entra toda cita que ocupe algún día del mes; la que empezó el mes
+  // anterior se agrupa en el día 1.
+  var clave = function (c) { var k = c.inicio.slice(0, 10); return k < inicioMes ? inicioMes : k; };
+  var delMes = citas.filter(function (c) {
+    return diasDeCita(c).some(function (k) { return k.slice(0, 7) === mes; });
+  }).sort(function (a, b) {
+    var ka = clave(a), kb = clave(b);
+    if (ka !== kb) return ka < kb ? -1 : 1;
+    return a.inicio < b.inicio ? -1 : a.inicio > b.inicio ? 1 : a.id - b.id;
+  });
   if (!delMes.length) {
     return '<div class="tabla-caja"><div class="vacia">No hay citas este mes. ' +
       "Pulsa «Nueva cita» para crear la primera.</div></div>";
   }
   var h = '<div class="ag-lista">', dia = "";
   delMes.forEach(function (c) {
-    var k = c.inicio.slice(0, 10);
+    var k = clave(c);
     if (k !== dia) {
       if (dia) h += "</div>";
       dia = k;
       h += '<div class="ag-grupo"><h3>' + esc(diaLargo(k)) + "</h3>";
     }
+    var varios = diasDeCita(c).length > 1;
+    var horas = varios ? fechaHora(c.inicio) + " → " + fechaHora(c.fin_efectivo)
+                       : horaDe(c.inicio) + "–" + horaDe(c.fin_efectivo);
     var detalle = [c.cliente, c.profesional, c.direccion_efectiva].filter(Boolean).join(" · ");
     var clase = c.estado === "hecha" ? " tag--verde" : c.estado === "cancelada" ? " tag--rojo" : " tag--amber";
     h += '<button type="button" class="ag-item ag-item--' + esc(c.estado) + '" data-cita="' + c.id + '">' +
-      '<span class="ag-hora">' + esc(horaDe(c.inicio)) + "–" + esc(horaDe(c.fin_efectivo)) + "</span>" +
+      '<span class="ag-hora' + (varios ? " ag-hora--varios" : "") + '">' + esc(horas) + "</span>" +
       '<span class="ag-txt"><b>' + esc(c.titulo) + "</b>" +
       (detalle ? "<small>" + esc(detalle) + "</small>" : "") +
       (c.solapa ? '<small class="ag-solapa">Este profesional tiene otra cita a la vez</small>' : "") +

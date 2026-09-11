@@ -98,16 +98,28 @@ _SQL = """
     LEFT JOIN profesionales p ON p.id = c.profesional_id
     LEFT JOIN clientes cl ON cl.id = c.cliente_id
     LEFT JOIN obras o ON o.id = c.obra_id
-    WHERE substr(c.inicio, 1, 10) BETWEEN ? AND ?
+    WHERE substr(c.inicio, 1, 10) <= ?
+      AND substr(COALESCE(NULLIF(c.fin, ''), c.inicio), 1, 10) >= date(?, '-1 day')
     ORDER BY c.inicio, c.id
 """
 
 
 def _citas(desde: str, hasta: str) -> list[dict]:
+    """Citas que ocupan algún momento entre dos días, ambos incluidos.
+
+    No basta con mirar el día de inicio: una obra de varios días que empezó
+    antes del rango también tiene que salir en los días que ocupa dentro de él.
+    La consulta trae de más (un día de margen, porque una cita sin fin dura una
+    hora y puede pasar de medianoche) y aquí se afina con las horas reales.
+    """
+    tope_ini = datetime.strptime(desde, "%Y-%m-%d")
+    tope_fin = datetime.strptime(hasta, "%Y-%m-%d") + timedelta(days=1)
     salida = []
-    for c in db.filas(_SQL, (desde, hasta)):
+    for c in db.filas(_SQL, (hasta, desde)):
         ini = _hora(c["inicio"], "Empieza")
         fin = _hora(c["fin"], "Termina") if c.get("fin") else ini + DURACION
+        if not (ini < tope_fin and fin > tope_ini):
+            continue
         salida.append({
             "id": c["id"], "titulo": c["titulo"], "tipo": c["tipo"], "estado": c["estado"],
             "inicio": c["inicio"][:16], "fin": (c["fin"] or "")[:16] or None,
