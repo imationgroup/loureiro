@@ -18,7 +18,10 @@
 }
 .legal p{ color:var(--muted); margin-bottom:14px; }
 .legal p b, .legal li b{ color:var(--txt); font-weight:600; }
-.legal a{ color:var(--amber); text-underline-offset:3px; }
+/* Solo enlaces de texto: si alcanza a los botones, el naranja del enlace pisa el
+   blanco de .btn--amber y el botón se queda sin texto visible. */
+.legal a:not(.btn){ color:var(--amber); text-underline-offset:3px; }
+.legal__acciones{ display:flex; flex-wrap:wrap; gap:12px; margin-top:30px; }
 
 .legal__data{ display:grid; gap:10px; margin:0 0 18px; }
 .legal__data li{
