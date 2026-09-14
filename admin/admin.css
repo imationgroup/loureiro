@@ -119,6 +119,13 @@ a{color:var(--amber);text-underline-offset:3px}
 .login__marca em{font-style:normal;font-weight:500;color:var(--muted)}
 .login h1{font-size:1.32rem;margin-bottom:6px}
 .login__sub{color:var(--muted);font-size:.92rem;margin-bottom:26px}
+.login__sub:empty{display:none}
+.login form[hidden]{display:none}
+.login__link{display:block;margin:16px auto 0;background:none;border:0;color:var(--muted);font:inherit;
+  font-size:.86rem;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.login__link:hover{color:var(--txt)}
+.login__hola{color:var(--muted);font-size:.92rem;line-height:1.55;margin:0 0 18px}
+.login__nota{color:var(--muted-2);font-size:.79rem}
 
 /* ── Estructura ──────────────────────────────────────────────────────── */
 .app{display:grid;grid-template-columns:246px 1fr;min-height:100dvh}

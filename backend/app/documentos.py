@@ -16,7 +16,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
 from . import db, pdf
-from .auth import sesion_actual
+from .auth import (comprobar_referencias, exigir, fijar_responsable, filtro_responsable,
+                   sesion_actual)
 
 router = APIRouter(prefix="/api/admin", tags=["documentos"])
 
@@ -151,30 +152,49 @@ def sincronizar_ingreso(factura_id: int):
             if existente:
                 con.execute("DELETE FROM ingresos WHERE id = ?", (existente["id"],))
             return
+        # El ingreso es de quien lleva la factura: así cada uno ve su parte en
+        # su contabilidad.
         datos = (f"Factura {f['numero'] or f['id']}", base, iva_pct, f["fecha"],
                  f["numero"], 1 if f["estado"] == "cobrada" else 0,
-                 f["obra_id"], f["cliente_id"], factura_id)
+                 f["obra_id"], f["cliente_id"], f.get("usuario_id"), factura_id)
         if existente:
             con.execute("""UPDATE ingresos SET concepto=?, importe=?, iva=?,
                            fecha=?, factura_ref=?, cobrado=?, obra_id=?,
-                           cliente_id=? WHERE factura_id=?""", datos)
+                           cliente_id=?, usuario_id=? WHERE factura_id=?""", datos)
         else:
             con.execute("""INSERT INTO ingresos
                            (concepto, importe, iva, fecha, factura_ref, cobrado,
-                            obra_id, cliente_id, factura_id)
-                           VALUES (?,?,?,?,?,?,?,?,?)""", datos)
+                            obra_id, cliente_id, usuario_id, factura_id)
+                           VALUES (?,?,?,?,?,?,?,?,?,?)""", datos)
+
+
+def _visible(tipo: str, u: dict, id_: int) -> dict:
+    """El documento si lo puede ver este usuario; si no, 404.
+
+    404 y no 403: a un miembro no se le confirma siquiera que existe un
+    documento de otra persona con ese número.
+    """
+    d = _doc(tipo)
+    cond, params = filtro_responsable(u)
+    doc = db.fila(f"SELECT * FROM {d['tabla']} WHERE id = ? AND {cond}", (id_, *params))
+    if not doc:
+        raise HTTPException(404, "No encontrado")
+    return doc
 
 
 @router.get("/documentos/{tipo}")
-def listar(tipo: str, _: str = Depends(sesion_actual)):
+def listar(tipo: str, u: dict = Depends(sesion_actual)):
     d = _doc(tipo)
+    exigir(u, tipo)
+    cond, params = filtro_responsable(u, "x")
     docs = db.filas(f"""
         SELECT x.*, c.nombre AS cliente, o.titulo AS obra
         FROM {d['tabla']} x
         LEFT JOIN clientes c ON c.id = x.cliente_id
         LEFT JOIN obras o ON o.id = x.obra_id
+        WHERE {cond}
         ORDER BY x.fecha DESC, x.id DESC
-    """)
+    """, params)
     for doc in docs:
         lineas = db.filas(f"SELECT * FROM {d['lineas']} WHERE {d['fk']} = ?",
                           (doc["id"],))
@@ -184,7 +204,13 @@ def listar(tipo: str, _: str = Depends(sesion_actual)):
 
 
 @router.get("/documentos/{tipo}/{id_}")
-def ver(tipo: str, id_: int, _: str = Depends(sesion_actual)):
+def ver(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
+    exigir(u, tipo)
+    _visible(tipo, u, id_)
+    return _ver(tipo, id_)
+
+
+def _ver(tipo: str, id_: int) -> dict:
     d = _doc(tipo)
     doc = db.fila(f"SELECT * FROM {d['tabla']} WHERE id = ?", (id_,))
     if not doc:
@@ -205,9 +231,12 @@ def _guardar_lineas(con, d, doc_id, lineas):
 
 
 @router.post("/documentos/{tipo}", status_code=201)
-def crear(tipo: str, doc: Documento, _: str = Depends(sesion_actual)):
+def crear(tipo: str, doc: Documento, u: dict = Depends(sesion_actual)):
     d = _doc(tipo)
+    exigir(u, tipo)
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"] and v is not None}
+    fijar_responsable(u, doc.cabecera, cab, creando=True)
+    comprobar_referencias(u, cab)
     with db.tx() as con:
         # El número se genera solo, salvo que venga escrito a mano: el campo
         # sigue siendo editable para poder corregir uno concreto.
@@ -225,15 +254,17 @@ def crear(tipo: str, doc: Documento, _: str = Depends(sesion_actual)):
         _guardar_lineas(con, d, nuevo, doc.lineas)
     if tipo == "facturas":
         sincronizar_ingreso(nuevo)
-    return ver(tipo, nuevo)
+    return _ver(tipo, nuevo)
 
 
 @router.put("/documentos/{tipo}/{id_}")
-def actualizar(tipo: str, id_: int, doc: Documento, _: str = Depends(sesion_actual)):
+def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_actual)):
     d = _doc(tipo)
-    if not db.fila(f"SELECT id FROM {d['tabla']} WHERE id = ?", (id_,)):
-        raise HTTPException(404, "No encontrado")
+    exigir(u, tipo)
+    existente = _visible(tipo, u, id_)
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"]}
+    fijar_responsable(u, doc.cabecera, cab, creando=False)
+    comprobar_referencias(u, cab, existente)
     with db.tx() as con:
         if cab:
             sets = ", ".join(f"{k} = ?" for k in cab)
@@ -245,12 +276,14 @@ def actualizar(tipo: str, id_: int, doc: Documento, _: str = Depends(sesion_actu
         _guardar_lineas(con, d, id_, doc.lineas)
     if tipo == "facturas":
         sincronizar_ingreso(id_)
-    return ver(tipo, id_)
+    return _ver(tipo, id_)
 
 
 @router.delete("/documentos/{tipo}/{id_}")
-def borrar(tipo: str, id_: int, _: str = Depends(sesion_actual)):
+def borrar(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
     d = _doc(tipo)
+    exigir(u, tipo)
+    _visible(tipo, u, id_)
     with db.tx() as con:
         if tipo == "facturas":
             con.execute("DELETE FROM ingresos WHERE factura_id = ?", (id_,))
@@ -261,9 +294,10 @@ def borrar(tipo: str, id_: int, _: str = Depends(sesion_actual)):
 
 
 @router.get("/documentos/{tipo}/{id_}/pdf")
-def descargar_pdf(tipo: str, id_: int, _: str = Depends(sesion_actual)):
+def descargar_pdf(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
     """Presupuesto, proforma o factura en PDF, listo para mandar al cliente."""
-    _doc(tipo)
+    exigir(u, tipo)
+    _visible(tipo, u, id_)
     try:
         datos, nombre = pdf.documento_pdf(tipo, id_)
     except pdf.DocumentoIncompleto as e:
@@ -276,7 +310,7 @@ def descargar_pdf(tipo: str, id_: int, _: str = Depends(sesion_actual)):
         headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
 
-def _copiar(origen: str, id_: int, destino: str, estado_origen: str) -> int:
+def _copiar(origen: str, id_: int, destino: str, estado_origen: str, u: dict) -> int:
     """Crea un documento `destino` con el cliente, la obra y las líneas de otro.
 
     Sirve para los tres pasos del circuito: presupuesto → proforma,
@@ -284,9 +318,7 @@ def _copiar(origen: str, id_: int, destino: str, estado_origen: str) -> int:
     se conserva a lo largo de la cadena.
     """
     o, d = _doc(origen), _doc(destino)
-    doc = db.fila(f"SELECT * FROM {o['tabla']} WHERE id = ?", (id_,))
-    if not doc:
-        raise HTTPException(404, "El documento de origen no existe")
+    doc = _visible(origen, u, id_)
     lineas = db.filas(
         f"SELECT * FROM {o['lineas']} WHERE {o['fk']} = ? ORDER BY orden, id", (id_,))
     if not lineas:
@@ -298,6 +330,8 @@ def _copiar(origen: str, id_: int, destino: str, estado_origen: str) -> int:
         "obra_id": doc["obra_id"],
         "presupuesto_id": id_ if origen == "presupuestos" else doc.get("presupuesto_id"),
         "notas": f"Generada desde {etiqueta} {doc['numero'] or doc['id']}",
+        # La factura o proforma es de quien llevaba el documento de origen.
+        "usuario_id": doc.get("usuario_id"),
     }
     with db.tx() as con:
         if destino in SERIES:
@@ -318,18 +352,22 @@ def _copiar(origen: str, id_: int, destino: str, estado_origen: str) -> int:
 
 
 @router.post("/documentos/{tipo}/{id_}/facturar", status_code=201)
-def facturar(tipo: str, id_: int, _: str = Depends(sesion_actual)):
+def facturar(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
     """Presupuesto o proforma → factura, copiando sus líneas."""
     if tipo not in ("presupuestos", "proformas"):
         raise HTTPException(404, "Solo se facturan presupuestos y proformas")
+    exigir(u, tipo)
+    exigir(u, "facturas")
     nueva = _copiar(tipo, id_, "facturas",
-                    "aceptado" if tipo == "presupuestos" else "facturada")
+                    "aceptado" if tipo == "presupuestos" else "facturada", u)
     sincronizar_ingreso(nueva)
-    return ver("facturas", nueva)
+    return _ver("facturas", nueva)
 
 
 @router.post("/documentos/presupuestos/{id_}/proforma", status_code=201)
-def a_proforma(id_: int, _: str = Depends(sesion_actual)):
+def a_proforma(id_: int, u: dict = Depends(sesion_actual)):
     """Presupuesto aceptado → factura proforma, típicamente para pedir la señal."""
-    nueva = _copiar("presupuestos", id_, "proformas", "aceptado")
-    return ver("proformas", nueva)
+    exigir(u, "presupuestos")
+    exigir(u, "proformas")
+    nueva = _copiar("presupuestos", id_, "proformas", "aceptado", u)
+    return _ver("proformas", nueva)

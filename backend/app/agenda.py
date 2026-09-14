@@ -24,7 +24,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from . import db
-from .auth import sesion_actual
+from .auth import es_admin, exigir, puede, sesion_actual
 
 router = APIRouter(prefix="/api/admin", tags=["agenda"])
 publico = APIRouter(prefix="/api", tags=["agenda"])
@@ -100,11 +100,24 @@ _SQL = """
     LEFT JOIN obras o ON o.id = c.obra_id
     WHERE substr(c.inicio, 1, 10) <= ?
       AND substr(COALESCE(NULLIF(c.fin, ''), c.inicio), 1, 10) >= date(?, '-1 day')
+      AND {filtro}
     ORDER BY c.inicio, c.id
 """
 
 
-def _citas(desde: str, hasta: str) -> list[dict]:
+def _filtro(u: dict | None) -> tuple[str, tuple]:
+    """Las citas de un usuario: las que creó y las suyas como profesional.
+
+    Sin usuario o con el administrador, todas.
+    """
+    if u is None or es_admin(u):
+        return "1=1", ()
+    if u.get("profesional_id"):
+        return "(c.usuario_id = ? OR c.profesional_id = ?)", (u["id"], u["profesional_id"])
+    return "c.usuario_id = ?", (u["id"],)
+
+
+def _citas(desde: str, hasta: str, u: dict | None = None) -> list[dict]:
     """Citas que ocupan algún momento entre dos días, ambos incluidos.
 
     No basta con mirar el día de inicio: una obra de varios días que empezó
@@ -115,7 +128,8 @@ def _citas(desde: str, hasta: str) -> list[dict]:
     tope_ini = datetime.strptime(desde, "%Y-%m-%d")
     tope_fin = datetime.strptime(hasta, "%Y-%m-%d") + timedelta(days=1)
     salida = []
-    for c in db.filas(_SQL, (hasta, desde)):
+    filtro, params = _filtro(u)
+    for c in db.filas(_SQL.format(filtro=filtro), (hasta, desde, *params)):
         ini = _hora(c["inicio"], "Empieza")
         fin = _hora(c["fin"], "Termina") if c.get("fin") else ini + DURACION
         if not (ini < tope_fin and fin > tope_ini):
@@ -155,15 +169,32 @@ def _dia(valor: str, campo: str) -> str:
 
 @router.get("/agenda")
 def agenda(desde: str = Query(...), hasta: str = Query(...),
-           _: str = Depends(sesion_actual)):
-    """Citas entre dos días, ambos incluidos."""
-    return _citas(_dia(desde, "desde"), _dia(hasta, "hasta"))
+           u: dict = Depends(sesion_actual)):
+    """Citas entre dos días, ambos incluidos, de las que puede ver el usuario."""
+    exigir(u, "agenda")
+    return _citas(_dia(desde, "desde"), _dia(hasta, "hasta"), u)
 
 
 # ── Enlace de suscripción ───────────────────────────────────────────────────
 # El enlace lleva un token secreto largo. Se guarda en la base de datos y no
 # en el .env para que funcione sin tocar el servidor, y se puede cambiar desde
 # el panel si se filtra: el anterior deja de funcionar al momento.
+#
+# Hay dos clases de enlace. El del administrador es el de siempre (tabla
+# ajustes) y trae todas las citas: así no se rompe la suscripción que ya
+# estaba puesta en Google antes de que existiera el equipo. Cada miembro
+# tiene el suyo en la tabla usuarios, y trae solo su agenda.
+
+def _token_miembro(u: dict, renovar: bool = False) -> str:
+    if not renovar:
+        fila = db.fila("SELECT agenda_token FROM usuarios WHERE id = ?", (u["id"],))
+        if fila and fila["agenda_token"]:
+            return fila["agenda_token"]
+    nuevo = secrets.token_urlsafe(32)
+    with db.tx() as con:
+        con.execute("UPDATE usuarios SET agenda_token = ? WHERE id = ?", (nuevo, u["id"]))
+    return nuevo
+
 
 def _token(renovar: bool = False) -> str:
     if not renovar:
@@ -182,13 +213,17 @@ def _url(token: str) -> str:
 
 
 @router.get("/agenda/suscripcion")
-def suscripcion(_: str = Depends(sesion_actual)):
-    return {"url": _url(_token())}
+def suscripcion(u: dict = Depends(sesion_actual)):
+    exigir(u, "agenda")
+    return {"url": _url(_token() if es_admin(u) else _token_miembro(u)),
+            "completa": es_admin(u)}
 
 
 @router.post("/agenda/suscripcion/renovar")
-def renovar_suscripcion(_: str = Depends(sesion_actual)):
-    return {"url": _url(_token(renovar=True))}
+def renovar_suscripcion(u: dict = Depends(sesion_actual)):
+    exigir(u, "agenda")
+    return {"url": _url(_token(renovar=True) if es_admin(u) else _token_miembro(u, renovar=True)),
+            "completa": es_admin(u)}
 
 
 # ── Fichero iCalendar ───────────────────────────────────────────────────────
@@ -228,12 +263,12 @@ def _plegar(linea: str) -> str:
     return "\r\n ".join(trozos)
 
 
-def _ics(citas: list[dict]) -> str:
+def _ics(citas: list[dict], nombre: str = "Loureiro · Agenda") -> str:
     sello = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lineas = ["BEGIN:VCALENDAR", "VERSION:2.0",
               "PRODID:-//Loureiro Soluciones//Agenda//ES",
               "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-              "X-WR-CALNAME:Loureiro · Agenda", "X-WR-TIMEZONE:Europe/Madrid",
+              "X-WR-CALNAME:" + _esc(nombre), "X-WR-TIMEZONE:Europe/Madrid",
               "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H",
               *VTIMEZONE]
     for c in citas:
@@ -284,14 +319,24 @@ def _ics(citas: list[dict]) -> str:
 def agenda_ics(token: str):
     """La agenda para Google Calendar. Sin sesión: la protege el token."""
     fila = db.fila("SELECT valor FROM ajustes WHERE clave = 'agenda_token'")
-    if not fila or not fila["valor"] or not secrets.compare_digest(
-            token.encode(), fila["valor"].encode()):
-        raise HTTPException(404, "No encontrado")
+    usuario, nombre = None, "Loureiro · Agenda"
+    if not (fila and fila["valor"] and secrets.compare_digest(
+            token.encode(), fila["valor"].encode())):
+        # No es el enlace general: ¿es el de alguien del equipo? Un miembro de
+        # baja o sin el módulo de agenda deja de ver sus citas al momento.
+        m = db.fila("SELECT * FROM usuarios WHERE agenda_token = ? AND activo = 1", (token,))             if token else None
+        if not m:
+            raise HTTPException(404, "No encontrado")
+        from .auth import usuario_por_id
+        usuario = usuario_por_id(m["id"])
+        if not puede(usuario, "agenda"):
+            raise HTTPException(404, "No encontrado")
+        nombre = f"Loureiro · {usuario.get('nombre') or usuario['email']}"
     hoy = date.today()
     citas = _citas((hoy - timedelta(days=90)).isoformat(),
-                   (hoy + timedelta(days=400)).isoformat())
+                   (hoy + timedelta(days=400)).isoformat(), usuario)
     return Response(
-        content=_ics(citas),
+        content=_ics(citas, nombre),
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": 'inline; filename="loureiro-agenda.ics"',
                  "Cache-Control": "no-cache"})

@@ -28,8 +28,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
-from . import db, empresa
+from . import auth, db, empresa
 from .admin import router as router_admin, router_crud as router_admin_crud
+from .equipo import router as router_equipo
 from .documentos import router as router_documentos
 from .agenda import router as router_agenda, publico as router_agenda_publico
 
@@ -113,12 +114,14 @@ async def _datos_no_validos(request: Request, exc: RequestValidationError):
 @app.on_event("startup")
 def _arranque():
     db.inicializar()
+    auth.sembrar_admin()
     log.info("base de datos lista en %s", db.RUTA_DB)
 
 
 # El router del CRUD genérico va DESPUÉS: su /{recurso} es un comodín que
 # se tragaría rutas concretas como /api/admin/dashboard.
 app.include_router(router_admin)
+app.include_router(router_equipo)
 app.include_router(router_documentos)
 # La agenda también antes del CRUD: /api/admin/{recurso} se tragaría
 # /api/admin/agenda como si fuese una tabla.

@@ -59,6 +59,20 @@ function svg(d, cls) {
 /* ── Cliente de API ───────────────────────────────────────────────────── */
 var token = localStorage.getItem("loureiro_token") || "";
 
+// Usuario de la sesión, con su rol y sus módulos. Lo da el servidor al entrar
+// (/login) o al recargar (/yo). Con esto se pinta el menú, pero quien decide
+// de verdad qué se ve es el servidor: esconder una pestaña no protege nada.
+var YO = null;
+function esAdmin() { return !!YO && YO.rol === "admin"; }
+function puedeVer(k) {
+  if (!YO) return false;
+  if (k === "dashboard") return true;
+  if (k === "equipo") return esAdmin();
+  if (esAdmin()) return true;
+  if (k === "ingresos") return YO.permisos.indexOf("facturas") >= 0 || YO.permisos.indexOf("contabilidad") >= 0;
+  return YO.permisos.indexOf(k) >= 0;
+}
+
 function api(ruta, opciones) {
   opciones = opciones || {};
   var cab = { "Content-Type": "application/json" };
@@ -91,12 +105,7 @@ loginForm.addEventListener("submit", function (e) {
   api("/api/admin/login", {
     metodo: "POST",
     datos: { email: $("#li-email").value.trim(), password: $("#li-pass").value }
-  }).then(function (r) {
-    token = r.token;
-    localStorage.setItem("loureiro_token", token);
-    localStorage.setItem("loureiro_email", r.email);
-    arrancar(true);
-  }).catch(function (err) {
+  }).then(entrarCon).catch(function (err) {
     aviso.textContent = err.message;
     aviso.hidden = false;
   }).finally(function () {
@@ -105,9 +114,18 @@ loginForm.addEventListener("submit", function (e) {
   });
 });
 
+function entrarCon(r) {
+  token = r.token;
+  YO = r.usuario;
+  localStorage.setItem("loureiro_token", token);
+  localStorage.setItem("loureiro_email", r.email);
+  arrancar(true);
+}
+
 function salir(silencioso) {
   var t = token;
   token = "";
+  YO = null;
   localStorage.removeItem("loureiro_token");
   localStorage.removeItem("loureiro_email");
   if (!silencioso && t) {
@@ -115,10 +133,88 @@ function salir(silencioso) {
   }
   $("#app").hidden = true;
   $("#login").hidden = false;
+  mostrarAcceso("login");
   cerrarCampana();
   document.title = "Panel de gestión · Loureiro Soluciones";
 }
 $("#btn-salir").addEventListener("click", function () { salir(false); });
+
+/* ── He olvidado mi contraseña y enlaces de invitación ────────────────── */
+function mostrarAcceso(cual) {
+  ["login", "recuperar", "clave"].forEach(function (k) { $("#" + k + "-form").hidden = k !== cual; });
+  $("#login-aviso").hidden = true;
+  $("#login-titulo").textContent = cual === "recuperar" ? "Recuperar la contraseña"
+                                 : cual === "clave" ? "Crea tu contraseña" : "Panel de gestión";
+  $("#login-sub").textContent = cual === "recuperar" ? "Te mandamos un enlace para cambiarla."
+                              : cual === "clave" ? "" : "Acceso restringido.";
+}
+function avisoAcceso(texto, tipo) {
+  var a = $("#login-aviso");
+  a.className = "aviso " + (tipo === "ok" ? "aviso--ok" : "aviso--err");
+  a.textContent = texto;
+  a.hidden = false;
+}
+
+$("#li-olvido").addEventListener("click", function () {
+  mostrarAcceso("recuperar");
+  $("#re-email").value = $("#li-email").value;
+  $("#re-email").focus();
+});
+$("#re-volver").addEventListener("click", function () { mostrarAcceso("login"); });
+$("#recuperar-form").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var btn = $("#re-btn"), email = $("#re-email").value.trim();
+  if (!email) { avisoAcceso("Escribe tu correo."); return; }
+  btn.disabled = true;
+  api("/api/admin/recuperar", { metodo: "POST", datos: { email: email } }).then(function () {
+    // El servidor contesta lo mismo exista o no el correo, y aquí también:
+    // la pantalla no sirve para averiguar quién tiene cuenta.
+    avisoAcceso("Si ese correo tiene acceso al panel, te acaba de llegar un enlace para " +
+                "cambiar la contraseña. Caduca en 2 horas.", "ok");
+  }).catch(function (err) { avisoAcceso(err.message); })
+    .finally(function () { btn.disabled = false; });
+});
+
+// Enlace de invitación o de recuperación: …/admin/#clave=XXXX
+var claveToken = "";
+function abrirEnlaceClave() {
+  var m = /^#clave=([A-Za-z0-9_-]+)/.exec(location.hash);
+  if (!m) return false;
+  claveToken = m[1];
+  // Fuera de la barra de direcciones y del historial: es de un solo uso y no
+  // tiene que quedarse a la vista ni volver con el botón de atrás.
+  history.replaceState(null, "", location.pathname);
+  $("#app").hidden = true;
+  $("#login").hidden = false;
+  mostrarAcceso("clave");
+  $("#cl-hola").textContent = "Comprobando el enlace…";
+  api("/api/admin/clave/comprobar", { metodo: "POST", datos: { token: claveToken } }).then(function (r) {
+    $("#login-titulo").textContent = r.tipo === "recuperar" ? "Cambia tu contraseña" : "Crea tu contraseña";
+    $("#cl-hola").innerHTML = "Hola" + (r.nombre ? " <b>" + esc(r.nombre) + "</b>" : "") +
+      ". Tu usuario para entrar es <b>" + esc(r.email) + "</b>.";
+    $("#cl-pass").focus();
+  }).catch(function (err) {
+    $("#cl-hola").textContent = "";
+    $("#cl-btn").disabled = true;
+    avisoAcceso(err.message);
+  });
+  return true;
+}
+$("#clave-form").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var p1 = $("#cl-pass").value, p2 = $("#cl-pass2").value, btn = $("#cl-btn");
+  if (p1.length < 10) { avisoAcceso("La contraseña tiene que tener al menos 10 caracteres."); return; }
+  if (p1 !== p2) { avisoAcceso("Las dos contraseñas no coinciden."); return; }
+  btn.disabled = true; btn.textContent = "Guardando…";
+  api("/api/admin/clave", { metodo: "POST", datos: { token: claveToken, password: p1 } })
+    .then(function (r) {
+      claveToken = "";
+      $("#cl-pass").value = ""; $("#cl-pass2").value = "";
+      entrarCon(r);
+    })
+    .catch(function (err) { avisoAcceso(err.message); })
+    .finally(function () { btn.disabled = false; btn.textContent = "Guardar y entrar"; });
+});
 
 /* ── Definición de los módulos ────────────────────────────────────────── */
 var CATEGORIAS_PRO = ["Electricista", "Albañil", "Fontanero", "Pintor", "Carpintero",
@@ -433,11 +529,24 @@ var MODULOS = {
   contabilidad: { titulo: "Contabilidad", sub: "Resultado, IVA y pendientes", icono: ico.libro, especial: "contabilidad" }
 };
 
+MODULOS.equipo = { titulo: "Equipo", sub: "Quién entra al panel y a qué", icono: ico.equipo, especial: "equipo" };
+
+// Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
+// lo que crea un miembro es suyo sin preguntar.
+["agenda", "solicitudes", "clientes", "obras", "costes", "ingresos"].forEach(function (k) {
+  MODULOS[k].campos.push({ c: "usuario_id", t: "Responsable", tipo: "ref", de: "equipo", soloAdmin: true,
+    ayuda: "Solo lo ven esa persona y el administrador." });
+  if (MODULOS[k].columnas) {
+    MODULOS[k].columnas.push({ c: "usuario_id", t: "Responsable", tipo: "ref", de: "equipo", soloAdmin: true });
+  }
+});
+
 var ORDEN_MENU = [
   { sep: null, items: ["dashboard", "agenda", "solicitudes"] },
   { sep: "Gestión", items: ["obras", "clientes", "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "costes", "contabilidad"] },
-  { sep: "Recursos", items: ["stock", "proveedores"] }
+  { sep: "Recursos", items: ["stock", "proveedores"] },
+  { sep: "Empresa", items: ["equipo"] }
 ];
 
 /* ── Caché de referencias (para los desplegables) ─────────────────────── */
@@ -453,14 +562,24 @@ function nombreDe(lista, id) {
 }
 function invalidar() { cache = {}; }
 
+// Campos y columnas que tocan a este usuario: el responsable, solo al admin.
+function camposDe(m) {
+  return (m.campos || []).filter(function (c) { return !c.soloAdmin || esAdmin(); });
+}
+function columnasDe(m) {
+  return (m.columnas || []).filter(function (c) { return !c.soloAdmin || esAdmin(); });
+}
+
 /* ── Router ───────────────────────────────────────────────────────────── */
 var vistaActual = "dashboard";
 
 function pintarMenu() {
   var h = "";
   ORDEN_MENU.forEach(function (grupo) {
+    var items = grupo.items.filter(puedeVer);
+    if (!items.length) return;
     if (grupo.sep) h += '<div class="sep">' + esc(grupo.sep) + "</div>";
-    grupo.items.forEach(function (k) {
+    items.forEach(function (k) {
       var m = MODULOS[k];
       h += '<button data-vista="' + k + '"' + (k === vistaActual ? ' class="is-on"' : "") + ">" +
            svg(m.icono) + "<span>" + esc(m.titulo) + "</span></button>";
@@ -476,17 +595,20 @@ function pintarMenu() {
 }
 
 function ir(k) {
+  if (!MODULOS[k] || !puedeVer(k)) k = "dashboard";
   vistaActual = k;
   location.hash = k;
   pintarMenu();
   actualizarCampana();
   var m = MODULOS[k];
   $("#vista-titulo").textContent = m.titulo;
-  $("#vista-sub").textContent = m.sub;
+  $("#vista-sub").textContent = k === "dashboard" && !esAdmin()
+    ? "Tu resumen: tus obras, tus clientes y tus números" : m.sub;
   $("#vista-acciones").innerHTML = "";
   $("#vista").innerHTML = '<div class="vacia">Cargando…</div>';
 
   if (m.especial === "dashboard") return verDashboard();
+  if (m.especial === "equipo") return verMiembros();
   if (m.especial === "agenda") return verAgenda();
   if (m.especial === "contabilidad") return verContabilidad();
   if (m.especial === "obras") return verObras();
@@ -497,14 +619,14 @@ function ir(k) {
 
 window.addEventListener("hashchange", function () {
   var k = location.hash.replace("#", "");
-  if (MODULOS[k] && k !== vistaActual) ir(k);
+  if (MODULOS[k] && puedeVer(k) && k !== vistaActual) ir(k);
 });
 
 /* ── Vista genérica de tabla ──────────────────────────────────────────── */
 function verTabla(clave) {
   var m = MODULOS[clave];
   var refs = [];
-  (m.columnas || []).concat(m.campos || []).forEach(function (c) {
+  columnasDe(m).concat(camposDe(m)).forEach(function (c) {
     if (c.tipo === "ref" && refs.indexOf(c.de) < 0) refs.push(c.de);
   });
 
@@ -577,11 +699,12 @@ function pintarFilas(clave, filas) {
     return;
   }
   var h = "<table><thead><tr>";
-  m.columnas.forEach(function (c) { h += '<th' + (c.num ? ' class="num"' : "") + ">" + esc(c.t) + "</th>"; });
+  var cols = columnasDe(m);
+  cols.forEach(function (c) { h += '<th' + (c.num ? ' class="num"' : "") + ">" + esc(c.t) + "</th>"; });
   h += '<th class="num">Acciones</th></tr></thead><tbody>';
   filas.forEach(function (f) {
     h += "<tr>";
-    m.columnas.forEach(function (c) { h += "<td" + (c.num ? ' class="num"' : "") + ">" + celda(c, f) + "</td>"; });
+    cols.forEach(function (c) { h += "<td" + (c.num ? ' class="num"' : "") + ">" + celda(c, f) + "</td>"; });
     h += '<td class="acciones">' +
          (m.accion && !(m.accion.oculta && m.accion.oculta(f))
            ? '<button data-accion="' + f.id + '" title="' + esc(m.accion.titulo) + '">' +
@@ -687,7 +810,14 @@ function campoHTML(campo, valor, esNuevo) {
          ' placeholder="Escribe para filtrar…" value="' + esc(v) + '">' +
          '<datalist id="lista-' + campo.c + '"></datalist>';
   } else if (campo.tipo === "ref") {
-    h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '"><option value="">— sin asignar —</option>';
+    h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '"><option value="">' +
+         (campo.de === "equipo" ? "— nadie: solo el administrador —" : "— sin asignar —") + "</option>";
+    // Si la ficha apunta a algo que esta persona no ve (el administrador la
+    // enlazó con el cliente de un compañero), se conserva: sin esta opción el
+    // desplegable saldría en blanco y al guardar se perdería el enlace.
+    if (v !== "" && !(cache[campo.de] || []).some(function (o) { return String(o.id) === String(v); })) {
+      h += '<option value="' + esc(v) + '" selected>(lo lleva otra persona)</option>';
+    }
     (cache[campo.de] || []).forEach(function (o) {
       h += '<option value="' + o.id + '"' + (String(o.id) === String(v) ? " selected" : "") + ">" +
            esc(o.titulo || o.nombre) + "</option>";
@@ -711,12 +841,13 @@ function abrirFormulario(clave, registro, inicial) {
   // el día que se pinchó). No es un registro: se crea, no se edita.
   var vals = registro || inicial || null;
   var refs = [];
-  m.campos.forEach(function (c) { if (c.tipo === "ref" && refs.indexOf(c.de) < 0) refs.push(c.de); });
+  var campos = camposDe(m);
+  campos.forEach(function (c) { if (c.tipo === "ref" && refs.indexOf(c.de) < 0) refs.push(c.de); });
 
   Promise.all(refs.map(cargarRef)).then(function () {
     var cuerpo = '<div class="aviso aviso--err" id="f-err" hidden></div><form id="f-form">';
     var buffer = [];
-    m.campos.forEach(function (campo) {
+    campos.forEach(function (campo) {
       if (campo.mitad) {
         buffer.push(campo);
         if (buffer.length === 2) {
@@ -984,11 +1115,13 @@ function verDashboard() {
 
     var h = '<div class="metricas">' +
       metrica(c.obras_activas, "Obras activas", "") +
-      metrica(c.solicitudes_nuevas, "Solicitudes sin atender", c.solicitudes_nuevas ? "metrica--azul" : "") +
+      (c.solicitudes_nuevas === null ? ""
+        : metrica(c.solicitudes_nuevas, "Solicitudes sin atender", c.solicitudes_nuevas ? "metrica--azul" : "")) +
       metrica(eur(d.mes.ingresos), "Ingresos del mes", "metrica--verde") +
       metrica(eur(d.mes.gastos), "Gastos del mes", "metrica--rojo") +
       metrica(eur(margen), "Margen del mes", margen >= 0 ? "metrica--verde" : "metrica--rojo") +
-      metrica(c.stock_bajo, "Artículos bajo mínimo", c.stock_bajo ? "metrica--rojo" : "") +
+      (c.stock_bajo === null ? ""
+        : metrica(c.stock_bajo, "Artículos bajo mínimo", c.stock_bajo ? "metrica--rojo" : "")) +
       "</div>";
 
     h += '<div class="paneles--3 paneles">';
@@ -1033,7 +1166,7 @@ function verDashboard() {
         }).join("") + "</tbody></table></div>"
       : '<div class="vacia">Sin obras todavía.</div>') + "</div>";
 
-    h += '<div class="tarjeta"><h3>Últimas solicitudes</h3>' + (d.solicitudes_recientes.length
+    if (puedeVer("solicitudes")) h += '<div class="tarjeta"><h3>Últimas solicitudes</h3>' + (d.solicitudes_recientes.length
       ? '<div class="tabla-scroll"><table><tbody>' + d.solicitudes_recientes.map(function (s) {
           return "<tr><td><b>" + esc(s.nombre) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
                  esc(s.servicio || "") + "</div></td>" +
@@ -1066,7 +1199,8 @@ function verObras() {
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva obra</button>";
   $("#btn-nuevo").addEventListener("click", function () { abrirFormulario("obras", null); });
 
-  Promise.all([api("/api/admin/informes/obras"), cargarRef("clientes"), cargarRef("obras")])
+  Promise.all([api("/api/admin/informes/obras"), cargarRef("clientes"), cargarRef("obras")]
+              .concat(esAdmin() ? [cargarRef("equipo")] : []))
     .then(function (res) {
       var obras = res[0];
       if (!obras.length) {
@@ -1074,7 +1208,8 @@ function verObras() {
         return;
       }
       var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr>' +
-        "<th>Obra</th><th>Cliente</th><th>Estado</th><th>Equipo</th>" +
+        "<th>Obra</th><th>Cliente</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
+        "<th>Estado</th><th>Profesionales</th>" +
         '<th class="num">Presupuestado</th><th class="num">Costes</th><th class="num">Facturado</th>' +
         '<th class="num">Margen</th><th class="num">Acciones</th></tr></thead><tbody>';
       obras.forEach(function (o) {
@@ -1083,6 +1218,7 @@ function verObras() {
         h += "<tr><td><b>" + esc(o.titulo) + "</b>" +
              (o.codigo ? '<div style="font-size:.78rem;color:var(--muted-2)">' + esc(o.codigo) + "</div>" : "") +
              "</td><td>" + (esc(o.cliente) || "—") + "</td>" +
+             (esAdmin() ? "<td>" + (esc(nombreDe("equipo", o.usuario_id)) || "—") + "</td>" : "") +
              '<td><span class="tag ' + (o.estado === "en curso" ? "tag--verde" : o.estado === "cancelada" ? "tag--rojo" : "tag--amber") + '">' + esc(o.estado) + "</span></td>" +
              '<td><button class="btn btn--sm ' + (o.n_profesionales ? "btn--fant" : "btn--amber") +
              '" data-equipo="' + o.id + '" title="Asignar profesionales a esta obra">' +
@@ -1139,7 +1275,7 @@ function verEquipo(obraId) {
         cuerpo += '<p style="color:var(--muted-2);font-size:.88rem">No quedan profesionales activos por asignar.</p>';
       }
 
-      modal("Equipo de la obra", cuerpo,
+      modal("Profesionales de la obra", cuerpo,
         '<button class="btn btn--fant" id="eq-cerrar">Cerrar</button>' +
         (libres.length ? '<button class="btn btn--amber" id="eq-add">Asignar</button>' : ""));
 
@@ -1275,7 +1411,8 @@ function verDocumentos(clave) {
     NOMBRE_DOC[tipo].nuevo + "</button>";
   $("#btn-nuevo").addEventListener("click", function () { editarDocumento(tipo, null); });
 
-  Promise.all([api("/api/admin/documentos/" + tipo), cargarRef("clientes"), cargarRef("obras")])
+  Promise.all([api("/api/admin/documentos/" + tipo), cargarRef("clientes"), cargarRef("obras")]
+              .concat(esAdmin() ? [cargarRef("equipo")] : []))
     .then(function (res) {
       var docs = res[0];
       if (!docs.length) {
@@ -1284,7 +1421,8 @@ function verDocumentos(clave) {
         return;
       }
       var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr>' +
-        "<th>Número</th><th>Cliente</th><th>Obra</th><th>Fecha</th><th>Estado</th>" +
+        "<th>Número</th><th>Cliente</th><th>Obra</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
+        "<th>Fecha</th><th>Estado</th>" +
         '<th class="num">Base</th><th class="num">IVA</th><th class="num">Total</th>' +
         '<th class="num">Acciones</th></tr></thead><tbody>';
       docs.forEach(function (d) {
@@ -1294,6 +1432,7 @@ function verDocumentos(clave) {
              '<div style="font-size:.78rem;color:var(--muted-2)">' + d.n_lineas +
              " línea" + (d.n_lineas === 1 ? "" : "s") + "</div></td>" +
              "<td>" + (esc(d.cliente) || "—") + "</td><td>" + (esc(d.obra) || "—") + "</td>" +
+             (esAdmin() ? "<td>" + (esc(nombreDe("equipo", d.usuario_id)) || "—") + "</td>" : "") +
              "<td>" + esc(fecha(d.fecha)) + "</td>" +
              '<td><span class="tag ' + clase + '">' + esc(d.estado) + "</span></td>" +
              '<td class="num">' + eur(d.base) + '</td>' +
@@ -1302,10 +1441,10 @@ function verDocumentos(clave) {
              '<td class="acciones">' +
              '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
                '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
-             (tipo === "presupuestos"
+             (tipo === "presupuestos" && puedeVer("proformas")
                ? '<button data-proforma="' + d.id + '" title="Crear proforma">' + svg(ico.proforma) + "</button>"
                : "") +
-             (tipo !== "facturas"
+             (tipo !== "facturas" && puedeVer("facturas")
                ? '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
                : "") +
              '<button data-editar="' + d.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
@@ -1380,7 +1519,7 @@ function editarDocumento(tipo, id) {
   Promise.all([
     id ? api("/api/admin/documentos/" + tipo + "/" + id) : Promise.resolve(null),
     cargarRef("clientes"), cargarRef("obras")
-  ]).then(function (res) {
+  ].concat(esAdmin() ? [cargarRef("equipo")] : [])).then(function (res) {
     var doc = res[0] || {
       lineas: [], estado: ESTADOS_DOC[tipo][0],
       fecha: new Date().toISOString().slice(0, 10)
@@ -1389,7 +1528,11 @@ function editarDocumento(tipo, id) {
     if (!lineas.length) lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
 
     function opciones(lista, sel) {
-      return '<option value="">— sin asignar —</option>' + (cache[lista] || []).map(function (o) {
+      // Igual que en los formularios: un enlace con algo de otra persona se conserva.
+      var ajeno = sel && !(cache[lista] || []).some(function (o) { return String(o.id) === String(sel); });
+      return '<option value="">' + (lista === "equipo" ? "— nadie: solo el administrador —" : "— sin asignar —") +
+        "</option>" + (ajeno ? '<option value="' + esc(sel) + '" selected>(lo lleva otra persona)</option>' : "") +
+        (cache[lista] || []).map(function (o) {
         return '<option value="' + o.id + '"' + (String(o.id) === String(sel) ? " selected" : "") + ">" +
                esc(o.titulo || o.nombre) + "</option>";
       }).join("");
@@ -1425,6 +1568,11 @@ function editarDocumento(tipo, id) {
           ? '<div class="campo"><label for="d-venc">Vencimiento</label><input id="d-venc" type="date" value="' + esc(doc.vencimiento) + '"></div>'
           : '<div class="campo"><label for="d-validez">Validez (días)</label><input id="d-validez" type="number" value="' + (doc.validez || 30) + '"></div>') +
       "</div>" +
+      (esAdmin()
+        ? '<div class="campo"><label for="d-resp">Responsable</label><select id="d-resp">' +
+          opciones("equipo", doc.usuario_id) + "</select>" +
+          '<small style="color:var(--muted-2);font-size:.79rem">Solo lo ven esa persona y el administrador.</small></div>'
+        : "") +
       '<label style="font-size:.83rem;color:var(--muted);display:block;margin:18px 0 8px">Líneas</label>' +
       '<div class="lineas-cab"><span>Concepto</span><span>Cant.</span><span>Ud.</span>' +
         "<span>Precio</span><span>IVA %</span><span>Importe</span><span></span></div>" +
@@ -1509,6 +1657,7 @@ function editarDocumento(tipo, id) {
       };
       if (esFactura) cabecera.vencimiento = $("#d-venc").value || null;
       else cabecera.validez = Number($("#d-validez").value) || 30;
+      if (esAdmin()) cabecera.usuario_id = $("#d-resp").value ? Number($("#d-resp").value) : null;
 
       var btn = $("#d-guardar");
       btn.disabled = true; btn.textContent = "Guardando…";
@@ -1598,7 +1747,7 @@ function diaLargo(iso) {
 function nuevaCita(dia) {
   abrirFormulario("agenda", null, {
     inicio: dia + "T09:00", fin: dia + "T10:00", tipo: "visita", estado: "pendiente",
-    profesional_id: AG.pro ? Number(AG.pro) : null
+    profesional_id: AG.pro ? Number(AG.pro) : (YO && YO.profesional_id) || null
   });
 }
 
@@ -1855,7 +2004,8 @@ function verSuscripcion() {
   api("/api/admin/agenda/suscripcion").then(function (r) {
     modal("Ver la agenda en Google Calendar",
       '<p style="color:var(--muted);line-height:1.55">Añade este enlace <b>una sola vez</b> en ' +
-      "Google Calendar y las citas del panel aparecerán solas, también en el móvil.</p>" +
+      "Google Calendar y " + (r.completa ? "las citas del panel" : "<b>tus citas</b>") +
+      " aparecerán solas, también en el móvil.</p>" +
       '<div class="ag-url"><input id="ag-url" readonly value="' + esc(r.url) + '">' +
       '<button class="btn btn--fant btn--sm" id="ag-copiar">Copiar</button></div>' +
       '<ol class="ag-pasos">' +
@@ -1897,6 +2047,190 @@ function verSuscripcion() {
       }).catch(function (e) { avisar(e.message, "err"); });
     });
   }).catch(function (e) { avisar(e.message, "err"); });
+}
+
+/* ── Equipo: quién entra al panel y a qué ─────────────────────────────── */
+// Módulos que se pueden dar a un miembro, en el orden del menú.
+var MODULOS_EQUIPO = ["agenda", "solicitudes", "obras", "clientes", "profesionales",
+  "presupuestos", "proformas", "facturas", "costes", "contabilidad", "stock", "proveedores"];
+
+function verMiembros() {
+  $("#vista-acciones").innerHTML =
+    '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nuevo miembro</button>";
+  $("#btn-nuevo").addEventListener("click", function () { formMiembro(null); });
+
+  Promise.all([api("/api/admin/equipo"), cargarRef("profesionales")]).then(function (res) {
+    var gente = res[0];
+    var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr>' +
+      "<th>Persona</th><th>Rol</th><th>Estado</th><th>Profesional</th><th>Puede entrar en</th>" +
+      '<th>Último acceso</th><th class="num">Acciones</th></tr></thead><tbody>';
+    gente.forEach(function (p) {
+      var estado = p.estado === "activo" ? '<span class="tag tag--verde">Activo</span>'
+        : p.estado === "invitado" ? '<span class="tag tag--amber">Invitación pendiente</span>'
+        : '<span class="tag tag--rojo">De baja</span>';
+      var accesos = p.rol === "admin" ? '<span style="color:var(--muted)">Todo</span>'
+        : p.permisos.length ? p.permisos.map(function (k) {
+            return '<span class="tag" style="margin:0 4px 4px 0">' + esc(MODULOS[k] ? MODULOS[k].titulo : k) + "</span>";
+          }).join("")
+        : '<span style="color:var(--muted-2)">Solo su panel</span>';
+      h += "<tr><td><b>" + esc(p.nombre) + '</b><div style="font-size:.8rem;color:var(--muted)">' +
+             esc(p.email) + "</div></td>" +
+           '<td><span class="tag ' + (p.rol === "admin" ? "tag--azul" : "") + '">' +
+             (p.rol === "admin" ? "Administrador" : "Miembro") + "</span></td>" +
+           "<td>" + estado + "</td>" +
+           "<td>" + (esc(p.profesional) || "—") + "</td>" +
+           "<td>" + accesos + "</td>" +
+           '<td style="font-size:.84rem;color:var(--muted)">' + (p.ultimo_acceso ? esc(hace(p.ultimo_acceso)) : "Nunca") + "</td>" +
+           '<td class="acciones">' +
+           (p.estado === "invitado"
+             ? '<button data-invitar="' + p.id + '" title="Reenviar la invitación">' + svg(ico.buzon) + "</button>" : "") +
+           '<button data-editar="' + p.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
+           (p.id !== YO.id
+             ? '<button class="borrar" data-borrar="' + p.id + '" title="Quitar del equipo">' + svg(ico.papelera) + "</button>" : "") +
+           "</td></tr>";
+    });
+    $("#vista").innerHTML = h + "</tbody></table></div></div>" +
+      '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55;margin-top:14px">Cada miembro entra solo en las ' +
+      "pestañas que le marques y en ellas ve solo lo que lleva él: sus citas, clientes, obras, presupuestos, facturas, " +
+      "costes y las solicitudes que le repartas. Almacén, proveedores y profesionales son de la empresa: quien los " +
+      "tenga los ve enteros. Tú, como administrador, lo ves todo.</p>";
+
+    var buscar = function (id) { return gente.filter(function (x) { return String(x.id) === String(id); })[0]; };
+    $$("[data-editar]").forEach(function (b) {
+      b.addEventListener("click", function () { formMiembro(buscar(b.dataset.editar)); });
+    });
+    $$("[data-invitar]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        b.disabled = true;
+        api("/api/admin/equipo/" + b.dataset.invitar + "/invitar", { metodo: "POST" })
+          .then(function (r) { resultadoInvitacion(buscar(b.dataset.invitar), r); })
+          .catch(function (e) { avisar(e.message, "err"); })
+          .finally(function () { b.disabled = false; });
+      });
+    });
+    $$("[data-borrar]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = buscar(b.dataset.borrar);
+        modal("Quitar del equipo",
+          "<p style='color:var(--muted);line-height:1.55'>Se va a quitar a <b>" + esc(p.nombre) + "</b> del panel " +
+          "y no podrá volver a entrar.<br>Lo que lleva (clientes, obras, facturas…) <b>no se borra</b>: pasa a ser " +
+          "tuyo y desde ahí se lo puedes dar a otra persona.</p>" +
+          "<p style='color:var(--muted-2);font-size:.86rem'>Si solo quieres cortarle el acceso un tiempo, " +
+          "edítalo y ponlo de baja.</p>",
+          '<button class="btn btn--fant" id="b-no">Cancelar</button>' +
+          '<button class="btn btn--peligro" id="b-si">Quitar del equipo</button>');
+        $("#b-no").addEventListener("click", cerrarModal);
+        $("#b-si").addEventListener("click", function () {
+          api("/api/admin/equipo/" + p.id, { metodo: "DELETE" })
+            .then(function () { invalidar(); cerrarModal(); avisar(p.nombre + " ya no está en el equipo"); ir("equipo"); })
+            .catch(function (e) { cerrarModal(); avisar(e.message, "err"); });
+        });
+      });
+    });
+  }).catch(error);
+}
+
+function resultadoInvitacion(p, r) {
+  if (r.enviado) { avisar("Invitación enviada a " + p.email); return; }
+  // Si el correo no sale, el enlace se enseña para pasárselo por otra vía.
+  modal("No se ha podido enviar el correo",
+    '<p style="color:var(--muted);line-height:1.55">Pásale este enlace a <b>' + esc(p.nombre) +
+    "</b> por WhatsApp o como prefieras. Con él crea su contraseña; sirve una sola vez y caduca en 7 días.</p>" +
+    '<div class="ag-url"><input id="inv-url" readonly value="' + esc(r.enlace) + '">' +
+    '<button class="btn btn--fant btn--sm" id="inv-copiar">Copiar</button></div>',
+    '<button class="btn btn--amber" id="inv-ok">Hecho</button>');
+  $("#inv-ok").addEventListener("click", cerrarModal);
+  $("#inv-copiar").addEventListener("click", function () {
+    var inp = $("#inv-url");
+    inp.select();
+    var hecho = function () { avisar("Enlace copiado"); };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(inp.value).then(hecho, function () { document.execCommand("copy"); hecho(); });
+    } else { document.execCommand("copy"); hecho(); }
+  });
+}
+
+function formMiembro(p) {
+  var editando = !!p, esYo = editando && p.id === YO.id;
+  p = p || { nombre: "", email: "", rol: "miembro", permisos: [], profesional_id: null, activo: true };
+  var pros = cache.profesionales || [];
+  var ayuda = function (t) { return '<small style="color:var(--muted-2);font-size:.79rem">' + t + "</small>"; };
+  var cuerpo = '<div class="aviso aviso--err" id="m-err" hidden></div>' +
+    '<div class="rejilla-2">' +
+      '<div class="campo"><label for="m-nombre">Nombre *</label><input id="m-nombre" value="' + esc(p.nombre) + '"></div>' +
+      '<div class="campo"><label for="m-email">Correo *</label><input id="m-email" type="email" value="' + esc(p.email) + '">' +
+        (esYo ? ayuda("Es tu usuario para entrar. Si lo cambias, tendrás que volver a entrar con el nuevo.")
+              : editando ? "" : ayuda("Ahí le llegará la invitación para crear su contraseña.")) +
+      "</div>" +
+    "</div>" +
+    '<div class="rejilla-2">' +
+      '<div class="campo"><label for="m-rol">Rol</label><select id="m-rol"' + (esYo ? " disabled" : "") + ">" +
+        '<option value="miembro"' + (p.rol !== "admin" ? " selected" : "") + ">Miembro: solo lo suyo</option>" +
+        '<option value="admin"' + (p.rol === "admin" ? " selected" : "") + ">Administrador: lo ve todo</option>" +
+      "</select></div>" +
+      '<div class="campo"><label for="m-pro">Ficha de profesional</label><select id="m-pro">' +
+        '<option value="">— ninguna —</option>' +
+        pros.map(function (x) {
+          return '<option value="' + x.id + '"' + (String(x.id) === String(p.profesional_id) ? " selected" : "") + ">" +
+                 esc(x.nombre) + " — " + esc(x.categoria) + "</option>";
+        }).join("") +
+      "</select>" + ayuda("Su agenda incluirá las citas donde figure como profesional.") + "</div>" +
+    "</div>" +
+    '<div class="campo" id="m-permisos-caja"><label>Puede entrar en</label>' +
+      '<div class="multi" id="m-permisos">' + MODULOS_EQUIPO.map(function (k) {
+        return '<label><input type="checkbox" value="' + k + '"' + (p.permisos.indexOf(k) >= 0 ? " checked" : "") + ">" +
+               esc(MODULOS[k].titulo) + "</label>";
+      }).join("") + "</div>" +
+      ayuda("El Panel lo tiene siempre, con sus propios números. En cada pestaña verá solo lo que lleva él.") +
+    "</div>" +
+    '<p id="m-admin-nota" style="color:var(--muted);font-size:.88rem;margin:4px 0 12px" hidden>' +
+      "El administrador entra en todo y lo ve todo, también Equipo.</p>" +
+    (editando && !esYo
+      ? '<div class="campo"><label for="m-activo">Acceso</label><select id="m-activo">' +
+        '<option value="1"' + (p.activo ? " selected" : "") + ">Activo</option>" +
+        '<option value="0"' + (!p.activo ? " selected" : "") + ">De baja: no puede entrar</option></select></div>"
+      : "");
+
+  modal(editando ? "Editar a " + p.nombre : "Nuevo miembro del equipo", cuerpo,
+    '<button class="btn btn--fant" id="m-cancelar">Cancelar</button>' +
+    '<button class="btn btn--amber" id="m-guardar">' + (editando ? "Guardar" : "Invitar") + "</button>", true);
+
+  function pintarRol() {
+    var admin = $("#m-rol").value === "admin";
+    // style y no hidden: .campo lleva display:grid y taparía el atributo.
+    $("#m-permisos-caja").style.display = admin ? "none" : "";
+    $("#m-admin-nota").hidden = !admin;
+  }
+  pintarRol();
+  $("#m-rol").addEventListener("change", pintarRol);
+  $("#m-cancelar").addEventListener("click", cerrarModal);
+  $("#m-guardar").addEventListener("click", function () {
+    var err = $("#m-err"), btn = this;
+    var datos = {
+      nombre: $("#m-nombre").value.trim(),
+      email: $("#m-email").value.trim(),
+      rol: $("#m-rol").value,
+      profesional_id: $("#m-pro").value ? Number($("#m-pro").value) : null,
+      permisos: $$("#m-permisos input:checked").map(function (i) { return i.value; }),
+      activo: $("#m-activo") ? $("#m-activo").value === "1" : true
+    };
+    if (!datos.nombre || !datos.email) { err.textContent = "Falta el nombre o el correo."; err.hidden = false; return; }
+    var cambiaMiCorreo = esYo && datos.email.toLowerCase() !== String(p.email).toLowerCase();
+    btn.disabled = true; btn.textContent = editando ? "Guardando…" : "Invitando…";
+    api("/api/admin/equipo" + (editando ? "/" + p.id : ""), { metodo: editando ? "PUT" : "POST", datos: datos })
+      .then(function (r) {
+        invalidar(); cerrarModal();
+        // Cambiar el propio correo cierra la sesión en el servidor.
+        if (cambiaMiCorreo) { salir(true); avisoAcceso("Correo cambiado. Entra con el nuevo.", "ok"); return; }
+        if (editando) avisar("Guardado");
+        else resultadoInvitacion(r.miembro, r);
+        ir("equipo");
+      })
+      .catch(function (e) {
+        err.textContent = e.message; err.hidden = false;
+        btn.disabled = false; btn.textContent = editando ? "Guardar" : "Invitar";
+      });
+  });
 }
 
 /* ── Campanita de notificaciones ──────────────────────────────────────── */
@@ -1950,7 +2284,7 @@ function pintarCampana() {
                  esc(hace(it.fecha)) + "</span></button>";
         }).join("")
       : '<div class="campana__vacio">Todo atendido. No hay nada pendiente.</div>') +
-    (n.total > n.items.length || n.total
+    ((n.total > n.items.length || n.total) && puedeVer("solicitudes")
       ? '<button type="button" class="campana__todas">Ver todas las solicitudes</button>'
       : "");
 
@@ -2001,7 +2335,9 @@ var relojCampana = null;
 function arrancar(desdeLogin) {
   $("#login").hidden = true;
   $("#app").hidden = false;
-  $("#sesion-email").textContent = localStorage.getItem("loureiro_email") || "";
+  $("#sesion-email").textContent = YO
+    ? (YO.nombre || YO.email) + (esAdmin() ? " · administrador" : "")
+    : (localStorage.getItem("loureiro_email") || "");
   invalidar();
   // Al entrar con la contraseña se abre siempre el Panel, aunque la URL traiga
   // la vista de la sesión anterior. Al recargar con la sesión viva sí se
@@ -2015,8 +2351,10 @@ function arrancar(desdeLogin) {
 
 $("#btn-menu").addEventListener("click", function () { $("#lat").classList.toggle("is-open"); });
 
-if (token) {
-  api("/api/admin/dashboard").then(function () { arrancar(false); }).catch(function () { salir(true); });
+if (abrirEnlaceClave()) {
+  // Viene de un correo de invitación o de recuperación: primero eso.
+} else if (token) {
+  api("/api/admin/yo").then(function (u) { YO = u; arrancar(false); }).catch(function () { salir(true); });
 } else {
   api("/api/admin/estado").then(function (e) {
     if (!e.configurado) {

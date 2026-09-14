@@ -303,6 +303,34 @@ CREATE TABLE IF NOT EXISTS ajustes (
   valor TEXT
 );
 
+-- ── Equipo: usuarios del panel ───────────────────────────────────────
+-- El administrador lo ve todo; un miembro, solo los módulos de `permisos` y
+-- dentro de ellos solo lo que tiene a su nombre (columna usuario_id).
+CREATE TABLE IF NOT EXISTS usuarios (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  email          TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  nombre         TEXT,
+  rol            TEXT NOT NULL DEFAULT 'miembro',   -- admin|miembro
+  password_hash  TEXT,                              -- vacío = invitación sin aceptar
+  activo         INTEGER NOT NULL DEFAULT 1,
+  permisos       TEXT NOT NULL DEFAULT '',          -- módulos separados por comas
+  profesional_id INTEGER REFERENCES profesionales(id) ON DELETE SET NULL,
+  agenda_token   TEXT UNIQUE,                       -- su enlace de Google Calendar
+  ultimo_acceso  TEXT,
+  creado         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Enlaces de un solo uso para crear la contraseña (invitación) o cambiarla
+-- (recuperación). Se guarda la huella SHA-256 del enlace, no el enlace: quien
+-- lea la base de datos no puede usarlos.
+CREATE TABLE IF NOT EXISTS claves (
+  token_hash  TEXT PRIMARY KEY,
+  usuario_id  INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  tipo        TEXT NOT NULL,      -- invitacion|recuperar
+  expira      TEXT NOT NULL,
+  creado      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ── Contadores de numeración ─────────────────────────────────────────
 -- La numeración NO se deduce del máximo existente. Si se deduce y alguien
 -- borra el último documento, el siguiente reutiliza su número, y dos
@@ -338,7 +366,15 @@ MIGRACIONES = [
     ("obras", "cp", "TEXT"),
     ("ingresos", "factura_id", "INTEGER"),
     ("solicitudes", "cliente_id", "INTEGER"),
+    ("sesiones", "usuario_id", "INTEGER"),
 ]
+
+# Tablas donde cada fila tiene responsable (usuario_id). Lo que ya existía
+# antes del equipo queda con el responsable vacío, que es lo del
+# administrador: nadie más lo ve hasta que él lo reparta.
+TABLAS_CON_RESPONSABLE = ("clientes", "obras", "citas", "presupuestos", "proformas",
+                          "facturas", "costes", "ingresos", "solicitudes")
+MIGRACIONES += [(t, "usuario_id", "INTEGER") for t in TABLAS_CON_RESPONSABLE]
 
 
 # Estados de las solicitudes, simplificados el 2026-09-10 a tres: pendiente,
@@ -359,6 +395,10 @@ def migrar():
         existentes = {r["name"] for r in con.execute(f"PRAGMA table_info({tabla})")}
         if columna not in existentes:
             con.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
+    # Los índices van aquí y no en el esquema: la columna puede no existir
+    # todavía cuando se ejecuta el CREATE TABLE de una base antigua.
+    for tabla in TABLAS_CON_RESPONSABLE:
+        con.execute(f"CREATE INDEX IF NOT EXISTS idx_{tabla}_usuario ON {tabla}(usuario_id)")
     for viejo, nuevo in ESTADOS_SOLICITUD_ANTIGUOS.items():
         con.execute("UPDATE solicitudes SET estado = ? WHERE estado = ?", (nuevo, viejo))
     con.commit()
