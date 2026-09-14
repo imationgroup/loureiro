@@ -43,7 +43,7 @@ DOCUMENTOS = {
 }
 
 
-# Series con numeración automática, una por tipo y año: P-2026-078,
+# Series con numeración automática, una por tipo y año: P-2026-087,
 # PF-2026-001, F-2026-005...
 #
 # Las proformas llevan su propia serie (PF) y nunca la de facturas: una
@@ -84,7 +84,7 @@ def _mayor_existente(con, serie: str, anio: int) -> int:
 
 
 def siguiente_numero(con, serie: str, anio: int) -> str:
-    """Reserva y devuelve el siguiente número de la serie, tipo P-2026-078.
+    """Reserva y devuelve el siguiente número de la serie, tipo P-2026-087.
 
     Se llama dentro de la transacción que crea el documento: en SQLite las
     escrituras se serializan, así que dos altas simultáneas no pueden llevarse
