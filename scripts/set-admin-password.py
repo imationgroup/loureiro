@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Fija la contraseña del panel en el .env del VPS.
+"""Fija el correo y la contraseña del PRIMER administrador en el .env del VPS.
 
 La contraseña NO se escribe nunca en claro, ni aquí ni en el repositorio,
 que además es público. Este script la pide por teclado sin mostrarla,
 calcula el hash con scrypt y escribe en el .env únicamente ese hash.
+
+Ojo: desde que existe la pestaña Equipo, los usuarios viven en la base de
+datos y el .env solo se usa para crear el primer administrador cuando aún
+no hay ninguno. Con el panel ya en marcha, este script NO cambia la
+contraseña de nadie: para eso está «He olvidado mi contraseña» en la
+pantalla de entrada, y el correo se cambia en Equipo.
 
 Uso, en el VPS:
 
@@ -69,6 +75,8 @@ def main() -> int:
     os.chmod(ENV, 0o600)
 
     print("\nListo. En el .env queda solo el hash, nunca la contraseña.")
+    print("Recuerda: solo sirve si la base de datos aún no tiene administrador.")
+    print("Con el panel ya en marcha, usa «He olvidado mi contraseña».")
     print("Aplica el cambio con:")
     print("  docker compose up -d --force-recreate")
     return 0

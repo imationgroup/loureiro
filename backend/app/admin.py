@@ -6,6 +6,11 @@ Se generan los CRUD a partir de una descripción de cada tabla en vez de
 escribir siete veces las mismas cuatro funciones: menos código que
 mantener y ni una diferencia de comportamiento entre módulos por
 despiste.
+
+Cada petición llega con el usuario de la sesión. Con él se decide a qué
+módulos entra (ver auth.puede) y, en las tablas con responsable, qué filas
+ve: el administrador todas, un miembro solo las suyas. Una fila de otra
+persona responde 404 y no 403, para no confirmar siquiera que existe.
 """
 
 from datetime import date
@@ -16,9 +21,10 @@ from pydantic import BaseModel, Field
 
 from . import db
 from .agenda import validar_cita
-from .auth import (ADMIN_EMAIL, ADMIN_PASSWORD_HASH, cerrar_sesion,
-                   configurado, crear_sesion, limpiar_intentos,
-                   registrar_intento, sesion_actual, verificar_password)
+from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
+                   cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
+                   limpiar_intentos, publico, puede, registrar_intento, sesion_actual,
+                   usuario_por_email, verificar_password)
 
 router = APIRouter(prefix="/api/admin", tags=["panel"])
 
@@ -64,20 +70,20 @@ def login(cred: Credenciales, request: Request):
             "Demasiados intentos fallidos. Prueba de nuevo en un rato.",
         )
 
-    email_ok = cred.email.strip().lower() == ADMIN_EMAIL
-    pass_ok = verificar_password(cred.password, ADMIN_PASSWORD_HASH)
-    # Se comprueban ambas aunque el email ya falle, para no revelar por
-    # tiempos de respuesta si el usuario existe.
-    if not (email_ok and pass_ok):
+    u = usuario_por_email(cred.email)
+    # Se calcula el hash aunque el correo no exista, contra uno que nadie
+    # conoce, para no revelar por tiempos de respuesta si el usuario existe.
+    pass_ok = verificar_password(cred.password, (u or {}).get("password_hash") or HASH_FALSO)
+    if not (u and u["activo"] and u.get("password_hash") and pass_ok):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email o contraseña incorrectos")
 
     limpiar_intentos(ip)
-    token, expira = crear_sesion(ADMIN_EMAIL)
-    return {"token": token, "expira": expira, "email": ADMIN_EMAIL}
+    token, expira = crear_sesion(u)
+    return {"token": token, "expira": expira, "email": u["email"], "usuario": publico(u)}
 
 
 @router.post("/logout")
-def logout(request: Request, _: str = Depends(sesion_actual)):
+def logout(request: Request, _: dict = Depends(sesion_actual)):
     cabecera = request.headers.get("authorization", "")
     if cabecera.lower().startswith("bearer "):
         cerrar_sesion(cabecera[7:].strip())
@@ -88,7 +94,9 @@ def logout(request: Request, _: str = Depends(sesion_actual)):
 
 class Tabla:
     def __init__(self, nombre: str, campos: list[str], orden: str = "id DESC",
-                 obligatorios: tuple[str, ...] = (), validar=None):
+                 obligatorios: tuple[str, ...] = (), validar=None,
+                 modulo: str = "", lectura: tuple[str, ...] = (),
+                 responsable: bool = False):
         self.nombre = nombre
         self.campos = campos
         self.orden = orden
@@ -96,6 +104,15 @@ class Tabla:
         # Comprobaciones propias de la tabla, además de los obligatorios.
         # Recibe (datos nuevos, registro guardado o None al crear).
         self.validar = validar
+        # Módulo que hace falta para crear, editar o borrar.
+        self.modulo = modulo
+        # Módulos con los que se puede leer la lista. Es más amplio que el de
+        # escritura porque otros módulos la necesitan para sus desplegables:
+        # quien hace presupuestos tiene que poder elegir entre sus clientes
+        # aunque no tenga la pestaña Clientes.
+        self.lectura = lectura or (modulo,)
+        # Si cada fila tiene responsable (usuario_id) y un miembro solo ve las suyas.
+        self.responsable = responsable
 
     def limpiar(self, datos: dict, creando: bool = False) -> dict:
         """Se queda solo con columnas conocidas: nadie inyecta campos raros.
@@ -112,43 +129,57 @@ class Tabla:
         return d
 
 
+# Quién necesita leer cada lista para sus desplegables.
+_LEE_CLIENTES = ("clientes", "obras", "agenda", "presupuestos", "proformas", "facturas",
+                 "costes", "solicitudes")
+_LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "costes", "stock")
+
 TABLAS = {
     "clientes": Tabla("clientes",
         ["nombre", "nif", "email", "telefono", "direccion", "cp", "ciudad",
          "provincia", "notas"],
-        obligatorios=("nombre",)),
+        obligatorios=("nombre",),
+        modulo="clientes", lectura=_LEE_CLIENTES, responsable=True),
     "profesionales": Tabla("profesionales",
         ["nombre", "categoria", "telefono", "email", "nif", "ciudades",
          "provincia", "tarifa_hora", "autonomo", "activo", "notas"],
-        obligatorios=("nombre", "categoria")),
+        obligatorios=("nombre", "categoria"),
+        modulo="profesionales", lectura=("profesionales", "agenda", "obras", "costes")),
     "proveedores": Tabla("proveedores",
         ["nombre", "nif", "telefono", "email", "categoria", "notas"],
-        obligatorios=("nombre",)),
+        obligatorios=("nombre",),
+        modulo="proveedores", lectura=("proveedores", "stock", "costes")),
     "obras": Tabla("obras",
         ["codigo", "titulo", "cliente_id", "direccion", "cp", "ciudad",
          "provincia", "estado", "fecha_inicio", "fecha_fin_prevista",
          "fecha_fin_real", "importe_venta", "notas"],
-        obligatorios=("titulo",)),
+        obligatorios=("titulo",),
+        modulo="obras", lectura=_LEE_OBRAS, responsable=True),
     "costes": Tabla("costes",
         ["obra_id", "profesional_id", "proveedor_id", "categoria", "concepto",
          "importe", "iva", "fecha", "factura_ref", "pagado", "notas"],
-        orden="fecha DESC, id DESC", obligatorios=("concepto",)),
+        orden="fecha DESC, id DESC", obligatorios=("concepto",),
+        modulo="costes", responsable=True),
     "ingresos": Tabla("ingresos",
         ["obra_id", "cliente_id", "concepto", "importe", "iva", "fecha",
          "factura_ref", "cobrado", "notas"],
-        orden="fecha DESC, id DESC", obligatorios=("concepto",)),
+        orden="fecha DESC, id DESC", obligatorios=("concepto",),
+        modulo="facturas", lectura=("facturas", "contabilidad"), responsable=True),
     "stock": Tabla("stock",
         ["referencia", "nombre", "categoria", "unidad", "cantidad", "minimo",
          "precio_unitario", "proveedor_id", "ubicacion"],
-        orden="nombre COLLATE NOCASE", obligatorios=("nombre",)),
+        orden="nombre COLLATE NOCASE", obligatorios=("nombre",),
+        modulo="stock"),
     "solicitudes": Tabla("solicitudes",
         ["nombre", "email", "telefono", "servicio", "mensaje", "estado", "notas"],
-        obligatorios=("nombre",)),
+        obligatorios=("nombre",),
+        modulo="solicitudes", responsable=True),
     "citas": Tabla("citas",
         ["titulo", "tipo", "inicio", "fin", "profesional_id", "cliente_id",
          "obra_id", "direccion", "estado", "notas"],
         orden="inicio DESC", obligatorios=("titulo", "inicio"),
-        validar=validar_cita),
+        validar=validar_cita,
+        modulo="agenda", responsable=True),
 }
 
 
@@ -159,21 +190,54 @@ def _tabla(recurso: str) -> Tabla:
     return t
 
 
+def _visibles(t: Tabla, u: dict) -> tuple[str, tuple]:
+    """Condición WHERE con las filas de esa tabla que puede ver el usuario.
+
+    Las citas son la excepción: un miembro vinculado a una ficha de
+    profesional ve también las citas donde figura como profesional, aunque
+    las haya creado otra persona. Es su agenda.
+    """
+    if not t.responsable:
+        return "1=1", ()
+    if t.nombre == "citas" and not es_admin(u) and u.get("profesional_id"):
+        return "(usuario_id = ? OR profesional_id = ?)", (u["id"], u["profesional_id"])
+    return filtro_responsable(u)
+
+
+def _fila_visible(t: Tabla, u: dict, id_: int) -> dict:
+    cond, params = _visibles(t, u)
+    fila = db.fila(f"SELECT * FROM {t.nombre} WHERE id = ? AND {cond}", (id_, *params))
+    if not fila:
+        raise HTTPException(404, "No encontrado")
+    return fila
+
+
 @router_crud.get("/{recurso}")
-def listar(recurso: str, _: str = Depends(sesion_actual)):
+def listar(recurso: str, u: dict = Depends(sesion_actual)):
     t = _tabla(recurso)
-    return db.filas(f"SELECT * FROM {t.nombre} ORDER BY {t.orden}")
+    exigir(u, *t.lectura)
+    cond, params = _visibles(t, u)
+    return db.filas(f"SELECT * FROM {t.nombre} WHERE {cond} ORDER BY {t.orden}", params)
 
 
 @router_crud.post("/{recurso}", status_code=201)
-def crear(recurso: str, datos: dict[str, Any], _: str = Depends(sesion_actual)):
+def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual)):
     t = _tabla(recurso)
+    exigir(u, t.modulo)
     d = t.limpiar(datos, creando=True)
     for campo in t.obligatorios:
         if not str(d.get(campo, "")).strip():
             raise HTTPException(422, f"Falta el campo obligatorio: {campo}")
     if not d:
         raise HTTPException(422, "No hay datos que guardar")
+    if t.responsable:
+        fijar_responsable(u, datos, d, creando=True)
+    # Una cita nueva de un miembro vinculado a un profesional es suya como
+    # profesional si no dice otra cosa: si no, no le saldría en su calendario.
+    if t.nombre == "citas" and not es_admin(u) and u.get("profesional_id") \
+            and not d.get("profesional_id"):
+        d["profesional_id"] = u["profesional_id"]
+    comprobar_referencias(u, d)
     if t.validar:
         t.validar(d, None)
     cols = ", ".join(d)
@@ -187,15 +251,17 @@ def crear(recurso: str, datos: dict[str, Any], _: str = Depends(sesion_actual)):
 
 @router_crud.put("/{recurso}/{id_}")
 def actualizar(recurso: str, id_: int, datos: dict[str, Any],
-               _: str = Depends(sesion_actual)):
+               u: dict = Depends(sesion_actual)):
     t = _tabla(recurso)
+    exigir(u, t.modulo)
+    existente = _fila_visible(t, u, id_)
     d = t.limpiar(datos)
+    if t.responsable:
+        fijar_responsable(u, datos, d, creando=False)
     if not d:
         raise HTTPException(422, "No hay datos que actualizar")
+    comprobar_referencias(u, d, existente)
     if t.validar:
-        existente = db.fila(f"SELECT * FROM {t.nombre} WHERE id = ?", (id_,))
-        if not existente:
-            raise HTTPException(404, "No encontrado")
         t.validar(d, existente)
     sets = ", ".join(f"{k} = ?" for k in d)
     with db.tx() as con:
@@ -207,8 +273,10 @@ def actualizar(recurso: str, id_: int, datos: dict[str, Any],
 
 
 @router_crud.delete("/{recurso}/{id_}")
-def borrar(recurso: str, id_: int, _: str = Depends(sesion_actual)):
+def borrar(recurso: str, id_: int, u: dict = Depends(sesion_actual)):
     t = _tabla(recurso)
+    exigir(u, t.modulo)
+    _fila_visible(t, u, id_)
     with db.tx() as con:
         cur = con.execute(f"DELETE FROM {t.nombre} WHERE id = ?", (id_,))
         if cur.rowcount == 0:
@@ -219,18 +287,22 @@ def borrar(recurso: str, id_: int, _: str = Depends(sesion_actual)):
 # ═══ Notificaciones (la campanita del panel) ════════════════════════════
 
 @router.get("/notificaciones")
-def notificaciones(_: str = Depends(sesion_actual)):
+def notificaciones(u: dict = Depends(sesion_actual)):
     """Lo que está pendiente de atender.
 
-    Por ahora solo las solicitudes pendientes. La respuesta es genérica
+    Por ahora solo las solicitudes pendientes: todas para el administrador y
+    las que tiene asignadas para un miembro. La respuesta es genérica
     (tipo, título, detalle, fecha y vista a la que lleva) para poder añadir
     más avisos —facturas vencidas, stock bajo mínimo— sin tocar el panel.
     Tiene que ir en el router de rutas concretas: en el genérico, /{recurso}
     se la tragaría como si "notificaciones" fuese una tabla.
     """
+    if not puede(u, "solicitudes"):
+        return {"total": 0, "items": []}
+    cond, params = filtro_responsable(u)
     pendientes = db.filas(
-        """SELECT id, nombre, servicio, creado FROM solicitudes
-           WHERE estado = 'pendiente' ORDER BY creado DESC, id DESC""")
+        f"""SELECT id, nombre, servicio, creado FROM solicitudes
+            WHERE estado = 'pendiente' AND {cond} ORDER BY creado DESC, id DESC""", params)
     items = [{
         "tipo": "solicitud",
         "id": s["id"],
@@ -248,7 +320,7 @@ SALTO = chr(10)   # separador dentro de las notas del cliente
 # ═══ Solicitud → cliente ════════════════════════════════════════════════
 
 @router.post("/solicitudes/{id_}/convertir", status_code=201)
-def convertir_en_cliente(id_: int, _: str = Depends(sesion_actual)):
+def convertir_en_cliente(id_: int, u: dict = Depends(sesion_actual)):
     """Da de alta como cliente a quien ha mandado una solicitud.
 
     No crea un cliente a ciegas. Si esa solicitud ya se convirtió, devuelve el
@@ -257,13 +329,16 @@ def convertir_en_cliente(id_: int, _: str = Depends(sesion_actual)):
     cliente de siempre pide otra cosa— se enlaza con el que hay en vez de
     duplicarlo. Un fichero de clientes con la misma persona tres veces es
     justo lo que hace inútil el listado.
+
+    Un miembro solo busca duplicados entre sus propios clientes: si mirase
+    los de todos, acabaría enlazado con la ficha de un compañero.
     """
-    s = db.fila("SELECT * FROM solicitudes WHERE id = ?", (id_,))
-    if not s:
-        raise HTTPException(404, "La solicitud no existe")
+    exigir(u, "solicitudes")
+    s = _fila_visible(TABLAS["solicitudes"], u, id_)
+    cond, params = filtro_responsable(u)
 
     if s.get("cliente_id"):
-        ya = db.fila("SELECT * FROM clientes WHERE id = ?", (s["cliente_id"],))
+        ya = db.fila(f"SELECT * FROM clientes WHERE id = ? AND {cond}", (s["cliente_id"], *params))
         if ya:
             return {"cliente": ya, "creado": False, "motivo": "ya_convertida"}
 
@@ -271,7 +346,11 @@ def convertir_en_cliente(id_: int, _: str = Depends(sesion_actual)):
     existente = None
     if email:
         existente = db.fila(
-            "SELECT * FROM clientes WHERE lower(trim(email)) = lower(?)", (email,))
+            f"SELECT * FROM clientes WHERE lower(trim(email)) = lower(?) AND {cond}",
+            (email, *params))
+
+    # El cliente nuevo es de quien lleva la solicitud.
+    responsable = s.get("usuario_id") if es_admin(u) else u["id"]
 
     with db.tx() as con:
         if existente:
@@ -286,9 +365,9 @@ def convertir_en_cliente(id_: int, _: str = Depends(sesion_actual)):
             if s.get("mensaje"):
                 notas += "." + SALTO + SALTO + s["mensaje"]
             cur = con.execute(
-                """INSERT INTO clientes (nombre, email, telefono, notas)
-                   VALUES (?,?,?,?)""",
-                (s["nombre"], email or None, s.get("telefono"), notas))
+                """INSERT INTO clientes (nombre, email, telefono, notas, usuario_id)
+                   VALUES (?,?,?,?,?)""",
+                (s["nombre"], email or None, s.get("telefono"), notas, responsable))
             cliente_id, creado = cur.lastrowid, True
 
         con.execute("UPDATE solicitudes SET cliente_id = ? WHERE id = ?",
@@ -313,8 +392,14 @@ class Asignacion(BaseModel):
     hasta: str | None = None
 
 
+def _obra_visible(u: dict, obra_id: int) -> dict:
+    return _fila_visible(TABLAS["obras"], u, obra_id)
+
+
 @router.get("/obras/{obra_id}/profesionales")
-def profesionales_de_obra(obra_id: int, _: str = Depends(sesion_actual)):
+def profesionales_de_obra(obra_id: int, u: dict = Depends(sesion_actual)):
+    exigir(u, "obras")
+    _obra_visible(u, obra_id)
     return db.filas("""
         SELECT op.id, op.profesional_id, op.rol, op.desde, op.hasta,
                p.nombre, p.categoria, p.telefono, p.tarifa_hora
@@ -326,9 +411,9 @@ def profesionales_de_obra(obra_id: int, _: str = Depends(sesion_actual)):
 
 
 @router.post("/obras/{obra_id}/profesionales", status_code=201)
-def asignar_profesional(obra_id: int, a: Asignacion, _: str = Depends(sesion_actual)):
-    if not db.fila("SELECT id FROM obras WHERE id = ?", (obra_id,)):
-        raise HTTPException(404, "La obra no existe")
+def asignar_profesional(obra_id: int, a: Asignacion, u: dict = Depends(sesion_actual)):
+    exigir(u, "obras")
+    _obra_visible(u, obra_id)
     if not db.fila("SELECT id FROM profesionales WHERE id = ?", (a.profesional_id,)):
         raise HTTPException(404, "El profesional no existe")
     try:
@@ -344,7 +429,9 @@ def asignar_profesional(obra_id: int, a: Asignacion, _: str = Depends(sesion_act
 
 @router.delete("/obras/{obra_id}/profesionales/{profesional_id}")
 def desasignar_profesional(obra_id: int, profesional_id: int,
-                           _: str = Depends(sesion_actual)):
+                           u: dict = Depends(sesion_actual)):
+    exigir(u, "obras")
+    _obra_visible(u, obra_id)
     with db.tx() as con:
         con.execute("DELETE FROM obra_profesionales WHERE obra_id=? AND profesional_id=?",
                     (obra_id, profesional_id))
@@ -362,20 +449,27 @@ class Movimiento(BaseModel):
 
 
 @router.get("/stock/{stock_id}/movimientos")
-def movimientos(stock_id: int, _: str = Depends(sesion_actual)):
-    return db.filas("""
-        SELECT m.*, o.titulo AS obra
+def movimientos(stock_id: int, u: dict = Depends(sesion_actual)):
+    exigir(u, "stock")
+    # El almacén es de todos, pero el nombre de la obra a la que fue el
+    # material solo se enseña si la obra es de quien mira.
+    visible = "1" if es_admin(u) else "o.usuario_id = ?"
+    params = () if es_admin(u) else (u["id"],)
+    return db.filas(f"""
+        SELECT m.*, CASE WHEN {visible} THEN o.titulo END AS obra
         FROM movimientos_stock m
         LEFT JOIN obras o ON o.id = m.obra_id
         WHERE m.stock_id = ? ORDER BY m.fecha DESC, m.id DESC
-    """, (stock_id,))
+    """, (*params, stock_id))
 
 
 @router.post("/stock/{stock_id}/movimientos", status_code=201)
-def mover_stock(stock_id: int, m: Movimiento, _: str = Depends(sesion_actual)):
+def mover_stock(stock_id: int, m: Movimiento, u: dict = Depends(sesion_actual)):
+    exigir(u, "stock")
     art = db.fila("SELECT * FROM stock WHERE id = ?", (stock_id,))
     if not art:
         raise HTTPException(404, "El artículo no existe")
+    obra = _obra_visible(u, m.obra_id) if m.obra_id else None
 
     delta = m.cantidad if m.tipo == "entrada" else -m.cantidad
     nueva = (art["cantidad"] or 0) + delta
@@ -394,45 +488,52 @@ def mover_stock(stock_id: int, m: Movimiento, _: str = Depends(sesion_actual)):
                      m.fecha or date.today().isoformat(), m.nota))
         con.execute("UPDATE stock SET cantidad = ? WHERE id = ?", (nueva, stock_id))
 
-        # Una salida a una obra es un coste de material de esa obra.
-        if m.tipo == "salida" and m.obra_id:
+        # Una salida a una obra es un coste de material de esa obra, y lo
+        # lleva quien lleva la obra.
+        if m.tipo == "salida" and obra:
             importe = (art["precio_unitario"] or 0) * m.cantidad
             if importe:
                 con.execute("""INSERT INTO costes
-                               (obra_id, categoria, concepto, importe, iva, fecha, notas)
-                               VALUES (?,?,?,?,?,?,?)""",
+                               (obra_id, categoria, concepto, importe, iva, fecha, notas, usuario_id)
+                               VALUES (?,?,?,?,?,?,?,?)""",
                             (m.obra_id, "material",
                              f"Salida de almacén: {art['nombre']} "
                              f"({m.cantidad:g} {art['unidad']})",
                              importe, 21, m.fecha or date.today().isoformat(),
-                             "Generado automáticamente desde almacén"))
+                             "Generado automáticamente desde almacén", obra.get("usuario_id")))
     return {"ok": True, "cantidad": nueva}
 
 
 # ═══ Rentabilidad por obra ══════════════════════════════════════════════
 
 @router.get("/informes/obras")
-def informe_obras(_: str = Depends(sesion_actual)):
-    return db.filas("""
-        SELECT o.id, o.codigo, o.titulo, o.estado, o.ciudad, o.importe_venta,
+def informe_obras(u: dict = Depends(sesion_actual)):
+    exigir(u, "obras")
+    cond, params = filtro_responsable(u, "o")
+    return db.filas(f"""
+        SELECT o.id, o.codigo, o.titulo, o.estado, o.ciudad, o.importe_venta, o.usuario_id,
                c.nombre AS cliente,
                COALESCE((SELECT SUM(importe) FROM costes   WHERE obra_id = o.id), 0) AS costes,
                COALESCE((SELECT SUM(importe) FROM ingresos WHERE obra_id = o.id), 0) AS facturado,
                (SELECT COUNT(*) FROM obra_profesionales WHERE obra_id = o.id) AS n_profesionales
         FROM obras o
         LEFT JOIN clientes c ON c.id = o.cliente_id
+        WHERE {cond}
         ORDER BY o.id DESC
-    """)
+    """, params)
 
 
 # ═══ Contabilidad ═══════════════════════════════════════════════════════
 
 @router.get("/informes/contabilidad")
-def contabilidad(anio: int | None = None, _: str = Depends(sesion_actual)):
+def contabilidad(anio: int | None = None, u: dict = Depends(sesion_actual)):
+    """Resultado, IVA y pendientes. Un miembro ve la de lo que lleva él."""
+    exigir(u, "contabilidad")
     anio = anio or date.today().year
     a = str(anio)
+    f, p = filtro_responsable(u)
 
-    meses = db.filas("""
+    meses = db.filas(f"""
         SELECT mes,
                SUM(ingresos) AS ingresos, SUM(gastos) AS gastos,
                SUM(iva_repercutido) AS iva_repercutido,
@@ -440,32 +541,32 @@ def contabilidad(anio: int | None = None, _: str = Depends(sesion_actual)):
         FROM (
           SELECT strftime('%m', fecha) AS mes, importe AS ingresos, 0 AS gastos,
                  importe * iva / 100 AS iva_repercutido, 0 AS iva_soportado
-          FROM ingresos WHERE strftime('%Y', fecha) = ?
+          FROM ingresos WHERE strftime('%Y', fecha) = ? AND {f}
           UNION ALL
           SELECT strftime('%m', fecha) AS mes, 0, importe,
                  0, importe * iva / 100
-          FROM costes WHERE strftime('%Y', fecha) = ?
+          FROM costes WHERE strftime('%Y', fecha) = ? AND {f}
         )
         GROUP BY mes ORDER BY mes
-    """, (a, a))
+    """, (a, *p, a, *p))
 
-    por_categoria = db.filas("""
+    por_categoria = db.filas(f"""
         SELECT categoria, SUM(importe) AS total, COUNT(*) AS n
-        FROM costes WHERE strftime('%Y', fecha) = ?
+        FROM costes WHERE strftime('%Y', fecha) = ? AND {f}
         GROUP BY categoria ORDER BY total DESC
-    """, (a,))
+    """, (a, *p))
 
     return {
         "anio": anio,
         "meses": meses,
         "gastos_por_categoria": por_categoria,
         "totales": {
-            "ingresos": db.escalar("SELECT SUM(importe) FROM ingresos WHERE strftime('%Y',fecha)=?", (a,)),
-            "gastos": db.escalar("SELECT SUM(importe) FROM costes WHERE strftime('%Y',fecha)=?", (a,)),
-            "iva_repercutido": db.escalar("SELECT SUM(importe*iva/100) FROM ingresos WHERE strftime('%Y',fecha)=?", (a,)),
-            "iva_soportado": db.escalar("SELECT SUM(importe*iva/100) FROM costes WHERE strftime('%Y',fecha)=?", (a,)),
-            "pendiente_cobro": db.escalar("SELECT SUM(importe) FROM ingresos WHERE cobrado=0"),
-            "pendiente_pago": db.escalar("SELECT SUM(importe) FROM costes WHERE pagado=0"),
+            "ingresos": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
+            "gastos": db.escalar(f"SELECT SUM(importe) FROM costes WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
+            "iva_repercutido": db.escalar(f"SELECT SUM(importe*iva/100) FROM ingresos WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
+            "iva_soportado": db.escalar(f"SELECT SUM(importe*iva/100) FROM costes WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
+            "pendiente_cobro": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE cobrado=0 AND {f}", p),
+            "pendiente_pago": db.escalar(f"SELECT SUM(importe) FROM costes WHERE pagado=0 AND {f}", p),
         },
     }
 
@@ -473,48 +574,56 @@ def contabilidad(anio: int | None = None, _: str = Depends(sesion_actual)):
 # ═══ Dashboard ══════════════════════════════════════════════════════════
 
 @router.get("/dashboard")
-def dashboard(_: str = Depends(sesion_actual)):
+def dashboard(u: dict = Depends(sesion_actual)):
+    """El resumen. Lo tiene todo el mundo, cada uno con sus números."""
     hoy = date.today()
     mes = hoy.strftime("%Y-%m")
+    f, p = filtro_responsable(u)
+    fo, po = filtro_responsable(u, "o")
+    ve_solicitudes = puede(u, "solicitudes")
+    ve_stock = puede(u, "stock")
 
     return {
         "contadores": {
-            "obras_activas": db.escalar("SELECT COUNT(*) FROM obras WHERE estado IN ('en curso','pausada')"),
-            "obras_total": db.escalar("SELECT COUNT(*) FROM obras"),
-            "clientes": db.escalar("SELECT COUNT(*) FROM clientes"),
+            "obras_activas": db.escalar(f"SELECT COUNT(*) FROM obras WHERE estado IN ('en curso','pausada') AND {f}", p),
+            "obras_total": db.escalar(f"SELECT COUNT(*) FROM obras WHERE {f}", p),
+            "clientes": db.escalar(f"SELECT COUNT(*) FROM clientes WHERE {f}", p),
             "profesionales": db.escalar("SELECT COUNT(*) FROM profesionales WHERE activo=1"),
-            "solicitudes_nuevas": db.escalar("SELECT COUNT(*) FROM solicitudes WHERE estado='pendiente'"),
-            "stock_bajo": db.escalar("SELECT COUNT(*) FROM stock WHERE minimo > 0 AND cantidad <= minimo"),
+            "solicitudes_nuevas": db.escalar(f"SELECT COUNT(*) FROM solicitudes WHERE estado='pendiente' AND {f}", p)
+                                  if ve_solicitudes else None,
+            "stock_bajo": db.escalar("SELECT COUNT(*) FROM stock WHERE minimo > 0 AND cantidad <= minimo")
+                          if ve_stock else None,
         },
         "mes": {
             "etiqueta": mes,
-            "ingresos": db.escalar("SELECT SUM(importe) FROM ingresos WHERE strftime('%Y-%m',fecha)=?", (mes,)),
-            "gastos": db.escalar("SELECT SUM(importe) FROM costes WHERE strftime('%Y-%m',fecha)=?", (mes,)),
+            "ingresos": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE strftime('%Y-%m',fecha)=? AND {f}", (mes, *p)),
+            "gastos": db.escalar(f"SELECT SUM(importe) FROM costes WHERE strftime('%Y-%m',fecha)=? AND {f}", (mes, *p)),
         },
         "pendientes": {
-            "cobro": db.escalar("SELECT SUM(importe) FROM ingresos WHERE cobrado=0"),
-            "pago": db.escalar("SELECT SUM(importe) FROM costes WHERE pagado=0"),
+            "cobro": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE cobrado=0 AND {f}", p),
+            "pago": db.escalar(f"SELECT SUM(importe) FROM costes WHERE pagado=0 AND {f}", p),
         },
-        "evolucion": db.filas("""
+        "evolucion": db.filas(f"""
             SELECT mes, SUM(ingresos) AS ingresos, SUM(gastos) AS gastos FROM (
-              SELECT strftime('%Y-%m', fecha) AS mes, importe AS ingresos, 0 AS gastos FROM ingresos
+              SELECT strftime('%Y-%m', fecha) AS mes, importe AS ingresos, 0 AS gastos FROM ingresos WHERE {f}
               UNION ALL
-              SELECT strftime('%Y-%m', fecha) AS mes, 0, importe FROM costes
+              SELECT strftime('%Y-%m', fecha) AS mes, 0, importe FROM costes WHERE {f}
             ) GROUP BY mes ORDER BY mes DESC LIMIT 6
-        """),
-        "obras_recientes": db.filas("""
+        """, (*p, *p)),
+        "obras_recientes": db.filas(f"""
             SELECT o.id, o.titulo, o.estado, o.ciudad, o.importe_venta,
                    c.nombre AS cliente,
                    COALESCE((SELECT SUM(importe) FROM costes WHERE obra_id=o.id),0) AS costes
             FROM obras o LEFT JOIN clientes c ON c.id=o.cliente_id
+            WHERE {fo}
             ORDER BY o.id DESC LIMIT 5
-        """),
-        "solicitudes_recientes": db.filas("""
+        """, po),
+        "solicitudes_recientes": db.filas(f"""
             SELECT id, nombre, servicio, estado, creado FROM solicitudes
-            ORDER BY id DESC LIMIT 5
-        """),
+            WHERE {f} ORDER BY id DESC LIMIT 5
+        """, p) if ve_solicitudes else [],
         "avisos_stock": db.filas("""
             SELECT id, nombre, cantidad, minimo, unidad FROM stock
             WHERE minimo > 0 AND cantidad <= minimo ORDER BY cantidad ASC LIMIT 8
-        """),
+        """) if ve_stock else [],
     }

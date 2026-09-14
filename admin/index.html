@@ -9,7 +9,7 @@
 <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/assets/fonts/inter-var-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/archivo-var-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/admin/admin.css?v=e4feed6d">
+<link rel="stylesheet" href="/admin/admin.css?v=2a19e3ba">
 </head>
 <body>
 
@@ -24,8 +24,8 @@
       <b>Loureiro<em>soluciones</em></b>
     </div>
 
-    <h1>Panel de gestión</h1>
-    <p class="login__sub">Acceso restringido.</p>
+    <h1 id="login-titulo">Panel de gestión</h1>
+    <p class="login__sub" id="login-sub">Acceso restringido.</p>
 
     <div class="aviso aviso--err" id="login-aviso" hidden></div>
 
@@ -33,13 +33,37 @@
       <div class="campo">
         <label for="li-email">Email</label>
         <input id="li-email" type="email" autocomplete="username" required
-               placeholder="contacto@loureirosoluciones.es">
+               placeholder="tu@correo.com">
       </div>
       <div class="campo">
         <label for="li-pass">Contraseña</label>
         <input id="li-pass" type="password" autocomplete="current-password" required>
       </div>
       <button class="btn btn--amber btn--full" type="submit" id="li-btn">Entrar</button>
+      <button type="button" class="login__link" id="li-olvido">He olvidado mi contraseña</button>
+    </form>
+
+    <form id="recuperar-form" novalidate hidden>
+      <div class="campo">
+        <label for="re-email">Tu correo</label>
+        <input id="re-email" type="email" autocomplete="username" required>
+      </div>
+      <button class="btn btn--amber btn--full" type="submit" id="re-btn">Enviarme el enlace</button>
+      <button type="button" class="login__link" id="re-volver">Volver a entrar</button>
+    </form>
+
+    <form id="clave-form" novalidate hidden>
+      <p class="login__hola" id="cl-hola"></p>
+      <div class="campo">
+        <label for="cl-pass">Contraseña nueva</label>
+        <input id="cl-pass" type="password" autocomplete="new-password" minlength="10" required>
+        <small class="login__nota">Al menos 10 caracteres.</small>
+      </div>
+      <div class="campo">
+        <label for="cl-pass2">Repítela</label>
+        <input id="cl-pass2" type="password" autocomplete="new-password" required>
+      </div>
+      <button class="btn btn--amber btn--full" type="submit" id="cl-btn">Guardar y entrar</button>
     </form>
   </div>
 </div>
@@ -97,6 +121,6 @@
 
 <div id="modal-host"></div>
 
-<script src="/admin/admin.js?v=f4dbcb15"></script>
+<script src="/admin/admin.js?v=e1231583"></script>
 </body>
 </html>
