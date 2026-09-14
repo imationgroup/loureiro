@@ -405,10 +405,13 @@ def migrar():
 
 
 # Punto de partida de cada serie. El valor es el ÚLTIMO número usado, así
-# que el primer presupuesto de 2026 sale con el 078, que es donde lo dejó
-# la numeración anterior. Solo se siembra si la fila no existe: en un
-# arranque posterior no puede pisar el contador real.
-SEMILLAS_CONTADOR = [("presupuestos", 2026, 77)]
+# que el siguiente presupuesto de 2026 sale con el 087: el 2026-09-14 el
+# usuario pidió empezar ahí (antes empezaba en el 078).
+#
+# Se aplica como mínimo, no como valor fijo: sube el contador si va por
+# detrás, pero nunca lo baja. Si ya se han hecho presupuestos por encima del
+# 086, la serie sigue desde el último y no repite números.
+SEMILLAS_CONTADOR = [("presupuestos", 2026, 86)]
 
 
 def inicializar():
@@ -418,6 +421,9 @@ def inicializar():
         con.execute(
             "INSERT OR IGNORE INTO contadores (serie, anio, ultimo) VALUES (?,?,?)",
             (serie, anio, ultimo))
+        con.execute(
+            "UPDATE contadores SET ultimo = MAX(ultimo, ?) WHERE serie = ? AND anio = ?",
+            (ultimo, serie, anio))
     con.commit()
     migrar()
 
