@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración de un multisplit: una unidad exterior con tres líneas que llegan a tres splits interiores, con refrigerante R-32">
+  <defs>
+    <linearGradient id="aa-w" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#aa-w)"/>
+
+  <!-- Tres estancias -->
+  <g>
+    <rect x="56" y="70" width="290" height="102" rx="10" fill="#FFFFFF"/>
+    <rect x="56" y="70" width="290" height="102" rx="10" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+    <text x="76" y="98" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96">Salón</text>
+
+    <rect x="56" y="188" width="290" height="102" rx="10" fill="#FFFFFF"/>
+    <rect x="56" y="188" width="290" height="102" rx="10" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+    <text x="76" y="216" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96">Dormitorio</text>
+
+    <rect x="56" y="306" width="290" height="102" rx="10" fill="#FFFFFF"/>
+    <rect x="56" y="306" width="290" height="102" rx="10" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+    <text x="76" y="334" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96">Dormitorio</text>
+  </g>
+
+  <!-- Splits interiores -->
+  <g>
+    <rect x="76" y="110" width="150" height="34" rx="9" fill="#FFFFFF"/>
+    <rect x="76" y="110" width="150" height="34" rx="9" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+    <path d="M90 136h122" stroke="#C8C3BA" stroke-width="3"/>
+    <circle cx="208" cy="121" r="3" fill="#4ADE80"/>
+    <g fill="none" stroke="#7FB4CF" stroke-width="3.5" stroke-linecap="round" opacity=".9">
+      <path d="M112 152c6 8 12 8 18 0M148 152c6 8 12 8 18 0M184 152c6 8 12 8 18 0"/>
+    </g>
+
+    <rect x="76" y="228" width="150" height="34" rx="9" fill="#FFFFFF"/>
+    <rect x="76" y="228" width="150" height="34" rx="9" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+    <path d="M90 254h122" stroke="#C8C3BA" stroke-width="3"/>
+    <circle cx="208" cy="239" r="3" fill="#4ADE80"/>
+    <g fill="none" stroke="#7FB4CF" stroke-width="3.5" stroke-linecap="round" opacity=".9">
+      <path d="M112 270c6 8 12 8 18 0M148 270c6 8 12 8 18 0M184 270c6 8 12 8 18 0"/>
+    </g>
+
+    <rect x="76" y="346" width="150" height="34" rx="9" fill="#FFFFFF"/>
+    <rect x="76" y="346" width="150" height="34" rx="9" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+    <path d="M90 372h122" stroke="#C8C3BA" stroke-width="3"/>
+    <circle cx="208" cy="357" r="3" fill="#4ADE80"/>
+    <g fill="none" stroke="#7FB4CF" stroke-width="3.5" stroke-linecap="round" opacity=".9">
+      <path d="M112 388c6 8 12 8 18 0M148 388c6 8 12 8 18 0M184 388c6 8 12 8 18 0"/>
+    </g>
+  </g>
+
+  <!-- Líneas frigoríficas hasta la exterior -->
+  <g fill="none" stroke="#C8C3BA" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M346 127h60c12 0 20 8 20 20v66c0 12 8 20 20 20h44"/>
+    <path d="M346 245h144"/>
+    <path d="M346 363h60c12 0 20-8 20-20v-66c0-12 8-20 20-20h44"/>
+  </g>
+
+  <!-- Unidad exterior -->
+  <rect x="496" y="186" width="188" height="130" rx="14" fill="#FFFFFF"/>
+  <rect x="496" y="186" width="188" height="130" rx="14" fill="none" stroke="#C8C3BA" stroke-width="4"/>
+  <circle cx="590" cy="251" r="44" fill="#F4F1EC"/>
+  <circle cx="590" cy="251" r="44" fill="none" stroke="#D6D1C8" stroke-width="3"/>
+  <g fill="#9FC0D0">
+    <path d="M590 251c0-24 6-36 16-36s14 22 0 32z"/>
+    <path d="M590 251c20-13 33-12 38-3s-13 22-26 11z"/>
+    <path d="M590 251c20 13 24 25 17 32s-24-6-20-23z"/>
+    <path d="M590 251c-20 13-33 12-38 3s13-22 26-11z"/>
+    <path d="M590 251c-6-22-2-34 8-36" opacity="0"/>
+  </g>
+  <circle cx="590" cy="251" r="8" fill="#8B93A0"/>
+  <rect x="516" y="198" width="60" height="8" rx="4" fill="#E8E3DA"/>
+  <path d="M520 328v18M660 328v18" stroke="#8B93A0" stroke-width="7" stroke-linecap="round"/>
+  <rect x="496" y="316" width="188" height="12" rx="4" fill="#E8E3DA"/>
+
+  <!-- Etiqueta 3x1 -->
+  <rect x="560" y="120" width="120" height="42" rx="10" fill="#14161A"/>
+  <text x="620" y="148" font-family="Inter, sans-serif" font-size="20" fill="#FFFFFF" text-anchor="middle" font-weight="bold">3 x 1</text>
+
+  <!-- Refrigerante -->
+  <g transform="translate(496 356)">
+    <rect width="188" height="48" rx="10" fill="#FDEBD9"/>
+    <text x="22" y="30" font-family="Inter, sans-serif" font-size="16" fill="#C2410C">Refrigerante R-32</text>
+  </g>
+
+  <!-- Una sola máquina fuera -->
+  <text x="496" y="432" font-family="Inter, sans-serif" font-size="15" fill="#8A8E96">Una sola máquina en la fachada</text>
+</svg>

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Sección de un muro de bloque: albardilla, juntas de dilatación cada seis metros, armado vertical y zapata de hormigón armado bajo tierra">
+  <defs>
+    <linearGradient id="mb-cielo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+    <pattern id="mb-tierra" width="24" height="18" patternUnits="userSpaceOnUse">
+      <rect width="24" height="18" fill="#D9CAB3"/>
+      <circle cx="6" cy="6" r="1.6" fill="#C7B296"/>
+      <circle cx="18" cy="12" r="1.6" fill="#C7B296"/>
+      <circle cx="13" cy="3" r="1.2" fill="#C7B296"/>
+    </pattern>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#mb-cielo)"/>
+
+  <!-- Cota entre juntas -->
+  <g stroke="#F97316" stroke-width="2.5" stroke-linecap="round">
+    <path d="M64 96v18M404 96v18M64 105h340"/>
+    <path d="M76 99l-12 6 12 6M392 99l12 6-12 6" fill="none"/>
+  </g>
+  <rect x="196" y="88" width="76" height="30" rx="8" fill="#FDEBD9"/>
+  <text x="234" y="108" font-family="Inter, sans-serif" font-size="16" fill="#C2410C" text-anchor="middle">6 m</text>
+
+  <!-- Albardilla -->
+  <rect x="52" y="136" width="696" height="16" rx="3" fill="#C9C2B6"/>
+  <rect x="52" y="136" width="696" height="16" rx="3" fill="none" stroke="#B4AC9E" stroke-width="2"/>
+
+  <!-- Fábrica de bloque, aparejo a matajunta -->
+  <g fill="#EDE7DE" stroke="#D8D0C2" stroke-width="2">
+    <rect x="64" y="156" width="68" height="22"/><rect x="136" y="156" width="68" height="22"/><rect x="208" y="156" width="68" height="22"/><rect x="280" y="156" width="68" height="22"/><rect x="352" y="156" width="68" height="22"/><rect x="424" y="156" width="68" height="22"/><rect x="496" y="156" width="68" height="22"/><rect x="568" y="156" width="68" height="22"/><rect x="640" y="156" width="68" height="22"/>
+    <rect x="64" y="182" width="32" height="22"/><rect x="100" y="182" width="68" height="22"/><rect x="172" y="182" width="68" height="22"/><rect x="244" y="182" width="68" height="22"/><rect x="316" y="182" width="68" height="22"/><rect x="388" y="182" width="68" height="22"/><rect x="460" y="182" width="68" height="22"/><rect x="532" y="182" width="68" height="22"/><rect x="604" y="182" width="68" height="22"/><rect x="676" y="182" width="32" height="22"/>
+    <rect x="64" y="208" width="68" height="22"/><rect x="136" y="208" width="68" height="22"/><rect x="208" y="208" width="68" height="22"/><rect x="280" y="208" width="68" height="22"/><rect x="352" y="208" width="68" height="22"/><rect x="424" y="208" width="68" height="22"/><rect x="496" y="208" width="68" height="22"/><rect x="568" y="208" width="68" height="22"/><rect x="640" y="208" width="68" height="22"/>
+    <rect x="64" y="234" width="32" height="22"/><rect x="100" y="234" width="68" height="22"/><rect x="172" y="234" width="68" height="22"/><rect x="244" y="234" width="68" height="22"/><rect x="316" y="234" width="68" height="22"/><rect x="388" y="234" width="68" height="22"/><rect x="460" y="234" width="68" height="22"/><rect x="532" y="234" width="68" height="22"/><rect x="604" y="234" width="68" height="22"/><rect x="676" y="234" width="32" height="22"/>
+    <rect x="64" y="260" width="68" height="22"/><rect x="136" y="260" width="68" height="22"/><rect x="208" y="260" width="68" height="22"/><rect x="280" y="260" width="68" height="22"/><rect x="352" y="260" width="68" height="22"/><rect x="424" y="260" width="68" height="22"/><rect x="496" y="260" width="68" height="22"/><rect x="568" y="260" width="68" height="22"/><rect x="640" y="260" width="68" height="22"/>
+    <rect x="64" y="286" width="32" height="22"/><rect x="100" y="286" width="68" height="22"/><rect x="172" y="286" width="68" height="22"/><rect x="244" y="286" width="68" height="22"/><rect x="316" y="286" width="68" height="22"/><rect x="388" y="286" width="68" height="22"/><rect x="460" y="286" width="68" height="22"/><rect x="532" y="286" width="68" height="22"/><rect x="604" y="286" width="68" height="22"/><rect x="676" y="286" width="32" height="22"/>
+  </g>
+
+  <!-- Junta de dilatación, de arriba abajo -->
+  <rect x="398" y="136" width="8" height="176" fill="#F97316"/>
+  <path d="M402 136v176" stroke="#C2410C" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="414" y="330" font-family="Inter, sans-serif" font-size="15" fill="#C2410C">Junta de dilatación</text>
+
+  <!-- Terreno -->
+  <rect y="312" width="800" height="138" fill="url(#mb-tierra)"/>
+  <path d="M0 312h800" stroke="#B9A588" stroke-width="3"/>
+
+  <!-- Arranque del muro bajo tierra -->
+  <rect x="64" y="312" width="644" height="34" fill="#E2DACD" stroke="#CDC4B4" stroke-width="2"/>
+
+  <!-- Zapata corrida -->
+  <rect x="34" y="346" width="704" height="58" rx="4" fill="#CFC7BA"/>
+  <rect x="34" y="346" width="704" height="58" rx="4" fill="none" stroke="#AFA694" stroke-width="3"/>
+  <!-- Armado de la zapata -->
+  <g stroke="#6F7681" stroke-width="4" stroke-linecap="round">
+    <path d="M58 362h656M58 388h656"/>
+  </g>
+  <g stroke="#6F7681" stroke-width="3" fill="none">
+    <path d="M120 358v34M240 358v34M360 358v34M480 358v34M600 358v34"/>
+  </g>
+  <!-- Esperas verticales dentro del muro -->
+  <g stroke="#6F7681" stroke-width="4" stroke-linecap="round">
+    <path d="M180 360V208M540 360V208"/>
+  </g>
+
+  <text x="52" y="428" font-family="Inter, sans-serif" font-size="15" fill="#7A6A54">Zapata de hormigón armado</text>
+  <text x="560" y="428" font-family="Inter, sans-serif" font-size="15" fill="#7A6A54">Armado vertical</text>
+</svg>
