@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Ilustración del cambio de una bañera con escalón de 55 cm por un plato de ducha extraplano con mampara y barra de apoyo">
+  <defs>
+    <linearGradient id="bd-w" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+    <linearGradient id="bd-cristal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#BBD4E0" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#BBD4E0" stop-opacity=".18"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#bd-w)"/>
+  <rect y="372" width="800" height="78" fill="#E3DCD1"/>
+  <g stroke="#D6CEC0" stroke-width="2">
+    <path d="M0 372h800M0 412h800"/>
+    <path d="M120 372v78M280 372v78M440 372v78M600 372v78M760 372v78"/>
+  </g>
+
+  <!-- ── Antes: la bañera ────────────────────────────────────────────── -->
+  <!-- Alicatado viejo -->
+  <rect x="72" y="150" width="228" height="186" fill="#EDE7DE"/>
+  <g stroke="#DED6CA" stroke-width="2">
+    <path d="M72 196h228M72 242h228M72 288h228"/>
+    <path d="M148 150v186M224 150v186"/>
+  </g>
+
+  <!-- Grifo -->
+  <path d="M96 246v-14h30v14" fill="none" stroke="#9AA0AA" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Bañera -->
+  <path d="M76 300h220v34a26 26 0 0 1-26 26H102a26 26 0 0 1-26-26z" fill="#F4F1EC"/>
+  <path d="M76 300h220v34a26 26 0 0 1-26 26H102a26 26 0 0 1-26-26z" fill="none" stroke="#D6CEC0" stroke-width="3"/>
+  <rect x="76" y="292" width="220" height="12" rx="6" fill="#FFFFFF"/>
+  <rect x="76" y="292" width="220" height="12" rx="6" fill="none" stroke="#D6CEC0" stroke-width="2"/>
+
+  <!-- El escalón, que es el motivo del cambio -->
+  <path d="M58 292h-12M58 360h-12" stroke="#F97316" stroke-width="4" stroke-linecap="round"/>
+  <path d="M52 292v68" stroke="#F97316" stroke-width="3" stroke-dasharray="7 6"/>
+  <text x="34" y="326" font-family="Inter, sans-serif" font-size="14" fill="#C2410C" text-anchor="middle" transform="rotate(-90 34 326)">55 cm</text>
+
+  <text x="72" y="134" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96" letter-spacing="1.5">ANTES</text>
+
+  <!-- ── Flecha ──────────────────────────────────────────────────────── -->
+  <g stroke="#F97316" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M322 268h44"/>
+    <path d="M354 256l14 12-14 12"/>
+  </g>
+
+  <!-- ── Ahora: el plato de ducha ────────────────────────────────────── -->
+  <!-- Alicatado nuevo -->
+  <rect x="404" y="150" width="324" height="196" fill="#FFFFFF"/>
+  <rect x="404" y="150" width="324" height="196" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+  <g stroke="#EDE9E2" stroke-width="2">
+    <path d="M404 200h324M404 250h324M404 300h324"/>
+    <path d="M512 150v196M620 150v196"/>
+  </g>
+
+  <!-- Ducha de pared: brazo, rociador y agua -->
+  <path d="M404 182h44" stroke="#C8C3BA" stroke-width="7" stroke-linecap="round"/>
+  <path d="M440 182 L476 182 L470 196 L446 196 Z" fill="#8B93A0"/>
+  <g stroke="#9FC0D0" stroke-width="3" stroke-linecap="round" opacity=".9">
+    <path d="M450 206v20M458 206v30M466 206v20"/>
+  </g>
+
+  <!-- Barra de apoyo -->
+  <rect x="496" y="248" width="86" height="11" rx="5.5" fill="#8B93A0"/>
+  <circle cx="500" cy="253.5" r="8" fill="#6F7681"/>
+  <circle cx="578" cy="253.5" r="8" fill="#6F7681"/>
+
+  <!-- Plato extraplano -->
+  <rect x="404" y="340" width="324" height="22" rx="5" fill="#FFFFFF"/>
+  <rect x="404" y="340" width="324" height="22" rx="5" fill="none" stroke="#D6D1C8" stroke-width="3"/>
+  <circle cx="566" cy="351" r="7" fill="none" stroke="#9AA0AA" stroke-width="3"/>
+  <path d="M552 351h-8M580 351h8" stroke="#9AA0AA" stroke-width="2"/>
+
+  <!-- Mampara -->
+  <rect x="624" y="170" width="104" height="172" fill="url(#bd-cristal)"/>
+  <rect x="624" y="170" width="104" height="172" fill="none" stroke="#2B3039" stroke-width="3"/>
+  <path d="M624 170v172" stroke="#2B3039" stroke-width="5"/>
+
+  <text x="404" y="134" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96" letter-spacing="1.5">AHORA</text>
+
+  <!-- Sin escalón -->
+  <g transform="translate(404 386)">
+    <circle cx="18" cy="18" r="18" fill="#5C7F5A"/>
+    <path d="M10 19l6 6 11-12" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="46" y="24" font-family="Inter, sans-serif" font-size="16" fill="#4A4F58">Sin escalón y antideslizante</text>
+  </g>
+</svg>
