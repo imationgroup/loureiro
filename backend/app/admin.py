@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from . import db
 from .agenda import validar_cita
+from .documentos import totales
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
                    limpiar_intentos, publico, puede, registrar_intento, sesion_actual,
@@ -96,7 +97,7 @@ class Tabla:
     def __init__(self, nombre: str, campos: list[str], orden: str = "id DESC",
                  obligatorios: tuple[str, ...] = (), validar=None,
                  modulo: str = "", lectura: tuple[str, ...] = (),
-                 responsable: bool = False):
+                 responsable: bool = False, defectos: dict | None = None):
         self.nombre = nombre
         self.campos = campos
         self.orden = orden
@@ -113,6 +114,11 @@ class Tabla:
         self.lectura = lectura or (modulo,)
         # Si cada fila tiene responsable (usuario_id) y un miembro solo ve las suyas.
         self.responsable = responsable
+        # Qué poner en columnas NOT NULL que la base no rellena sola. El
+        # formulario de la web siempre manda correo y mensaje; una solicitud
+        # apuntada a mano en el panel puede no tenerlos, y sin esto el INSERT
+        # revienta contra la restricción en vez de guardarse a medias.
+        self.defectos = defectos or {}
 
     def limpiar(self, datos: dict, creando: bool = False) -> dict:
         """Se queda solo con columnas conocidas: nadie inyecta campos raros.
@@ -150,8 +156,8 @@ TABLAS = {
         obligatorios=("nombre",),
         modulo="proveedores", lectura=("proveedores", "stock", "costes")),
     "obras": Tabla("obras",
-        ["codigo", "titulo", "cliente_id", "direccion", "cp", "ciudad",
-         "provincia", "estado", "fecha_inicio", "fecha_fin_prevista",
+        ["codigo", "titulo", "cliente_id", "presupuesto_id", "direccion", "cp",
+         "ciudad", "provincia", "estado", "fecha_inicio", "fecha_fin_prevista",
          "fecha_fin_real", "importe_venta", "notas"],
         obligatorios=("titulo",),
         modulo="obras", lectura=_LEE_OBRAS, responsable=True),
@@ -171,8 +177,9 @@ TABLAS = {
         orden="nombre COLLATE NOCASE", obligatorios=("nombre",),
         modulo="stock"),
     "solicitudes": Tabla("solicitudes",
-        ["nombre", "email", "telefono", "servicio", "mensaje", "estado", "notas"],
-        obligatorios=("nombre",),
+        ["nombre", "email", "telefono", "servicio", "mensaje", "estado",
+         "notas", "cliente_id"],
+        obligatorios=("nombre",), defectos={"email": "", "mensaje": ""},
         modulo="solicitudes", responsable=True),
     "citas": Tabla("citas",
         ["titulo", "tipo", "inicio", "fin", "profesional_id", "cliente_id",
@@ -182,6 +189,28 @@ TABLAS = {
         validar=validar_cita,
         modulo="agenda", responsable=True),
 }
+
+
+def _importe_de_obra(d: dict):
+    """El importe de una obra lo pone el presupuesto, no quien teclea.
+
+    En el panel no hay casilla que escribir: se elige el presupuesto y el
+    importe sale de sus líneas. Aquí se vuelve a calcular en vez de fiarse
+    del número que llegue, porque si el presupuesto se retoca luego, lo que
+    vale es lo que pone el presupuesto y no lo que se guardó aquel día.
+
+    Quitar el presupuesto no pone la obra a cero: se queda con el importe que
+    tuviera. Las obras de antes de esto llevan el suyo escrito a mano y
+    borrarlo por un descuido sería perder el dato.
+    """
+    if "presupuesto_id" not in d:
+        return
+    if not d["presupuesto_id"]:
+        d.pop("importe_venta", None)
+        return
+    lineas = db.filas("SELECT * FROM presupuesto_lineas WHERE presupuesto_id = ?",
+                      (d["presupuesto_id"],))
+    d["importe_venta"] = totales(lineas)["total"]
 
 
 def _tabla(recurso: str) -> Tabla:
@@ -231,6 +260,8 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
             raise HTTPException(422, f"Falta el campo obligatorio: {campo}")
     if not d:
         raise HTTPException(422, "No hay datos que guardar")
+    for col, porDefecto in t.defectos.items():
+        d.setdefault(col, porDefecto)
     if t.responsable:
         fijar_responsable(u, datos, d, creando=True)
     # Una cita nueva de un miembro vinculado a un profesional es suya como
@@ -239,6 +270,8 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
             and not d.get("profesional_id"):
         d["profesional_id"] = u["profesional_id"]
     comprobar_referencias(u, d)
+    if t.nombre == "obras":
+        _importe_de_obra(d)
     if t.validar:
         t.validar(d, None)
     cols = ", ".join(d)
@@ -262,6 +295,8 @@ def actualizar(recurso: str, id_: int, datos: dict[str, Any],
     if not d:
         raise HTTPException(422, "No hay datos que actualizar")
     comprobar_referencias(u, d, existente)
+    if t.nombre == "obras":
+        _importe_de_obra(d)
     if t.validar:
         t.validar(d, existente)
     sets = ", ".join(f"{k} = ?" for k in d)
@@ -320,35 +355,57 @@ SALTO = chr(10)   # separador dentro de las notas del cliente
 
 # ═══ Solicitud → cliente ════════════════════════════════════════════════
 
-@router.post("/solicitudes/{id_}/convertir", status_code=201)
-def convertir_en_cliente(id_: int, u: dict = Depends(sesion_actual)):
-    """Da de alta como cliente a quien ha mandado una solicitud.
+def _cliente_que_encaja(u: dict, email: str, nombre: str,
+                        por_nombre: bool) -> tuple[dict | None, str]:
+    """Busca si esa persona ya está fichada, entre los clientes que ve u.
+
+    Por correo siempre: es el dato que no se repite. Por nombre exacto solo
+    en las altas hechas a mano, donde el nombre se escribe contra el
+    desplegable de clientes y teclear el de uno que ya está es querer ese.
+    Desde la web no se mira el nombre: dos tocayos no son la misma persona y
+    fusionarlos mezclaría los datos de dos desconocidos.
+
+    Un miembro solo busca entre sus propios clientes: si mirase los de todos,
+    acabaría enlazado con la ficha de un compañero.
+    """
+    cond, params = filtro_responsable(u)
+    email = (email or "").strip()
+    if email:
+        ya = db.fila(
+            f"SELECT * FROM clientes WHERE lower(trim(email)) = lower(?) AND {cond}",
+            (email, *params))
+        if ya:
+            return ya, "email"
+    nombre = (nombre or "").strip()
+    if por_nombre and nombre:
+        ya = db.fila(
+            f"SELECT * FROM clientes WHERE lower(trim(nombre)) = lower(?) AND {cond}",
+            (nombre, *params))
+        if ya:
+            return ya, "nombre"
+    return None, ""
+
+
+def _enlazar_con_cliente(s: dict, u: dict, origen: str = "una solicitud de la web",
+                         por_nombre: bool = False, atender: bool = True) -> dict:
+    """Deja la solicitud colgando de un cliente: el que ya hay, o uno nuevo.
 
     No crea un cliente a ciegas. Si esa solicitud ya se convirtió, devuelve el
-    cliente que salió de ella; y si ya existe un cliente con el mismo correo
-    —lo normal cuando alguien rellena el formulario dos veces, o cuando un
-    cliente de siempre pide otra cosa— se enlaza con el que hay en vez de
-    duplicarlo. Un fichero de clientes con la misma persona tres veces es
-    justo lo que hace inútil el listado.
-
-    Un miembro solo busca duplicados entre sus propios clientes: si mirase
-    los de todos, acabaría enlazado con la ficha de un compañero.
+    cliente que salió de ella; y si ya existe uno que encaje —lo normal cuando
+    alguien rellena el formulario dos veces, o cuando un cliente de siempre
+    pide otra cosa— se enlaza con el que hay en vez de duplicarlo. Un fichero
+    de clientes con la misma persona tres veces es justo lo que hace inútil el
+    listado.
     """
-    exigir(u, "solicitudes")
-    s = _fila_visible(TABLAS["solicitudes"], u, id_)
     cond, params = filtro_responsable(u)
-
     if s.get("cliente_id"):
-        ya = db.fila(f"SELECT * FROM clientes WHERE id = ? AND {cond}", (s["cliente_id"], *params))
+        ya = db.fila(f"SELECT * FROM clientes WHERE id = ? AND {cond}",
+                     (s["cliente_id"], *params))
         if ya:
             return {"cliente": ya, "creado": False, "motivo": "ya_convertida"}
 
     email = (s.get("email") or "").strip()
-    existente = None
-    if email:
-        existente = db.fila(
-            f"SELECT * FROM clientes WHERE lower(trim(email)) = lower(?) AND {cond}",
-            (email, *params))
+    existente, como = _cliente_que_encaja(u, email, s.get("nombre") or "", por_nombre)
 
     # El cliente nuevo es de quien lleva la solicitud.
     responsable = s.get("usuario_id") if es_admin(u) else u["id"]
@@ -357,10 +414,10 @@ def convertir_en_cliente(id_: int, u: dict = Depends(sesion_actual)):
         if existente:
             cliente_id, creado = existente["id"], False
         else:
-            # El mensaje del formulario se guarda en las notas: es el contexto
-            # de por qué esta persona está en la ficha, y si no se copia aquí
-            # se queda solo en la solicitud.
-            notas = "Alta desde una solicitud de la web"
+            # El mensaje se guarda en las notas: es el contexto de por qué esta
+            # persona está en la ficha, y si no se copia aquí se queda solo en
+            # la solicitud.
+            notas = "Alta desde " + origen
             if s.get("servicio"):
                 notas += f" ({s['servicio']})"
             if s.get("mensaje"):
@@ -372,16 +429,63 @@ def convertir_en_cliente(id_: int, u: dict = Depends(sesion_actual)):
             cliente_id, creado = cur.lastrowid, True
 
         con.execute("UPDATE solicitudes SET cliente_id = ? WHERE id = ?",
-                    (cliente_id, id_))
+                    (cliente_id, s["id"]))
         # Si seguía pendiente, pasa a atendida: convertirla en cliente ya es
         # haberla atendido, y dejarla pendiente falsea la campanita del panel.
-        if s.get("estado") == "pendiente":
+        # Las que se apuntan a mano no: se apuntan justo porque están por hacer.
+        if atender and s.get("estado") == "pendiente":
             con.execute("UPDATE solicitudes SET estado = 'atendida' WHERE id = ?",
-                        (id_,))
+                        (s["id"],))
 
     return {"cliente": db.fila("SELECT * FROM clientes WHERE id = ?", (cliente_id,)),
             "creado": creado,
-            "motivo": "nuevo" if creado else "email_existente"}
+            "motivo": "nuevo" if creado else (como + "_existente")}
+
+
+@router.post("/solicitudes/{id_}/convertir", status_code=201)
+def convertir_en_cliente(id_: int, u: dict = Depends(sesion_actual)):
+    """Da de alta como cliente a quien ha mandado una solicitud."""
+    exigir(u, "solicitudes")
+    return _enlazar_con_cliente(_fila_visible(TABLAS["solicitudes"], u, id_), u)
+
+
+@router.post("/solicitudes", status_code=201)
+def alta_solicitud(datos: dict[str, Any], u: dict = Depends(sesion_actual)):
+    """Apunta una solicitud desde el panel, ya con su cliente detrás.
+
+    Las de la web traen un nombre suelto y ya se verá luego quién es. Las que
+    se apuntan aquí son llamadas de teléfono o encargos de boca, y ahí el
+    nombre se escribe contra el desplegable de clientes: si se elige uno, llega
+    su `cliente_id`; si se escribe un nombre que no está, se le abre ficha con
+    lo que se haya puesto. Así la visita que se agende después ya tiene a quién
+    colgarse, sin pasar por «Pasar a cliente».
+
+    Se guarda primero la solicitud y luego el cliente, y no al revés: si algo
+    falla por el camino queda una solicitud sin cliente, que se arregla con un
+    botón, y no un cliente suelto que nadie sabe de dónde salió.
+
+    Tiene que ir en el router de rutas concretas para ganarle al CRUD
+    genérico, al que se le pasa el trabajo de guardar.
+    """
+    exigir(u, "solicitudes")
+    elegido = datos.get("cliente_id")
+    if elegido not in (None, ""):
+        # El desplegable solo ofrece clientes que esta persona ve, pero lo que
+        # llega es un número cualquiera: si apunta a una ficha que no existe,
+        # la solicitud se quedaría colgada de la nada y la lista enseñaría un
+        # "#412" que no se puede abrir.
+        try:
+            elegido = int(elegido)
+        except (TypeError, ValueError):
+            raise HTTPException(422, "Cliente no válido.")
+        _fila_visible(TABLAS["clientes"], u, elegido)
+        datos["cliente_id"] = elegido
+    fila = crear("solicitudes", datos, u)
+    if fila.get("cliente_id"):
+        return fila
+    _enlazar_con_cliente(fila, u, origen="una solicitud apuntada en el panel",
+                         por_nombre=True, atender=False)
+    return db.fila("SELECT * FROM solicitudes WHERE id = ?", (fila["id"],))
 
 
 # ═══ Asignación de profesionales a obras ════════════════════════════════

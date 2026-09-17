@@ -15,6 +15,13 @@ var API = location.hostname === "127.0.0.1" || location.hostname === "localhost"
 var $  = function (s, r) { return (r || document).querySelector(s); };
 var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 
+// Texto listo para comparar con lo que alguien escribe: los euros que pinta
+// el navegador llevan un espacio duro antes del €, y eso nadie lo teclea.
+function llano(s) {
+  return String(s === null || s === undefined ? "" : s)
+    .replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 function esc(v) {
   if (v === null || v === undefined) return "";
   return String(v).replace(/[&<>"']/g, function (c) {
@@ -356,7 +363,8 @@ var MODULOS = {
       fn: function (f) { pasarACliente(f); }
     },
     campos: [
-      { c: "nombre", t: "Nombre", req: true },
+      { c: "nombre", t: "Nombre", req: true, tipo: "cliente", de: "clientes",
+        ayuda: "Elige un cliente de la lista o escribe un nombre nuevo: se le abre ficha al guardar" },
       { c: "email", t: "Email", tipo: "email", mitad: true },
       { c: "telefono", t: "Teléfono", mitad: true },
       { c: "servicio", t: "Servicio", mitad: true },
@@ -430,11 +438,21 @@ var MODULOS = {
       { c: "codigo", t: "Código", mitad: true, ayuda: "Referencia interna, p. ej. OB-2026-014" },
       { c: "estado", t: "Estado", tipo: "select", ops: ESTADOS_OBRA, mitad: true },
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
+      { c: "presupuesto_id", t: "Presupuesto", tipo: "busca", de: "documentos/presupuestos",
+        placeholder: "Escribe el número o el cliente",
+        etiqueta: function (p) {
+          return p.numero + " · " + (p.cliente || "sin cliente") + " · " + eur(p.total);
+        },
+        filtra: function (p) { return p.estado !== "cancelado"; },
+        trae: [{ campo: "importe_venta", de: "total" },
+               { campo: "cliente_id", de: "cliente_id" }],
+        ayuda: "De aquí salen el importe y el cliente de la obra. Los cancelados no se ofrecen." },
+      { c: "importe_venta", t: "Importe presupuestado al cliente", tipo: "eurofijo",
+        placeholder: "Sale del presupuesto que elijas" },
       { c: "direccion", t: "Dirección" },
       { c: "cp", t: "Código postal", mitad: true },
       { c: "provincia", t: "Provincia", tipo: "provincia", mitad: true },
       { c: "ciudad", t: "Ciudad", tipo: "ciudad" },
-      { c: "importe_venta", t: "Importe presupuestado al cliente (€)", tipo: "numero" },
       { c: "fecha_inicio", t: "Inicio", tipo: "fecha", mitad: true },
       { c: "fecha_fin_prevista", t: "Fin previsto", tipo: "fecha", mitad: true },
       { c: "fecha_fin_real", t: "Fin real", tipo: "fecha", mitad: true },
@@ -550,8 +568,9 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 // Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
 // lo que crea un miembro es suyo sin preguntar.
 ["agenda", "solicitudes", "clientes", "obras", "costes", "ingresos"].forEach(function (k) {
-  MODULOS[k].campos.push({ c: "usuario_id", t: "Responsable", tipo: "ref", de: "equipo", soloAdmin: true,
-    ayuda: "Solo lo ven esa persona y el administrador." });
+  MODULOS[k].campos.push({ c: "usuario_id", t: "Responsable", tipo: "ref", de: "equipo",
+    soloAdmin: true, pordefecto: "yo",
+    ayuda: "Solo lo ven esa persona y el administrador. Empieza puesto en ti." });
   if (MODULOS[k].columnas) {
     MODULOS[k].columnas.push({ c: "usuario_id", t: "Responsable", tipo: "ref", de: "equipo", soloAdmin: true });
   }
@@ -577,6 +596,43 @@ function nombreDe(lista, id) {
   return f ? (f.titulo || f.nombre) : "#" + id;
 }
 function invalidar() { cache = {}; }
+
+// Lista del servidor que necesita un campo para pintarse: el desplegable de
+// un "ref" y también el del nombre con fichero de clientes detrás.
+function listaDe(c) {
+  return (c.tipo === "ref" || c.tipo === "cliente" || c.tipo === "busca") ? c.de : null;
+}
+
+// Un desplegable con buscador no guarda lo que se escribe, sino el registro al
+// que corresponde: se pinta una etiqueta por fila y luego hay que deshacer el
+// camino para saber de cuál era.
+function opcionesBusca(campo) {
+  return (cache[campo.de] || [])
+    .filter(campo.filtra || function () { return true; })
+    .map(function (o) { return { id: o.id, txt: campo.etiqueta(o), fila: o }; });
+}
+function buscaElegida(campo, texto) {
+  var q = llano(texto);
+  if (!q) return null;
+  var ops = opcionesBusca(campo);
+  var exacto = ops.filter(function (o) { return llano(o.txt) === q; });
+  if (exacto.length) return exacto[0];
+  // Nadie teclea la etiqueta entera. Con que lo escrito deje una sola opción
+  // en pie —el número del presupuesto, el nombre del cliente— ya se sabe cuál
+  // es. Si deja dos, no: se elige a ciegas y no se acierta.
+  var caben = ops.filter(function (o) { return llano(o.txt).indexOf(q) >= 0; });
+  return caben.length === 1 ? caben[0] : null;
+}
+
+// El cliente que se llama exactamente así, si lo hay. Lo que se escribe en el
+// campo es un nombre, no un id: al guardar hay que volver a buscarlo.
+function clientePorNombre(lista, nombre) {
+  var q = llano(nombre);
+  if (!q) return null;
+  return (cache[lista] || []).filter(function (o) {
+    return llano(o.nombre) === q;
+  })[0] || null;
+}
 
 // Campos y columnas que tocan a este usuario: el responsable, solo al admin.
 function camposDe(m) {
@@ -644,7 +700,8 @@ function verTabla(clave) {
   var m = MODULOS[clave];
   var refs = [];
   columnasDe(m).concat(camposDe(m)).forEach(function (c) {
-    if (c.tipo === "ref" && refs.indexOf(c.de) < 0) refs.push(c.de);
+    var de = listaDe(c);
+    if (de && refs.indexOf(de) < 0) refs.push(de);
   });
 
   $("#vista-acciones").innerHTML =
@@ -789,8 +846,9 @@ function campoHTML(campo, valor, esNuevo) {
   var v = valor === null || valor === undefined ? "" : valor;
   if (campo.tipo === "fechahora" && v) v = String(v).slice(0, 16);
   if (esNuevo && v === "" && campo.pordefecto !== undefined) {
-    v = (campo.pordefecto === "hoy") ? new Date().toISOString().slice(0, 10)
-                                     : campo.pordefecto;
+    v = campo.pordefecto === "hoy" ? new Date().toISOString().slice(0, 10)
+      : campo.pordefecto === "yo" ? ((YO && YO.id) || "")
+      : campo.pordefecto;
   }
   var h = '<div class="campo"' +
           (campo.soloSi ? ' data-solosi="' + esc(campo.soloSi.campo) + "=" + esc(campo.soloSi.valor) + '"' : "") +
@@ -827,6 +885,40 @@ function campoHTML(campo, valor, esNuevo) {
          ' list="lista-' + campo.c + '" autocomplete="off"' +
          ' placeholder="Escribe para filtrar…" value="' + esc(v) + '">' +
          '<datalist id="lista-' + campo.c + '"></datalist>';
+  } else if (campo.tipo === "busca") {
+    // Desplegable con buscador. Un <select> con doscientos presupuestos no hay
+    // quien lo mire: aquí se escribe el número o el nombre del cliente y la
+    // lista se va quedando corta sola. Lo que se guarda no es el texto, sino
+    // el registro elegido (ver el guardado).
+    var ops = opcionesBusca(campo);
+    var yaEsta = ops.filter(function (o) { return String(o.id) === String(v); })[0];
+    h += '<input id="c-' + campo.c + '" data-busca="' + campo.c + '"' +
+         ' list="lista-' + campo.c + '" autocomplete="off"' +
+         ' placeholder="' + esc(campo.placeholder || "Escribe para buscar…") + '"' +
+         ' value="' + esc(yaEsta ? yaEsta.txt : "") + '">' +
+         '<datalist id="lista-' + campo.c + '">' +
+         ops.map(function (o) { return '<option value="' + esc(o.txt) + '"></option>'; }).join("") +
+         "</datalist>";
+  } else if (campo.tipo === "eurofijo") {
+    // Importe que no se teclea: lo trae otro campo. Se enseña con formato de
+    // euros, que es como se lee, y el número de verdad viaja en data-valor.
+    h += '<input id="c-' + campo.c + '" data-c="' + campo.c + '" readonly' +
+         ' data-valor="' + esc(v === "" ? "" : Number(v)) + '"' +
+         ' placeholder="' + esc(campo.placeholder || "") + '"' +
+         ' value="' + esc(v === "" ? "" : eur(v)) + '">';
+  } else if (campo.tipo === "cliente") {
+    // Desplegable de clientes que además deja escribir. Un nombre que no esté
+    // en la lista no es un error: es un cliente nuevo y el servidor le abre
+    // ficha al guardar. Con un <select> habría que darlo de alta antes, en
+    // otra pestaña, y volver aquí a empezar de cero.
+    h += '<input id="c-' + campo.c + '" data-c="' + campo.c + '" data-cliente="' + esc(campo.de) + '"' +
+         ' list="lista-' + campo.c + '" autocomplete="off"' +
+         ' placeholder="Elige un cliente o escribe un nombre nuevo"' +
+         ' value="' + esc(v) + '">' +
+         '<datalist id="lista-' + campo.c + '">' +
+         (cache[campo.de] || []).map(function (o) {
+           return '<option value="' + esc(o.nombre) + '"></option>';
+         }).join("") + "</datalist>";
   } else if (campo.tipo === "ref") {
     h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '"><option value="">' +
          (campo.de === "equipo" ? "— nadie: solo el administrador —" : "— sin asignar —") + "</option>";
@@ -860,7 +952,10 @@ function abrirFormulario(clave, registro, inicial) {
   var vals = registro || inicial || null;
   var refs = [];
   var campos = camposDe(m);
-  campos.forEach(function (c) { if (c.tipo === "ref" && refs.indexOf(c.de) < 0) refs.push(c.de); });
+  campos.forEach(function (c) {
+    var de = listaDe(c);
+    if (de && refs.indexOf(de) < 0) refs.push(de);
+  });
 
   Promise.all(refs.map(cargarRef)).then(function () {
     var cuerpo = '<div class="aviso aviso--err" id="f-err" hidden></div><form id="f-form">';
@@ -919,6 +1014,60 @@ function abrirFormulario(clave, registro, inicial) {
         refrescarCiudades();
       });
     }
+
+    // Al escribir el nombre de un cliente que ya está fichado se traen su
+    // correo y su teléfono, para no tener que ir a mirarlos. Solo se rellenan
+    // los huecos y lo que se puso solo con el cliente anterior: un teléfono
+    // escrito a mano no se pisa.
+    var inpCli = $("#f-form [data-cliente]"), pegado = {};
+    if (inpCli) inpCli.addEventListener("change", function () {
+      // Si el nombre pasa a ser el de otra persona —o el de nadie, porque se
+      // está fichando a alguien nuevo—, lo que se trajo del cliente anterior
+      // se borra. Dejarlo puesto acabaría dando de alta a un cliente nuevo
+      // con el correo y el teléfono de otro.
+      var cli = clientePorNombre(inpCli.dataset.cliente, inpCli.value);
+      var traido = false;
+      ["email", "telefono"].forEach(function (c) {
+        var el = $("#c-" + c);
+        if (!el || (el.value.trim() && el.value !== pegado[c])) return;
+        el.value = cli ? (cli[c] || "") : "";
+        pegado[c] = el.value;
+        if (el.value) traido = true;
+      });
+      if (cli && traido) avisar("Datos de contacto de " + cli.nombre);
+    });
+
+    // Al elegir en un desplegable con buscador, el campo que depende de él se
+    // rellena solo (el importe de la obra sale del presupuesto). Si lo escrito
+    // no es ninguna de las opciones se borra: dejar un texto a medias haría
+    // creer que la obra tiene presupuesto cuando al guardar no tendría ninguno.
+    $$("#f-form [data-busca]").forEach(function (inp) {
+      var campo = campos.filter(function (c) { return c.c === inp.dataset.busca; })[0];
+      if (!campo) return;
+      inp.addEventListener("change", function () {
+        var op = buscaElegida(campo, inp.value);
+        if (op) inp.value = op.txt;      // se ve entero lo que ha quedado elegido
+        else if (inp.value.trim()) {
+          inp.value = "";
+          avisar("Elige uno de la lista", "err");
+        }
+        (campo.trae || []).forEach(function (t) {
+          var destino = $("#c-" + t.campo);
+          if (!destino) return;
+          var valor = op ? op.fila[t.de] : "";
+          if (valor === null || valor === undefined) valor = "";
+          if (destino.hasAttribute("data-valor")) {
+            destino.dataset.valor = valor;
+            destino.value = valor === "" ? "" : eur(valor);
+          } else {
+            // Se avisa del cambio a mano: de un cliente cuelgan otras cosas
+            // (su dirección), y si no se dispara no se enteran.
+            destino.value = valor;
+            destino.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        });
+      });
+    });
 
     // Campos que solo se pintan cuando otro campo tiene cierto valor: el
     // motivo de la cancelación no tiene por qué estorbar mientras la cita
@@ -1005,7 +1154,12 @@ function abrirFormulario(clave, registro, inicial) {
         var campo = m.campos.filter(function (c) { return c.c === el.dataset.c; })[0];
         var val = el.value.trim();
         if (campo.req && !val) falta = falta || campo.t;
-        if (campo.tipo === "numero") {
+        if (campo.tipo === "eurofijo") {
+          // Vacío = sin importe conocido; no se manda, para no poner a cero
+          // una obra antigua que lo tuviera escrito a mano.
+          if (el.dataset.valor !== "") datos[el.dataset.c] = Number(el.dataset.valor);
+        }
+        else if (campo.tipo === "numero") {
           // Vacío = no se envía. La columna aplica su valor por defecto;
           // mandar null rompería el NOT NULL de iva, importe, etc.
           if (val !== "") datos[el.dataset.c] = Number(val);
@@ -1016,6 +1170,21 @@ function abrirFormulario(clave, registro, inicial) {
         else if (campo.tipo === "fecha") { if (val !== "") datos[el.dataset.c] = val; }
         else datos[el.dataset.c] = val || null;
       });
+      // Los desplegables con buscador guardan el registro elegido, no el texto.
+      $$("#f-form [data-busca]").forEach(function (inp) {
+        var campo = campos.filter(function (c) { return c.c === inp.dataset.busca; })[0];
+        if (!campo) return;
+        var op = buscaElegida(campo, inp.value);
+        datos[campo.c] = op ? op.id : null;
+      });
+      // Si el nombre escrito es el de un cliente de la lista, la solicitud
+      // queda colgada de su ficha. Si no lo es y es nueva, el servidor le abre
+      // una; si no lo es y se está editando, no se toca el enlace que tuviera:
+      // cambiarle una tilde al nombre no es motivo para soltarle el cliente.
+      if (inpCli) {
+        var elegido = clientePorNombre(inpCli.dataset.cliente, inpCli.value);
+        if (elegido) datos.cliente_id = elegido.id;
+      }
       if (falta) { var e = $("#f-err"); e.textContent = "Falta: " + falta; e.hidden = false; return; }
 
       var btn = $("#f-guardar"); btn.disabled = true; btn.textContent = "Guardando…";
@@ -1727,7 +1896,8 @@ function editarDocumento(tipo, id) {
   ].concat(esAdmin() ? [cargarRef("equipo")] : [])).then(function (res) {
     var doc = res[0] || {
       lineas: [], estado: ESTADOS_DOC[tipo][0],
-      fecha: new Date().toISOString().slice(0, 10)
+      fecha: new Date().toISOString().slice(0, 10),
+      usuario_id: YO && YO.id      // lo que se crea es de quien lo crea
     };
     var lineas = (doc.lineas || []).slice();
     if (!lineas.length) lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });

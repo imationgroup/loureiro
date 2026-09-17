@@ -25,6 +25,10 @@ DOCUMENTOS = {
     "presupuestos": {
         "tabla": "presupuestos", "lineas": "presupuesto_lineas",
         "fk": "presupuesto_id",
+        # Quien lleva obras necesita la lista para elegir de qué presupuesto
+        # sale cada obra, aunque no tenga la pestaña de presupuestos. Solo la
+        # lista: abrir, editar o descargar uno sigue pidiendo su módulo.
+        "lectura": ("presupuestos", "obras"),
         "campos": ["numero", "cliente_id", "obra_id", "fecha", "validez",
                    "estado", "notas", "motivo_cancelacion", "cancelado_el"],
     },
@@ -245,7 +249,7 @@ def _visible(tipo: str, u: dict, id_: int) -> dict:
 @router.get("/documentos/{tipo}")
 def listar(tipo: str, u: dict = Depends(sesion_actual)):
     d = _doc(tipo)
-    exigir(u, tipo)
+    exigir(u, *d.get("lectura", (tipo,)))
     cond, params = filtro_responsable(u, "x")
     docs = db.filas(f"""
         SELECT x.*, c.nombre AS cliente, o.titulo AS obra

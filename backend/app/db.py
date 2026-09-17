@@ -378,6 +378,9 @@ MIGRACIONES = [
     ("obras", "cp", "TEXT"),
     ("ingresos", "factura_id", "INTEGER"),
     ("solicitudes", "cliente_id", "INTEGER"),
+    # De qué presupuesto sale una obra. Su importe de venta se copia de
+    # ahí, para que lo que se factura y lo que se firmó sean lo mismo.
+    ("obras", "presupuesto_id", "INTEGER"),
     ("sesiones", "usuario_id", "INTEGER"),
     # Cancelaciones: quién las pide y por qué. Sin esto, una cita cancelada o
     # un presupuesto caído no dejan rastro de lo que pasó.
