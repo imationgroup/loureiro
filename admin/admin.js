@@ -53,6 +53,7 @@ var ico = {
   normas:'<path d="M6 3h11a2 2 0 0 1 2 2v16H8a2 2 0 0 1-2-2z"/><path d="M6 17h13"/><path d="M10 7h6M10 11h6"/>',
   arriba:'<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
   abajo:'<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>',
+  firma:'<path d="M3 17c3 0 4-9 7-9s3 9 6 9c2 0 3-2 5-3"/><path d="M3 21h18"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
   no:'<path d="M18 6L6 18M6 6l12 12"/>',
   equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
@@ -1421,7 +1422,7 @@ function moverStock(art) {
 
 /* ── Presupuestos y facturas ──────────────────────────────────────────── */
 var ESTADOS_DOC = {
-  presupuestos: ["borrador", "enviado", "aceptado", "cancelado"],
+  presupuestos: ["borrador", "enviado", "firmado", "aceptado", "cancelado"],
   facturas: ["emitida", "cobrada", "anulada"],
   proformas: ["borrador", "enviada", "aceptada", "facturada", "anulada"]
 };
@@ -1437,6 +1438,12 @@ function verDocumentos(clave) {
   $("#vista-acciones").innerHTML =
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) +
     NOMBRE_DOC[tipo].nuevo + "</button>";
+  if (tipo === "presupuestos" && esAdmin()) {
+    $("#vista-acciones").innerHTML =
+      '<button class="btn btn--fant" id="btn-condiciones">' + svg(ico.doc) + "Condiciones</button>" +
+      $("#vista-acciones").innerHTML;
+    $("#btn-condiciones").addEventListener("click", editarCondiciones);
+  }
   $("#btn-nuevo").addEventListener("click", function () { editarDocumento(tipo, null); });
 
   Promise.all([api("/api/admin/documentos/" + tipo), cargarRef("clientes"), cargarRef("obras")]
@@ -1454,7 +1461,7 @@ function verDocumentos(clave) {
         '<th class="num">Base</th><th class="num">IVA</th><th class="num">Total</th>' +
         '<th class="num">Acciones</th></tr></thead><tbody>';
       docs.forEach(function (d) {
-        var clase = ["aceptado", "aceptada", "cobrada", "facturada"].indexOf(d.estado) >= 0 ? "tag--verde"
+        var clase = ["aceptado", "aceptada", "cobrada", "facturada", "firmado"].indexOf(d.estado) >= 0 ? "tag--verde"
                   : (d.estado === "cancelado" || d.estado === "anulada") ? "tag--rojo" : "tag--amber";
         h += "<tr><td><b>" + (esc(d.numero) || "#" + d.id) + "</b>" +
              '<div style="font-size:.78rem;color:var(--muted-2)">' + d.n_lineas +
@@ -1467,9 +1474,19 @@ function verDocumentos(clave) {
              '<td class="num" style="color:var(--muted)">' + eur(d.iva) + "</td>" +
              '<td class="num"><b>' + eur(d.total) + "</b></td>" +
              '<td class="acciones">' +
-             (tipo === "presupuestos" && d.estado !== "aceptado" && d.estado !== "cancelado"
-               ? '<button data-aceptar="' + d.id + '" title="Marcar como aceptado">' + svg(ico.ok) + "</button>" +
-                 '<button data-cancelar="' + d.id + '" title="Cancelar el presupuesto">' + svg(ico.no) + "</button>"
+             (tipo === "presupuestos" && !d.firmado_el && d.estado !== "cancelado"
+               ? '<button data-firmar="' + d.id + '" title="Enviar al cliente para que lo firme">' +
+                 svg(ico.firma) + "</button>"
+               : "") +
+             (tipo === "presupuestos" && d.firmado_el
+               ? '<button data-verfirma="' + d.id + '" title="Ver la firma del cliente">' +
+                 svg(ico.firma) + "</button>"
+               : "") +
+             (tipo === "presupuestos" && !d.firmado_el && d.estado !== "aceptado" && d.estado !== "cancelado"
+               ? '<button data-aceptar="' + d.id + '" title="Marcar como aceptado">' + svg(ico.ok) + "</button>"
+               : "") +
+             (tipo === "presupuestos" && d.estado !== "cancelado"
+               ? '<button data-cancelar="' + d.id + '" title="Cancelar el presupuesto">' + svg(ico.no) + "</button>"
                : "") +
              '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
                '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
@@ -1479,8 +1496,10 @@ function verDocumentos(clave) {
              (tipo !== "facturas" && puedeVer("facturas")
                ? '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
                : "") +
-             '<button data-editar="' + d.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
-             '<button class="borrar" data-borrar="' + d.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
+             (d.firmado_el
+               ? ""
+               : '<button data-editar="' + d.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
+                 '<button class="borrar" data-borrar="' + d.id + '" title="Borrar">' + svg(ico.papelera) + "</button>") +
              "</td></tr>";
       });
       var totalGlobal = docs.reduce(function (a, d) { return a + (d.total || 0); }, 0);
@@ -1504,6 +1523,18 @@ function verDocumentos(clave) {
       });
       $$("[data-cancelar]").forEach(function (b) {
         b.addEventListener("click", function () { cancelarPresupuesto(tipo, b.dataset.cancelar, clave); });
+      });
+      $$("[data-firmar]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var d = docs.filter(function (x) { return String(x.id) === b.dataset.firmar; })[0];
+          enviarAFirmar(d, clave);
+        });
+      });
+      $$("[data-verfirma]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var d = docs.filter(function (x) { return String(x.id) === b.dataset.verfirma; })[0];
+          verFirma(d);
+        });
       });
       $$("[data-editar]").forEach(function (b) {
         b.addEventListener("click", function () { editarDocumento(tipo, b.dataset.editar); });
@@ -1556,6 +1587,114 @@ function verDocumentos(clave) {
         });
       });
     }).catch(error);
+}
+
+/* ── Firma del presupuesto ────────────────────────────────────────────── */
+function enviarAFirmar(d, clave) {
+  var numero = d.numero || "#" + d.id;
+  modal("Mandar a firmar " + numero,
+    '<div class="aviso aviso--err" id="fm-err" hidden></div>' +
+    '<p style="color:var(--muted);line-height:1.55">Le llega al cliente un enlace privado donde ' +
+    "puede leer el presupuesto con sus condiciones y firmarlo desde el móvil. " +
+    "Al firmar se guarda el PDF tal cual, con la fecha, la hora y su firma.</p>" +
+    '<p style="color:var(--muted-2);font-size:.88rem;line-height:1.55">Mientras no lo firme puedes ' +
+    "seguir editándolo. Una vez firmado, el presupuesto queda bloqueado: si hay cambios, se cancela " +
+    "y se hace otro.</p>",
+    '<button class="btn btn--fant" id="fm-no">Cancelar</button>' +
+    '<button class="btn btn--amber" id="fm-si">Mandar al cliente</button>');
+  $("#fm-no").addEventListener("click", cerrarModal);
+  $("#fm-si").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true; btn.textContent = "Mandando…";
+    api("/api/admin/documentos/presupuestos/" + d.id + "/enviar-firma", { metodo: "POST" })
+      .then(function (r) {
+        cerrarModal();
+        if (r.enviado) { avisar("Enviado a " + r.email); ir(clave); return; }
+        // Sin correo, o si el envío falla, el enlace se enseña para pasarlo a mano.
+        enlaceParaCopiar(numero, r.enlace, r.motivo);
+        ir(clave);
+      })
+      .catch(function (e) {
+        var err = $("#fm-err");
+        err.textContent = e.message; err.hidden = false;
+        btn.disabled = false; btn.textContent = "Mandar al cliente";
+      });
+  });
+}
+
+function enlaceParaCopiar(numero, enlace, motivo) {
+  modal("Pásale el enlace al cliente",
+    '<p style="color:var(--muted);line-height:1.55">' + esc(motivo || "") +
+    " Puedes mandárselo por WhatsApp. Con él lee el presupuesto " + esc(numero) + " y lo firma.</p>" +
+    '<div class="ag-url"><input id="fm-url" readonly value="' + esc(enlace) + '">' +
+    '<button class="btn btn--fant btn--sm" id="fm-copiar">Copiar</button></div>',
+    '<button class="btn btn--amber" id="fm-ok">Hecho</button>');
+  $("#fm-ok").addEventListener("click", cerrarModal);
+  $("#fm-copiar").addEventListener("click", function () {
+    var inp = $("#fm-url");
+    inp.select();
+    var hecho = function () { avisar("Enlace copiado"); };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(inp.value).then(hecho, function () { document.execCommand("copy"); hecho(); });
+    } else { document.execCommand("copy"); hecho(); }
+  });
+}
+
+function verFirma(d) {
+  api("/api/admin/documentos/presupuestos/" + d.id + "/firma").then(function (f) {
+    var fila = function (k, v) {
+      return "<tr><td style='color:var(--muted);white-space:nowrap;padding:6px 14px 6px 0'>" + esc(k) +
+             "</td><td style='word-break:break-all'>" + esc(v || "—") + "</td></tr>";
+    };
+    modal("Firma de " + esc(d.numero || "#" + d.id),
+      (f.imagen
+        ? '<div style="background:#fff;border-radius:10px;padding:10px;margin-bottom:16px;text-align:center">' +
+          '<img src="' + esc(f.imagen) + '" alt="Firma del cliente" style="max-width:100%;height:110px;object-fit:contain"></div>'
+        : "") +
+      '<div class="tabla-caja"><div class="tabla-scroll"><table><tbody>' +
+      fila("Firmado por", f.firmante_nombre) +
+      fila("NIF", f.firmante_nif) +
+      fila("Fecha y hora (UTC)", f.firmado_el) +
+      fila("Dirección IP", f.ip) +
+      fila("Navegador", f.agente) +
+      fila("Huella del documento", f.huella) +
+      fila("Huella del PDF firmado", f.hash_pdf) +
+      fila("Pidió empezar antes de los 14 días", f.inicio_inmediato ? "Sí" : "No") +
+      "</tbody></table></div></div>" +
+      '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55;margin-top:14px">Estas son las ' +
+      "pruebas de la aceptación. El PDF que se descarga es exactamente el que firmó el cliente.</p>",
+      '<button class="btn btn--amber" id="vf-ok">Cerrar</button>', true);
+    $("#vf-ok").addEventListener("click", cerrarModal);
+  }).catch(function (e) { avisar(e.message, "err"); });
+}
+
+function editarCondiciones() {
+  api("/api/admin/condiciones").then(function (r) {
+    modal("Condiciones de contratación",
+      '<div class="aviso aviso--err" id="cd-err" hidden></div>' +
+      '<p style="color:var(--muted);line-height:1.55">Este texto sale en todos los presupuestos, ' +
+      "en su hoja de condiciones, y es lo que acepta el cliente al firmar. La primera línea de cada " +
+      "párrafo hace de título; deja una línea en blanco entre bloques.</p>" +
+      '<div class="campo"><textarea id="cd-texto" style="min-height:320px">' + esc(r.texto) + "</textarea></div>" +
+      '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55">Al presupuesto se le añade ' +
+      "además, por ley, el aviso del derecho de desistimiento de 14 días para clientes particulares. " +
+      "Eso no se puede quitar, pero el cliente puede pedir que empecéis antes y entonces sí responde " +
+      "de los gastos si se echa atrás.</p>",
+      '<button class="btn btn--fant" id="cd-no">Cancelar</button>' +
+      '<button class="btn btn--amber" id="cd-si">Guardar</button>', true);
+    $("#cd-no").addEventListener("click", cerrarModal);
+    $("#cd-si").addEventListener("click", function () {
+      var btn = this;
+      btn.disabled = true; btn.textContent = "Guardando…";
+      api("/api/admin/condiciones", { metodo: "PUT", datos: { texto: $("#cd-texto").value } })
+        .then(function () { cerrarModal(); avisar("Condiciones guardadas"); })
+        .catch(function (e) {
+          var err = $("#cd-err");
+          err.textContent = e.message; err.hidden = false;
+          btn.disabled = false; btn.textContent = "Guardar";
+        });
+    });
+  }).catch(function (e) { avisar(e.message, "err"); });
 }
 
 function cancelarPresupuesto(tipo, id, clave) {

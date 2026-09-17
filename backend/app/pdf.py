@@ -13,6 +13,8 @@ Se usa reportlab porque es Python puro con ruedas precompiladas: no hace
 falta cairo, pango ni ninguna librería del sistema en la imagen de Docker.
 """
 
+import base64
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
 from reportlab.lib import colors
@@ -20,6 +22,7 @@ from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.platypus import Paragraph, Table, TableStyle
 
@@ -299,6 +302,153 @@ def _pie(c, tipo, p):
         c.drawString(MARGEN, y - 5 * mm - i * 3.6 * mm, l)
 
 
+def _titulo_pagina(c, texto):
+    """Cabecera sobria para las páginas que van detrás del documento."""
+    c.setFillColor(INK)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(MARGEN, ALTO - MARGEN - 4 * mm, texto)
+    c.setStrokeColor(AMBER)
+    c.setLineWidth(1.6)
+    c.line(MARGEN, ALTO - MARGEN - 8 * mm, MARGEN + 26 * mm, ALTO - MARGEN - 8 * mm)
+    return ALTO - MARGEN - 18 * mm
+
+
+def _bloques(texto):
+    """Parte el texto en bloques separados por líneas en blanco.
+
+    De cada bloque, la primera línea hace de título y el resto de cuerpo: es
+    como escribe cualquiera unas condiciones, sin tener que aprender formato.
+    """
+    for trozo in (texto or "").replace("\r\n", "\n").split("\n\n"):
+        lineas = [l.strip() for l in trozo.split("\n") if l.strip()]
+        if lineas:
+            yield lineas[0], " ".join(lineas[1:])
+
+
+def _pagina_condiciones(c, texto, dias_desistimiento=None):
+    y = _titulo_pagina(c, "CONDICIONES DE CONTRATACIÓN")
+    ancho = ANCHO - 2 * MARGEN
+    for titulo, cuerpo in _bloques(texto):
+        if y < MARGEN + 40 * mm:
+            c.showPage()
+            y = _titulo_pagina(c, "CONDICIONES DE CONTRATACIÓN (continuación)")
+        p = _parrafo(titulo, 9, INK, negrita=True)
+        _, h = p.wrap(ancho, 30 * mm)
+        p.drawOn(c, MARGEN, y - h)
+        y -= h + 2 * mm
+        if cuerpo:
+            p = _parrafo(cuerpo, 8.5, GRIS)
+            _, h = p.wrap(ancho, 120 * mm)
+            p.drawOn(c, MARGEN, y - h)
+            y -= h + 5 * mm
+
+    if dias_desistimiento:
+        # Con un cliente particular, el derecho de desistimiento no se puede
+        # quitar por contrato: lo que se puede es cobrar lo ejecutado si pidió
+        # empezar dentro del plazo. Informar de esto es obligatorio, y no
+        # hacerlo alarga el plazo del cliente hasta doce meses.
+        y -= 4 * mm
+        c.setFillColor(SUAVE)
+        alto_caja = 34 * mm
+        c.rect(MARGEN, y - alto_caja, ANCHO - 2 * MARGEN, alto_caja, stroke=0, fill=1)
+        p = _parrafo(
+            f"<b>Derecho de desistimiento.</b> Si eres consumidor y firmas fuera de nuestro "
+            f"establecimiento o a distancia, dispones de <b>{dias_desistimiento} días naturales</b> "
+            "para desistir del contrato sin dar explicaciones, comunicándolo a "
+            f"{EMPRESA['email']} o al {EMPRESA['telefono']}. Si pides expresamente que los "
+            "trabajos empiecen dentro de ese plazo y después desistes, abonarás la parte "
+            "proporcional de lo ya ejecutado y los gastos justificados en que se haya incurrido.",
+            8, INK)
+        _, h = p.wrap(ANCHO - 2 * MARGEN - 10 * mm, alto_caja)
+        p.drawOn(c, MARGEN + 5 * mm, y - 5 * mm - h)
+        y -= alto_caja + 4 * mm
+    return y
+
+
+def _pagina_firma(c, doc, firma, dias_desistimiento=None):
+    """Hoja de la firma: quién firmó, qué firmó y con qué pruebas."""
+    y = _titulo_pagina(c, "ACEPTACIÓN Y FIRMA DEL CLIENTE")
+    ancho = ANCHO - 2 * MARGEN
+
+    numero = doc.get("numero") or f"#{doc['id']}"
+    cuando = firma.get("firmado_el") or ""
+    try:
+        local = (datetime.strptime(cuando, "%Y-%m-%d %H:%M:%S")
+                 .replace(tzinfo=timezone.utc) + timedelta(hours=2)).strftime("%d/%m/%Y a las %H:%M")
+    except ValueError:
+        local = cuando
+
+    p = _parrafo(
+        f"<b>{escape_basico(firma.get('firmante_nombre'))}</b>"
+        + (f", con NIF {escape_basico(firma.get('firmante_nif'))}," if firma.get("firmante_nif") else "")
+        + f" ha firmado electrónicamente el presupuesto <b>{numero}</b> el {local} "
+        "(hora peninsular), aceptando su contenido y las condiciones de contratación "
+        "que se recogen en este documento.", 9, INK)
+    _, h = p.wrap(ancho, 40 * mm)
+    p.drawOn(c, MARGEN, y - h)
+    y -= h + 8 * mm
+
+    if firma.get("firma_inicio_inmediato"):
+        p = _parrafo(
+            "El cliente <b>solicita expresamente</b> que los trabajos comiencen antes de que "
+            f"termine el plazo de desistimiento de {dias_desistimiento or 14} días naturales, "
+            "sabiendo que, si desiste después, deberá abonar la parte proporcional de lo ya "
+            "ejecutado y los gastos justificados en que se haya incurrido.", 8.5, GRIS)
+        _, h = p.wrap(ancho, 30 * mm)
+        p.drawOn(c, MARGEN, y - h)
+        y -= h + 8 * mm
+
+    # La firma dibujada
+    imagen = firma.get("firma_imagen") or ""
+    if imagen.startswith("data:image/png;base64,"):
+        try:
+            datos = base64.b64decode(imagen.split(",", 1)[1])
+            c.drawImage(ImageReader(BytesIO(datos)), MARGEN, y - 34 * mm,
+                        width=70 * mm, height=32 * mm, mask="auto",
+                        preserveAspectRatio=True, anchor="sw")
+        except Exception:      # noqa: BLE001
+            pass
+    c.setStrokeColor(LINEA)
+    c.setLineWidth(0.8)
+    c.line(MARGEN, y - 36 * mm, MARGEN + 70 * mm, y - 36 * mm)
+    c.setFillColor(GRIS)
+    c.setFont("Helvetica", 7.5)
+    c.drawString(MARGEN, y - 40 * mm, "Firma del cliente")
+    y -= 50 * mm
+
+    # Las pruebas
+    pruebas = [
+        ("Fecha y hora de la firma (UTC)", cuando),
+        ("Dirección IP desde la que se firmó", firma.get("firma_ip") or ""),
+        ("Navegador", (firma.get("firma_agente") or "")[:80]),
+        ("Huella del documento firmado (SHA-256)", firma.get("firma_huella") or ""),
+        ("Inicio inmediato solicitado", "Sí" if firma.get("firma_inicio_inmediato") else "No"),
+    ]
+    tabla = Table([[_parrafo(k, 7.5, GRIS), _parrafo(v, 7.5, INK)] for k, v in pruebas],
+                  colWidths=[62 * mm, ancho - 62 * mm])
+    tabla.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LINEBELOW", (0, 0), (-1, -2), 0.4, LINEA),
+    ]))
+    _, h = tabla.wrap(ancho, 60 * mm)
+    tabla.drawOn(c, MARGEN, y - h)
+    y -= h + 6 * mm
+
+    p = _parrafo(
+        "Documento firmado electrónicamente conforme al Reglamento (UE) 910/2014 (eIDAS). "
+        "Loureiro Soluciones conserva este documento, la firma y los datos de conexión "
+        "como prueba de la aceptación. " + _identidad(), 7.5, GRIS)
+    _, h = p.wrap(ancho, 30 * mm)
+    p.drawOn(c, MARGEN, y - h)
+
+
+def escape_basico(txt):
+    """Los datos del firmante van dentro de un Paragraph, que interpreta HTML."""
+    return (str(txt or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
 def _comprobar(tipo, doc):
     """Una factura sin número o sin el NIF del emisor no es válida: no sale.
 
@@ -317,8 +467,15 @@ def _comprobar(tipo, doc):
             ". Una factura sin esos datos no es válida.")
 
 
-def documento_pdf(tipo: str, id_: int) -> tuple[bytes | None, str | None]:
-    """Devuelve (bytes del PDF, nombre de fichero sugerido)."""
+def documento_pdf(tipo: str, id_: int, firma: dict | None = None,
+                  condiciones_texto: str | None = None,
+                  dias_desistimiento: int | None = 14) -> tuple[bytes | None, str | None]:
+    """Devuelve (bytes del PDF, nombre de fichero sugerido).
+
+    Con `condiciones_texto` se añade la hoja de condiciones, y con `firma` la
+    hoja de aceptación con las pruebas. Es lo que se guarda tal cual el día
+    que el cliente firma.
+    """
     t = TIPOS[tipo]
     doc = db.fila(f"SELECT * FROM {t['tabla']} WHERE id = ?", (id_,))
     if not doc:
@@ -380,7 +537,15 @@ def documento_pdf(tipo: str, id_: int) -> tuple[bytes | None, str | None]:
 
     _pie(c, tipo, doc)
     c.showPage()
+
+    if condiciones_texto:
+        _pagina_condiciones(c, condiciones_texto, dias_desistimiento)
+        c.showPage()
+    if firma:
+        _pagina_firma(c, doc, firma, dias_desistimiento)
+        c.showPage()
     c.save()
 
     numero = (doc["numero"] or f"{t['uno']}-{doc['id']}").replace("/", "-")
-    return buf.getvalue(), f"{numero}.pdf"
+    sufijo = "-firmado" if firma else ""
+    return buf.getvalue(), f"{numero}{sufijo}.pdf"

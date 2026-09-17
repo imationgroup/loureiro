@@ -12,7 +12,7 @@ falla el recálculo.
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
 from . import db, pdf
@@ -54,7 +54,7 @@ SERIES = {"presupuestos": "P", "proformas": "PF", "facturas": "F"}
 # Estados válidos de cada documento. Un presupuesto no se "rechaza": se
 # cancela, y al cancelarlo hay que decir por qué.
 ESTADOS = {
-    "presupuestos": ("borrador", "enviado", "aceptado", "cancelado"),
+    "presupuestos": ("borrador", "enviado", "firmado", "aceptado", "cancelado"),
     "facturas": ("emitida", "cobrada", "anulada"),
     "proformas": ("borrador", "enviada", "aceptada", "facturada", "anulada"),
 }
@@ -124,11 +124,40 @@ class Documento(BaseModel):
     lineas: list[Linea] = []
 
 
+# El PDF firmado son megas de binario y la firma dibujada, una imagen larga:
+# ninguno de los dos tiene por qué viajar en cada listado del panel.
+PESADOS = ("firma_pdf", "firma_imagen")
+
+
+def _aligerar(doc: dict) -> dict:
+    for campo in PESADOS:
+        doc.pop(campo, None)
+    return doc
+
+
 def _doc(tipo: str):
     d = DOCUMENTOS.get(tipo)
     if not d:
         raise HTTPException(404, "Tipo de documento desconocido")
     return d
+
+
+def _bloqueado(tipo: str, doc: dict, estado_nuevo: str | None = None):
+    """Un presupuesto firmado por el cliente ya no se cambia.
+
+    Lo firmado tiene que poder enseñarse tal cual dentro de dos años. Si se
+    pudiera editar después, la firma no probaría nada. Cancelarlo sí se
+    puede: el cliente desiste o se llega a un acuerdo, y eso hay que poder
+    reflejarlo.
+    """
+    if tipo != "presupuestos" or not doc.get("firmado_el"):
+        return
+    if estado_nuevo == "cancelado":
+        return
+    raise HTTPException(
+        status.HTTP_409_CONFLICT,
+        "Este presupuesto está firmado por el cliente y no se puede modificar. "
+        "Si hay cambios, cancélalo y haz uno nuevo.")
 
 
 def _cancelacion(tipo: str, cab: dict, existente: dict | None = None):
@@ -231,6 +260,7 @@ def listar(tipo: str, u: dict = Depends(sesion_actual)):
                           (doc["id"],))
         doc.update(totales(lineas))
         doc["n_lineas"] = len(lineas)
+        _aligerar(doc)
     return docs
 
 
@@ -250,7 +280,7 @@ def _ver(tipo: str, id_: int) -> dict:
         f"SELECT * FROM {d['lineas']} WHERE {d['fk']} = ? ORDER BY orden, id",
         (id_,))
     doc.update(totales(doc["lineas"]))
-    return doc
+    return _aligerar(doc)
 
 
 def _guardar_lineas(con, d, doc_id, lineas):
@@ -294,6 +324,7 @@ def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_act
     d = _doc(tipo)
     exigir(u, tipo)
     existente = _visible(tipo, u, id_)
+    _bloqueado(tipo, existente, cab_estado(doc.cabecera))
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"]}
     fijar_responsable(u, doc.cabecera, cab, creando=False)
     comprobar_referencias(u, cab, existente)
@@ -316,7 +347,11 @@ def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_act
 def borrar(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
     d = _doc(tipo)
     exigir(u, tipo)
-    _visible(tipo, u, id_)
+    existente = _visible(tipo, u, id_)
+    if tipo == "presupuestos" and existente.get("firmado_el"):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Este presupuesto está firmado y no se puede borrar. Cancélalo si ya no sigue adelante.")
     with db.tx() as con:
         if tipo == "facturas":
             con.execute("DELETE FROM ingresos WHERE factura_id = ?", (id_,))
@@ -324,6 +359,10 @@ def borrar(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
         if cur.rowcount == 0:
             raise HTTPException(404, "No encontrado")
     return {"ok": True}
+
+
+def cab_estado(cabecera: dict) -> str | None:
+    return str(cabecera.get("estado") or "") or None
 
 
 class CambioEstado(BaseModel):
@@ -343,6 +382,7 @@ def cambiar_estado(tipo: str, id_: int, datos: CambioEstado,
     d = _doc(tipo)
     exigir(u, tipo)
     existente = _visible(tipo, u, id_)
+    _bloqueado(tipo, existente, datos.estado)
     cab = {"estado": datos.estado}
     if tipo == "presupuestos" and datos.estado == "cancelado":
         cab["motivo_cancelacion"] = (datos.motivo or "").strip() or None
@@ -359,9 +399,21 @@ def cambiar_estado(tipo: str, id_: int, datos: CambioEstado,
 def descargar_pdf(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
     """Presupuesto, proforma o factura en PDF, listo para mandar al cliente."""
     exigir(u, tipo)
-    _visible(tipo, u, id_)
+    existente = _visible(tipo, u, id_)
+    # Si está firmado se devuelve el PDF que se firmó, byte a byte, y no uno
+    # generado de nuevo: es el documento que acepta el cliente.
+    if tipo == "presupuestos" and existente.get("firma_pdf"):
+        numero = (existente.get("numero") or f"presupuesto-{id_}").replace("/", "-")
+        return Response(
+            content=bytes(existente["firma_pdf"]),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{numero}-firmado.pdf"'})
     try:
-        datos, nombre = pdf.documento_pdf(tipo, id_)
+        from .firma import DIAS_DESISTIMIENTO, condiciones
+        datos, nombre = pdf.documento_pdf(
+            tipo, id_,
+            condiciones_texto=condiciones() if tipo == "presupuestos" else None,
+            dias_desistimiento=DIAS_DESISTIMIENTO)
     except pdf.DocumentoIncompleto as e:
         raise HTTPException(422, str(e))
     if datos is None:

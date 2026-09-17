@@ -32,6 +32,7 @@ from . import auth, db, empresa
 from .admin import router as router_admin, router_crud as router_admin_crud
 from .equipo import router as router_equipo
 from .estatutos import router as router_estatutos
+from .firma import router as router_firma, publico as router_firma_publico
 from .documentos import router as router_documentos
 from .agenda import router as router_agenda, publico as router_agenda_publico
 
@@ -124,6 +125,8 @@ def _arranque():
 app.include_router(router_admin)
 app.include_router(router_equipo)
 app.include_router(router_estatutos)
+app.include_router(router_firma)
+app.include_router(router_firma_publico)
 app.include_router(router_documentos)
 # La agenda también antes del CRUD: /api/admin/{recurso} se tragaría
 # /api/admin/agenda como si fuese una tabla.
@@ -200,7 +203,8 @@ def _permitir_acuse(email: str) -> bool:
 
 def send_email(to: str | list[str], subject: str, body: str,
                reply_to: str | None = None, html: str | None = None,
-               cabeceras: dict[str, str] | None = None) -> bool:
+               cabeceras: dict[str, str] | None = None,
+               adjuntos: list[tuple[str, bytes]] | None = None) -> bool:
     if not SMTP_HOST:
         log.warning("SMTP no configurado; correo NO enviado. to=%s subject=%r", to, subject)
         log.info("body: %s", body)
@@ -226,6 +230,10 @@ def send_email(to: str | list[str], subject: str, body: str,
         # Texto plano y HTML a la vez: el cliente de correo elige. Hay quien
         # lee sin HTML, y un correo solo HTML puntúa peor en los filtros.
         msg.add_alternative(html, subtype="html", cte="quoted-printable")
+
+    # Adjuntos (hoy solo el presupuesto firmado en PDF).
+    for nombre, datos in (adjuntos or []):
+        msg.add_attachment(datos, maintype="application", subtype="pdf", filename=nombre)
 
     try:
         if SMTP_USE_TLS:
