@@ -38,6 +38,11 @@ TIPOS = {
     "presupuestos": {
         "tabla": "presupuestos", "lineas": "presupuesto_lineas", "fk": "presupuesto_id",
         "titulo": "PRESUPUESTO", "para": "PRESUPUESTO PARA", "uno": "presupuesto",
+        # El presupuesto sale sin destinatario: es una oferta de precios que se
+        # entrega en mano o se pasa a quien pregunte, y con el nombre y el NIF
+        # impresos no vale para nadie más. La factura y la proforma sí lo
+        # llevan, que ahí el destinatario es parte del documento.
+        "destinatario": False,
     },
     "proformas": {
         "tabla": "proformas", "lineas": "proforma_lineas", "fk": "proforma_id",
@@ -157,6 +162,11 @@ def _cabecera(c, tipo, p):
 
 
 def _bloque_cliente(c, y, tipo, cliente, obra):
+    # Hay documentos que no llevan a quién van dirigidos (ver TIPOS). De la
+    # obra sí se deja constancia: dice de qué trabajo se está hablando, que no
+    # es lo mismo que decir de quién es.
+    if not TIPOS[tipo].get("destinatario", True):
+        return _bloque_obra(c, y - 4 * mm, obra)
     y -= 9 * mm
     c.setFillColor(GRIS)
     c.setFont("Helvetica-Bold", 7.5)
@@ -181,18 +191,22 @@ def _bloque_cliente(c, y, tipo, cliente, obra):
         c.drawString(MARGEN, y - 4.6 * mm - i * 4 * mm, l)
     y -= 4.6 * mm + len(lineas) * 4 * mm
 
-    if obra:
-        c.setFillColor(GRIS)
-        c.setFont("Helvetica-Bold", 7.5)
-        c.drawString(MARGEN, y - 3 * mm, "OBRA")
-        c.setFillColor(INK)
-        c.setFont("Helvetica", 8.5)
-        # La columna de la obra se llama "titulo"; con "nombre" el PDF
-        # reventaba en cuanto el documento tenía una obra asignada.
-        c.drawString(MARGEN + 16 * mm, y - 3 * mm,
-                     obra.get("titulo") or obra.get("nombre") or "")
-        y -= 3 * mm
-    return y
+    return _bloque_obra(c, y, obra)
+
+
+def _bloque_obra(c, y, obra):
+    if not obra:
+        return y
+    c.setFillColor(GRIS)
+    c.setFont("Helvetica-Bold", 7.5)
+    c.drawString(MARGEN, y - 3 * mm, "OBRA")
+    c.setFillColor(INK)
+    c.setFont("Helvetica", 8.5)
+    # La columna de la obra se llama "titulo"; con "nombre" el PDF reventaba
+    # en cuanto el documento tenía una obra asignada.
+    c.drawString(MARGEN + 16 * mm, y - 3 * mm,
+                 obra.get("titulo") or obra.get("nombre") or "")
+    return y - 3 * mm
 
 
 def _tabla(lineas):
