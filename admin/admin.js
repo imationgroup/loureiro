@@ -1888,19 +1888,59 @@ function cancelarPresupuesto(tipo, id, clave) {
   });
 }
 
+// El presupuesto del que sale una factura o una proforma. Se busca igual que
+// en las obras: por número o por el nombre del cliente.
+var CAMPO_PRESUPUESTO = {
+  c: "presupuesto_id", de: "documentos/presupuestos",
+  etiqueta: function (p) {
+    return p.numero + " · " + (p.cliente || "sin cliente") + " · " + eur(p.total);
+  },
+  filtra: function (p) { return p.estado !== "cancelado"; }
+};
+
 function editarDocumento(tipo, id) {
   var esFactura = tipo === "facturas";
+  // Facturas y proformas salen de un presupuesto; un presupuesto no sale de
+  // otro, así que ahí el campo no pinta nada.
+  var dePresupuesto = tipo === "facturas" || tipo === "proformas";
   Promise.all([
     id ? api("/api/admin/documentos/" + tipo + "/" + id) : Promise.resolve(null),
     cargarRef("clientes"), cargarRef("obras")
-  ].concat(esAdmin() ? [cargarRef("equipo")] : [])).then(function (res) {
+  ].concat(esAdmin() ? [cargarRef("equipo")] : [])
+   .concat(dePresupuesto ? [cargarRef("documentos/presupuestos")] : [])).then(function (res) {
     var doc = res[0] || {
       lineas: [], estado: ESTADOS_DOC[tipo][0],
       fecha: new Date().toISOString().slice(0, 10),
       usuario_id: YO && YO.id      // lo que se crea es de quien lo crea
     };
-    var lineas = (doc.lineas || []).slice();
+    var lineas = (doc.lineas || []).map(function (l) {
+      return {
+        concepto: l.concepto, cantidad: l.cantidad, unidad: l.unidad,
+        precio: l.precio, iva: l.iva, dePresu: false
+      };
+    });
     if (!lineas.length) lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
+
+    function mismaLinea(a, b) {
+      return String(a.concepto).trim() === String(b.concepto).trim() &&
+             Number(a.cantidad) === Number(b.cantidad) &&
+             Number(a.precio) === Number(b.precio) &&
+             Number(a.iva) === Number(b.iva);
+    }
+
+    // De un documento que ya venía de un presupuesto se marca qué líneas son
+    // todavía las suyas. Así, al elegir otro presupuesto, se sustituyen esas y
+    // se quedan las que se añadieron a mano. Si el presupuesto ya no está, se
+    // quedan todas como propias, que es lo prudente.
+    if (doc.presupuesto_id) {
+      api("/api/admin/documentos/" + tipo + "/desde-presupuesto/" + doc.presupuesto_id)
+        .then(function (r) {
+          lineas.forEach(function (l) {
+            l.dePresu = r.lineas.some(function (o) { return mismaLinea(l, o); });
+          });
+        })
+        .catch(function () {});
+    }
 
     function opciones(lista, sel) {
       // Igual que en los formularios: un enlace con algo de otra persona se conserva.
@@ -1911,6 +1951,21 @@ function editarDocumento(tipo, id) {
         return '<option value="' + o.id + '"' + (String(o.id) === String(sel) ? " selected" : "") + ">" +
                esc(o.titulo || o.nombre) + "</option>";
       }).join("");
+    }
+
+    function campoPresupuesto(sel) {
+      var ops = opcionesBusca(CAMPO_PRESUPUESTO);
+      var yaEsta = ops.filter(function (o) { return String(o.id) === String(sel); })[0];
+      return '<div class="campo"><label for="d-presu">Presupuesto</label>' +
+        '<input id="d-presu" list="lista-d-presu" autocomplete="off"' +
+        ' placeholder="Escribe el número o el cliente" value="' +
+        esc(yaEsta ? yaEsta.txt : "") + '">' +
+        '<datalist id="lista-d-presu">' +
+        ops.map(function (o) { return '<option value="' + esc(o.txt) + '"></option>'; }).join("") +
+        "</datalist>" +
+        '<small style="color:var(--muted-2);font-size:.79rem">Al elegirlo se traen ' +
+        "sus líneas, su cliente, su obra y sus notas. Las líneas que añadas aparte se " +
+        "quedan como están.</small></div>";
     }
 
     var cuerpo = '<div class="aviso aviso--err" id="d-err" hidden></div>' +
@@ -1928,6 +1983,7 @@ function editarDocumento(tipo, id) {
         '<div class="campo"><label for="d-fecha">Fecha</label><input id="d-fecha" type="date" value="' +
           esc(doc.fecha) + '"></div>' +
       "</div>" +
+      (dePresupuesto ? campoPresupuesto(doc.presupuesto_id) : "") +
       '<div class="rejilla-2">' +
         '<div class="campo"><label for="d-cliente">Cliente</label><select id="d-cliente">' +
           opciones("clientes", doc.cliente_id) + "</select></div>" +
@@ -2025,13 +2081,60 @@ function editarDocumento(tipo, id) {
       selEstado.addEventListener("change", verMotivo);
     }
 
+    // Al elegir el presupuesto, la factura se rellena con lo suyo. Las notas
+    // solo se pisan si están vacías o si las puso otro presupuesto antes: lo
+    // que se haya escrito a mano no se toca.
+    var inpPresu = $("#d-presu"), pegado = {};
+    if (inpPresu) inpPresu.addEventListener("change", function () {
+      var op = buscaElegida(CAMPO_PRESUPUESTO, inpPresu.value);
+      if (!op) {
+        if (inpPresu.value.trim()) { inpPresu.value = ""; avisar("Elige uno de la lista", "err"); }
+        return;
+      }
+      inpPresu.value = op.txt;
+      api("/api/admin/documentos/" + tipo + "/desde-presupuesto/" + op.id).then(function (r) {
+        var propias = lineas.filter(function (l) {
+          return !l.dePresu && String(l.concepto).trim();
+        });
+        lineas = r.lineas.map(function (l) {
+          return { concepto: l.concepto, cantidad: l.cantidad, unidad: l.unidad,
+                   precio: l.precio, iva: l.iva, dePresu: true };
+        }).concat(propias);
+        // El cliente lo manda siempre el presupuesto: una factura con las líneas
+        // de un presupuesto y el nombre de otro cliente está mal emitida, y es
+        // un fallo que no se ve hasta que la recibe quien no era.
+        if (r.cabecera.cliente_id) {
+          $("#d-cliente").value = r.cabecera.cliente_id;
+          pegado.cliente = $("#d-cliente").value;
+        }
+        // La obra y las notas solo se pegan si están vacías o si las puso otro
+        // presupuesto antes: lo elegido o escrito a mano no se toca. Si el
+        // presupuesto nuevo no trae obra, se quita la que pegó el anterior.
+        ["obra", "notas"].forEach(function (k) {
+          var el = $("#d-" + k);
+          var valor = r.cabecera[k === "obra" ? "obra_id" : "notas"];
+          valor = valor === null || valor === undefined ? "" : String(valor);
+          if (el.value.trim() && el.value !== pegado[k]) return;
+          el.value = valor;
+          pegado[k] = el.value;
+        });
+        pintarLineas(); pintarTotales();
+        avisar("Traído del presupuesto " + (r.presupuesto.numero || op.id));
+      }).catch(function (e) { avisar(e.message, "err"); });
+    });
+
     $("#d-add").addEventListener("click", function () {
       lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
       pintarLineas(); pintarTotales();
     });
     $("#d-cancelar").addEventListener("click", cerrarModal);
     $("#d-guardar").addEventListener("click", function () {
-      var utiles = lineas.filter(function (l) { return String(l.concepto).trim(); });
+      // dePresu es una marca del editor, no una columna: no sale de aquí.
+      var utiles = lineas.filter(function (l) { return String(l.concepto).trim(); })
+        .map(function (l) {
+          return { concepto: l.concepto, cantidad: l.cantidad, unidad: l.unidad,
+                   precio: l.precio, iva: l.iva };
+        });
       if (!utiles.length) {
         var e = $("#d-err");
         e.textContent = "Añade al menos una línea con concepto.";
@@ -2046,6 +2149,10 @@ function editarDocumento(tipo, id) {
         estado: $("#d-estado").value,
         notas: $("#d-notas").value.trim() || null
       };
+      if (inpPresu) {
+        var elegido = buscaElegida(CAMPO_PRESUPUESTO, inpPresu.value);
+        cabecera.presupuesto_id = elegido ? elegido.id : null;
+      }
       if (esFactura) cabecera.vencimiento = $("#d-venc").value || null;
       else cabecera.validez = Number($("#d-validez").value) || 30;
       if (esAdmin()) cabecera.usuario_id = $("#d-resp").value ? Number($("#d-resp").value) : null;

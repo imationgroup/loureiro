@@ -469,6 +469,44 @@ def _copiar(origen: str, id_: int, destino: str, estado_origen: str, u: dict) ->
     return nuevo
 
 
+@router.get("/documentos/{tipo}/desde-presupuesto/{id_}")
+def desde_presupuesto(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
+    """Lo que hay que copiar de un presupuesto para facturarlo.
+
+    No crea nada: devuelve el cliente, la obra, las notas y las líneas para
+    que el panel rellene con ellas la factura que se está escribiendo. El que
+    factura sigue pudiendo cambiarlo todo y añadir líneas aparte antes de
+    guardar, que es lo que no deja el botón «Facturar» del listado.
+
+    Pide el módulo del documento que se está haciendo, no el de presupuestos:
+    quien factura tiene que poder traerse lo presupuestado aunque no lleve los
+    presupuestos. Eso sí, solo los suyos: los de otra persona del equipo no
+    existen para él.
+    """
+    if tipo not in ("facturas", "proformas"):
+        raise HTTPException(404, "Solo se rellenan así las facturas y las proformas")
+    exigir(u, tipo)
+    p = _visible("presupuestos", u, id_)
+    lineas = db.filas(
+        "SELECT * FROM presupuesto_lineas WHERE presupuesto_id = ? ORDER BY orden, id",
+        (id_,))
+    if not lineas:
+        raise HTTPException(422, "Ese presupuesto no tiene líneas que copiar")
+    return {
+        "presupuesto": {"id": p["id"], "numero": p["numero"], "estado": p["estado"]},
+        "cabecera": {
+            "cliente_id": p["cliente_id"],
+            "obra_id": p["obra_id"],
+            # Las notas del presupuesto son las condiciones que se hablaron con
+            # el cliente; si no puso ninguna, al menos queda de dónde sale.
+            "notas": p["notas"] or f"Según el presupuesto {p['numero'] or p['id']}",
+        },
+        "lineas": [{"concepto": l["concepto"], "cantidad": l["cantidad"],
+                    "unidad": l["unidad"], "precio": l["precio"], "iva": l["iva"]}
+                   for l in lineas],
+    }
+
+
 @router.post("/documentos/{tipo}/{id_}/facturar", status_code=201)
 def facturar(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
     """Presupuesto o proforma → factura, copiando sus líneas."""
