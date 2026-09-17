@@ -611,6 +611,25 @@ function opcionesBusca(campo) {
     .filter(campo.filtra || function () { return true; })
     .map(function (o) { return { id: o.id, txt: campo.etiqueta(o), fila: o }; });
 }
+// Deja solo lo del cliente elegido. Lo que no es de nadie se sigue ofreciendo
+// —una obra sin cliente puede ser justo la que se está asignando— y lo que ya
+// estuviera puesto también, para no romper un enlace al guardar.
+function soloDelCliente(lista, cid, sel) {
+  if (!cid) return lista;
+  return lista.filter(function (o) {
+    var de = o.cliente_id === undefined ? (o.fila || {}).cliente_id : o.cliente_id;
+    return !de || String(de) === String(cid) || String(o.id) === String(sel);
+  });
+}
+
+function pintarDatalist(id, ops) {
+  var dl = document.getElementById(id);
+  if (!dl) return;
+  dl.innerHTML = ops.map(function (o) {
+    return '<option value="' + esc(o.txt) + '"></option>';
+  }).join("");
+}
+
 function buscaElegida(campo, texto) {
   var q = llano(texto);
   if (!q) return null;
@@ -1036,6 +1055,24 @@ function abrirFormulario(clave, registro, inicial) {
       });
       if (cli && traido) avisar("Datos de contacto de " + cli.nombre);
     });
+
+    // Con un cliente elegido, el buscador solo sugiere lo suyo: buscar el
+    // presupuesto de una obra entre los de toda la empresa es buscar de más.
+    var selCliente = $("#c-cliente_id");
+    function filtrarSugerencias() {
+      $$("#f-form [data-busca]").forEach(function (inp) {
+        var campo = campos.filter(function (c) { return c.c === inp.dataset.busca; })[0];
+        if (!campo) return;
+        var puesto = buscaElegida(campo, inp.value);
+        pintarDatalist("lista-" + campo.c,
+          soloDelCliente(opcionesBusca(campo), selCliente && selCliente.value,
+                         puesto && puesto.id));
+      });
+    }
+    if (selCliente) {
+      filtrarSugerencias();
+      selCliente.addEventListener("change", filtrarSugerencias);
+    }
 
     // Al elegir en un desplegable con buscador, el campo que depende de él se
     // rellena solo (el importe de la obra sale del presupuesto). Si lo escrito
@@ -1988,19 +2025,19 @@ function editarDocumento(tipo, id) {
         .catch(function () {});
     }
 
-    function opciones(lista, sel) {
+    function opciones(lista, sel, deCliente) {
       // Igual que en los formularios: un enlace con algo de otra persona se conserva.
       var ajeno = sel && !(cache[lista] || []).some(function (o) { return String(o.id) === String(sel); });
       return '<option value="">' + (lista === "equipo" ? "— nadie: solo el administrador —" : "— sin asignar —") +
         "</option>" + (ajeno ? '<option value="' + esc(sel) + '" selected>(lo lleva otra persona)</option>' : "") +
-        (cache[lista] || []).map(function (o) {
+        soloDelCliente(cache[lista] || [], deCliente, sel).map(function (o) {
         return '<option value="' + o.id + '"' + (String(o.id) === String(sel) ? " selected" : "") + ">" +
                esc(o.titulo || o.nombre) + "</option>";
       }).join("");
     }
 
     function campoPresupuesto(sel) {
-      var ops = opcionesBusca(CAMPO_PRESUPUESTO);
+      var ops = soloDelCliente(opcionesBusca(CAMPO_PRESUPUESTO), doc.cliente_id, sel);
       var yaEsta = ops.filter(function (o) { return String(o.id) === String(sel); })[0];
       return '<div class="campo"><label for="d-presu">Presupuesto</label>' +
         '<input id="d-presu" list="lista-d-presu" autocomplete="off"' +
@@ -2042,7 +2079,7 @@ function editarDocumento(tipo, id) {
         '<div class="campo"><label for="d-cliente">Cliente</label><select id="d-cliente">' +
           opciones("clientes", doc.cliente_id) + "</select></div>" +
         '<div class="campo"><label for="d-obra">Obra</label><select id="d-obra">' +
-          opciones("obras", doc.obra_id) + "</select></div>" +
+          opciones("obras", doc.obra_id, doc.cliente_id) + "</select></div>" +
       "</div>" +
       '<div class="rejilla-2">' +
         '<div class="campo"><label for="d-estado">Estado</label><select id="d-estado">' +
@@ -2173,9 +2210,41 @@ function editarDocumento(tipo, id) {
           pegado[k] = el.value;
         });
         pintarLineas(); pintarTotales();
+        filtrarPorCliente();
         avisar("Traído del presupuesto " + (r.presupuesto.numero || op.id));
       }).catch(function (e) { avisar(e.message, "err"); });
     });
+
+    // Con un cliente elegido, la obra y el presupuesto que se ofrecen son los
+    // suyos: buscar entre los de toda la empresa es buscar de más. Y si lo que
+    // había puesto era de otro cliente se quita, porque una factura a nombre de
+    // Carmen colgada de la obra de Manuel no la cuadra nadie.
+    function filtrarPorCliente() {
+      var cid = $("#d-cliente").value;
+      var selObra = $("#d-obra");
+      var obra = (cache.obras || []).filter(function (o) {
+        return String(o.id) === selObra.value;
+      })[0];
+      var sobra = cid && obra && obra.cliente_id && String(obra.cliente_id) !== String(cid);
+      selObra.innerHTML = opciones("obras", sobra ? "" : selObra.value, cid);
+
+      var quitado = sobra ? ["la obra"] : [];
+      if (inpPresu) {
+        var elegido = buscaElegida(CAMPO_PRESUPUESTO, inpPresu.value);
+        if (cid && elegido && elegido.fila.cliente_id &&
+            String(elegido.fila.cliente_id) !== String(cid)) {
+          inpPresu.value = "";
+          elegido = null;
+          quitado.push("el presupuesto");
+        }
+        pintarDatalist("lista-d-presu",
+          soloDelCliente(opcionesBusca(CAMPO_PRESUPUESTO), cid, elegido && elegido.id));
+      }
+      if (quitado.length) {
+        avisar("Se ha quitado " + quitado.join(" y ") + ": era de otro cliente");
+      }
+    }
+    $("#d-cliente").addEventListener("change", filtrarPorCliente);
 
     $("#d-add").addEventListener("click", function () {
       lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
