@@ -1273,10 +1273,22 @@ function abrirMaps(f) {
 
 /* ── Descarga del PDF ─────────────────────────────────────────────────── */
 function descargarPdf(tipo, id, numero) {
+  bajarPdf("/api/admin/documentos/" + tipo + "/" + id + "/pdf",
+           (numero || NOMBRE_DOC[tipo].uno + "-" + id) + ".pdf");
+}
+
+// El PDF de una firma que se archivó al editar el presupuesto: lo que el
+// cliente firmó aquel día, tal cual.
+function descargarPdfFirma(d, firmaId) {
+  bajarPdf("/api/admin/documentos/presupuestos/" + d.id + "/firmas/" + firmaId + "/pdf",
+           (d.numero || "presupuesto-" + d.id) + "-firmado.pdf");
+}
+
+function bajarPdf(ruta, nombre) {
   // No se puede usar api(): eso espera JSON. Y tampoco vale un enlace
   // normal, porque la sesión va en la cabecera Authorization y un <a href>
   // no la manda. Se descarga a mano y se envuelve en un blob.
-  fetch(API + "/api/admin/documentos/" + tipo + "/" + id + "/pdf", {
+  fetch(API + ruta, {
     headers: { Authorization: "Bearer " + token }
   }).then(function (res) {
     if (res.status === 401) { salir(true); throw new Error("Sesión caducada"); }
@@ -1292,7 +1304,7 @@ function descargarPdf(tipo, id, numero) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = (numero || NOMBRE_DOC[tipo].uno + "-" + id) + ".pdf";
+    a.download = nombre;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1647,9 +1659,10 @@ function verDocumentos(clave) {
                ? '<button data-firmar="' + d.id + '" title="Enviar al cliente para que lo firme">' +
                  svg(ico.firma) + "</button>"
                : "") +
-             (tipo === "presupuestos" && d.firmado_el
-               ? '<button data-verfirma="' + d.id + '" title="Ver la firma del cliente">' +
-                 svg(ico.firma) + "</button>"
+             (tipo === "presupuestos" && (d.firmado_el || d.firmas_previas)
+               ? '<button data-verfirma="' + d.id + '" title="' +
+                 (d.firmado_el ? "Ver la firma del cliente" : "Ver las firmas de antes de editarlo") +
+                 '">' + svg(ico.firma) + "</button>"
                : "") +
              (tipo === "presupuestos" && !d.firmado_el && d.estado !== "aceptado" && d.estado !== "cancelado"
                ? '<button data-aceptar="' + d.id + '" title="Marcar como aceptado">' + svg(ico.ok) + "</button>"
@@ -1665,10 +1678,15 @@ function verDocumentos(clave) {
              (tipo !== "facturas" && puedeVer("facturas")
                ? '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
                : "") +
+             '<button data-editar="' + d.id + '" title="' +
+               (d.firmado_el ? "Editar: la firma se archiva y vuelve a borrador" : "Editar") +
+               '">' + svg(ico.lapiz) + "</button>" +
+             // Borrar un presupuesto firmado no: se llevaría por delante la
+             // prueba de lo que aceptó el cliente. Para eso está cancelarlo.
              (d.firmado_el
                ? ""
-               : '<button data-editar="' + d.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
-                 '<button class="borrar" data-borrar="' + d.id + '" title="Borrar">' + svg(ico.papelera) + "</button>") +
+               : '<button class="borrar" data-borrar="' + d.id + '" title="Borrar">' +
+                 svg(ico.papelera) + "</button>") +
              "</td></tr>";
       });
       var totalGlobal = docs.reduce(function (a, d) { return a + (d.total || 0); }, 0);
@@ -1815,24 +1833,52 @@ function verFirma(d) {
       return "<tr><td style='color:var(--muted);white-space:nowrap;padding:6px 14px 6px 0'>" + esc(k) +
              "</td><td style='word-break:break-all'>" + esc(v || "—") + "</td></tr>";
     };
+    // Las firmas archivadas: las que tenía antes de que se editara. Se enseñan
+    // con su fecha y su PDF, que es lo que prueba qué aceptó aquel día.
+    var antes = (f.anteriores || []).map(function (a) {
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px">' +
+        "<b>" + esc(a.firmante_nombre || "Sin nombre") + "</b>" +
+        '<span style="color:var(--muted-2)"> · firmado el ' + esc(fecha(a.firmado_el)) +
+        " · archivado el " + esc(fecha(a.anulada_el)) + "</span>" +
+        '<div style="color:var(--muted);font-size:.82rem;word-break:break-all;margin-top:6px">' +
+        "Huella del PDF: " + esc(a.hash_pdf || "—") + "</div>" +
+        '<button class="btn btn--fant btn--sm" data-pdffirma="' + a.id +
+        '" style="margin-top:9px">' + svg(ico.descarga) + "Descargar lo que firmó</button></div>";
+    }).join("");
+
     modal("Firma de " + esc(d.numero || "#" + d.id),
-      (f.imagen
-        ? '<div style="background:#fff;border-radius:10px;padding:10px;margin-bottom:16px;text-align:center">' +
-          '<img src="' + esc(f.imagen) + '" alt="Firma del cliente" style="max-width:100%;height:110px;object-fit:contain"></div>'
-        : "") +
-      '<div class="tabla-caja"><div class="tabla-scroll"><table><tbody>' +
-      fila("Firmado por", f.firmante_nombre) +
-      fila("NIF", f.firmante_nif) +
-      fila("Fecha y hora (UTC)", f.firmado_el) +
-      fila("Dirección IP", f.ip) +
-      fila("Navegador", f.agente) +
-      fila("Huella del documento", f.huella) +
-      fila("Huella del PDF firmado", f.hash_pdf) +
-      fila("Pidió empezar antes de los 14 días", f.inicio_inmediato ? "Sí" : "No") +
-      "</tbody></table></div></div>" +
-      '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55;margin-top:14px">Estas son las ' +
-      "pruebas de la aceptación. El PDF que se descarga es exactamente el que firmó el cliente.</p>",
+      (f.firmado_el
+        ? (f.imagen
+            ? '<div style="background:#fff;border-radius:10px;padding:10px;margin-bottom:16px;text-align:center">' +
+              '<img src="' + esc(f.imagen) + '" alt="Firma del cliente" style="max-width:100%;height:110px;object-fit:contain"></div>'
+            : "") +
+          '<div class="tabla-caja"><div class="tabla-scroll"><table><tbody>' +
+          fila("Firmado por", f.firmante_nombre) +
+          fila("NIF", f.firmante_nif) +
+          fila("Fecha y hora (UTC)", f.firmado_el) +
+          fila("Dirección IP", f.ip) +
+          fila("Navegador", f.agente) +
+          fila("Huella del documento", f.huella) +
+          fila("Huella del PDF firmado", f.hash_pdf) +
+          fila("Pidió empezar antes de los 14 días", f.inicio_inmediato ? "Sí" : "No") +
+          "</tbody></table></div></div>" +
+          '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55;margin-top:14px">Estas son ' +
+          "las pruebas de la aceptación. El PDF que se descarga es exactamente el que firmó el cliente.</p>"
+        : '<p style="color:var(--muted);line-height:1.55">Este presupuesto <b>no está firmado ' +
+          "ahora mismo</b>: se editó después de firmarlo, así que aquella firma dejó de valer para " +
+          "lo que pone hoy. Si quieres que lo vuelva a firmar, mándaselo otra vez.</p>") +
+      (antes
+        ? '<h3 style="font-size:.95rem;margin:22px 0 4px">Firmas de antes de editarlo</h3>' +
+          '<p style="color:var(--muted-2);font-size:.84rem;margin:0 0 6px">Ya no valen para el ' +
+          "presupuesto de ahora, pero se guardan enteras: son la prueba de lo que se aceptó " +
+          "en su día.</p>" + antes
+        : ""),
       '<button class="btn btn--amber" id="vf-ok">Cerrar</button>', true);
+    $$("[data-pdffirma]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        descargarPdfFirma(d, b.dataset.pdffirma);
+      });
+    });
     $("#vf-ok").addEventListener("click", cerrarModal);
   }).catch(function (e) { avisar(e.message, "err"); });
 }
@@ -1969,6 +2015,13 @@ function editarDocumento(tipo, id) {
     }
 
     var cuerpo = '<div class="aviso aviso--err" id="d-err" hidden></div>' +
+      (doc.firmado_el
+        ? '<div class="aviso aviso--aviso">Este presupuesto lo firmó <b>' +
+          esc(doc.firmante_nombre || "el cliente") + "</b> el " + esc(fecha(doc.firmado_el)) +
+          ". Si guardas cambios, esa firma se guarda aparte y el presupuesto vuelve a " +
+          "<b>borrador</b>: lo que pone ahora ya no es lo que firmó, y hay que mandárselo " +
+          "otra vez.</div>"
+        : "") +
       '<div class="rejilla-2">' +
         // El número no se escribe: lo pone la serie al guardar y luego ya no
         // cambia. Se enseña para poder leerlo y copiarlo, nada más.

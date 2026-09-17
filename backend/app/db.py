@@ -186,6 +186,28 @@ CREATE TABLE IF NOT EXISTS movimientos_stock (
   creado    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Firmas de presupuestos que se editaron después ───────────────────
+-- Una firma prueba que el cliente aceptó ESE documento. Si luego se cambian
+-- las líneas o el precio, deja de probar lo que hay delante, pero no se tira:
+-- se guarda aquí entera, con su PDF y sus huellas, por si hay que enseñar qué
+-- se firmó aquel día.
+CREATE TABLE IF NOT EXISTS firmas (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  presupuesto_id   INTEGER NOT NULL REFERENCES presupuestos(id) ON DELETE CASCADE,
+  numero           TEXT,
+  firmado_el       TEXT,
+  firmante_nombre  TEXT,
+  firmante_nif     TEXT,
+  ip               TEXT,
+  agente           TEXT,
+  imagen           TEXT,
+  huella           TEXT,
+  hash_pdf         TEXT,
+  inicio_inmediato INTEGER,
+  pdf              BLOB,
+  anulada_el       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ── Solicitudes del formulario web ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS solicitudes (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -365,6 +387,7 @@ CREATE INDEX IF NOT EXISTS idx_ingresos_obra     ON ingresos(obra_id);
 CREATE INDEX IF NOT EXISTS idx_obraprof_obra     ON obra_profesionales(obra_id);
 CREATE INDEX IF NOT EXISTS idx_mov_stock         ON movimientos_stock(stock_id);
 CREATE INDEX IF NOT EXISTS idx_solicitudes_estado ON solicitudes(estado);
+CREATE INDEX IF NOT EXISTS idx_firmas_presupuesto ON firmas(presupuesto_id);
 """
 
 

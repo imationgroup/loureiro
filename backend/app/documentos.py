@@ -145,22 +145,38 @@ def _doc(tipo: str):
     return d
 
 
-def _bloqueado(tipo: str, doc: dict, estado_nuevo: str | None = None):
-    """Un presupuesto firmado por el cliente ya no se cambia.
+# Todo lo que se guarda de una firma. Al archivarla se copia entera a la
+# tabla `firmas` y se vacía aquí, enlace incluido.
+FIRMA_COLUMNAS = ("firmado_el", "firmante_nombre", "firmante_nif", "firma_ip",
+                  "firma_agente", "firma_imagen", "firma_huella", "firma_hash_pdf",
+                  "firma_inicio_inmediato", "firma_pdf", "firma_token")
 
-    Lo firmado tiene que poder enseñarse tal cual dentro de dos años. Si se
-    pudiera editar después, la firma no probaría nada. Cancelarlo sí se
-    puede: el cliente desiste o se llega a un acuerdo, y eso hay que poder
-    reflejarlo.
+
+def _archivar_firma(con, doc: dict):
+    """Guarda la firma que tenía un presupuesto y lo deja sin firmar.
+
+    Se llama al editarlo. Una firma prueba que el cliente aceptó *ese*
+    documento: en cuanto cambian las líneas o el precio, ya no prueba lo que
+    hay delante y dejarla puesta sería hacerle decir lo que no dijo. Pero
+    tampoco se tira: se guarda entera —con su PDF, sus huellas y su fecha—
+    por si hay que enseñar qué se firmó aquel día.
+
+    El enlace de firma se anula con ella: apuntaba a un documento que ya no
+    dice lo mismo, y el cliente no puede acabar firmando otra cosa por un
+    enlace que le mandaron hace un mes.
     """
-    if tipo != "presupuestos" or not doc.get("firmado_el"):
-        return
-    if estado_nuevo == "cancelado":
-        return
-    raise HTTPException(
-        status.HTTP_409_CONFLICT,
-        "Este presupuesto está firmado por el cliente y no se puede modificar. "
-        "Si hay cambios, cancélalo y haz uno nuevo.")
+    con.execute(
+        """INSERT INTO firmas (presupuesto_id, numero, firmado_el, firmante_nombre,
+               firmante_nif, ip, agente, imagen, huella, hash_pdf,
+               inicio_inmediato, pdf)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (doc["id"], doc.get("numero"), doc.get("firmado_el"), doc.get("firmante_nombre"),
+         doc.get("firmante_nif"), doc.get("firma_ip"), doc.get("firma_agente"),
+         doc.get("firma_imagen"), doc.get("firma_huella"), doc.get("firma_hash_pdf"),
+         doc.get("firma_inicio_inmediato"), doc.get("firma_pdf")))
+    con.execute(
+        "UPDATE presupuestos SET " + ", ".join(c + " = NULL" for c in FIRMA_COLUMNAS) +
+        " WHERE id = ?", (doc["id"],))
 
 
 def _cancelacion(tipo: str, cab: dict, existente: dict | None = None):
@@ -231,6 +247,11 @@ def sincronizar_ingreso(factura_id: int):
                            VALUES (?,?,?,?,?,?,?,?,?,?)""", datos)
 
 
+def _firmas_previas(id_: int) -> int:
+    """Firmas archivadas de ese presupuesto: las de antes de editarlo."""
+    return db.escalar("SELECT COUNT(*) FROM firmas WHERE presupuesto_id = ?", (id_,))
+
+
 def _visible(tipo: str, u: dict, id_: int) -> dict:
     """El documento si lo puede ver este usuario; si no, 404.
 
@@ -263,6 +284,8 @@ def listar(tipo: str, u: dict = Depends(sesion_actual)):
                           (doc["id"],))
         doc.update(totales(lineas))
         doc["n_lineas"] = len(lineas)
+        if tipo == "presupuestos":
+            doc["firmas_previas"] = _firmas_previas(doc["id"])
         _aligerar(doc)
     return docs
 
@@ -283,6 +306,8 @@ def _ver(tipo: str, id_: int) -> dict:
         f"SELECT * FROM {d['lineas']} WHERE {d['fk']} = ? ORDER BY orden, id",
         (id_,))
     doc.update(totales(doc["lineas"]))
+    if tipo == "presupuestos":
+        doc["firmas_previas"] = _firmas_previas(id_)
     return _aligerar(doc)
 
 
@@ -330,7 +355,6 @@ def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_act
     d = _doc(tipo)
     exigir(u, tipo)
     existente = _visible(tipo, u, id_)
-    _bloqueado(tipo, existente, cab_estado(doc.cabecera))
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"]}
     # El número que tiene puesto se queda como está. Renumerar un documento
     # que ya salió por la puerta lo convierte en otro distinto, y los que se
@@ -338,8 +362,17 @@ def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_act
     cab.pop("numero", None)
     fijar_responsable(u, doc.cabecera, cab, creando=False)
     comprobar_referencias(u, cab, existente)
+    # Editar un presupuesto firmado lo devuelve a borrador: lo que hay delante
+    # ya no es lo que firmó el cliente, así que hay que volver a mandárselo.
+    # Salvo que lo que se esté haciendo sea cancelarlo, que es una decisión
+    # aparte y no se le lleva la contraria.
+    firmado = tipo == "presupuestos" and bool(existente.get("firmado_el"))
+    if firmado and cab.get("estado") != "cancelado":
+        cab["estado"] = "borrador"
     _cancelacion(tipo, cab, existente)
     with db.tx() as con:
+        if firmado:
+            _archivar_firma(con, existente)
         if cab:
             sets = ", ".join(f"{k} = ?" for k in cab)
             con.execute(f"UPDATE {d['tabla']} SET {sets} WHERE id = ?",
@@ -371,10 +404,6 @@ def borrar(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
     return {"ok": True}
 
 
-def cab_estado(cabecera: dict) -> str | None:
-    return str(cabecera.get("estado") or "") or None
-
-
 class CambioEstado(BaseModel):
     estado: str
     motivo: str | None = None
@@ -392,7 +421,6 @@ def cambiar_estado(tipo: str, id_: int, datos: CambioEstado,
     d = _doc(tipo)
     exigir(u, tipo)
     existente = _visible(tipo, u, id_)
-    _bloqueado(tipo, existente, datos.estado)
     cab = {"estado": datos.estado}
     if tipo == "presupuestos" and datos.estado == "cancelado":
         cab["motivo_cancelacion"] = (datos.motivo or "").strip() or None

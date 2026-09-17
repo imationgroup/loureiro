@@ -211,6 +211,9 @@ a{color:var(--amber);text-underline-offset:3px}
 .aviso{font-size:.88rem;padding:10px 13px;border-radius:9px;margin-bottom:14px}
 .aviso--err{background:var(--rojo-soft);color:#FCA5A5}
 .aviso--ok{background:var(--verde-soft);color:var(--verde)}
+/* Ni error ni enhorabuena: algo que conviene leer antes de guardar, como que
+   al editar un presupuesto firmado su firma se archiva. */
+.aviso--aviso{background:var(--amber-soft);color:#FDBA74;line-height:1.5}
 
 /* ── Tarjetas y métricas ─────────────────────────────────────────────── */
 .tarjeta{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px}
