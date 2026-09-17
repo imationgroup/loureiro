@@ -50,6 +50,9 @@ var ico = {
   sincro:'<path d="M4 12a8 8 0 0 1 14-5.3L20 8"/><path d="M20 3v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 16"/><path d="M4 21v-5h5"/>',
   proforma:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 14h6M12 11v6"/>',
   altaCliente:'<path d="M14 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M15 11h6"/>',
+  normas:'<path d="M6 3h11a2 2 0 0 1 2 2v16H8a2 2 0 0 1-2-2z"/><path d="M6 17h13"/><path d="M10 7h6M10 11h6"/>',
+  arriba:'<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
+  abajo:'<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
   no:'<path d="M18 6L6 18M6 6l12 12"/>',
   equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
@@ -70,6 +73,9 @@ function puedeVer(k) {
   if (!YO) return false;
   if (k === "dashboard") return true;
   if (k === "equipo") return esAdmin();
+  // Los estatutos los lee todo el mundo: de nada sirve escribir cómo
+  // funciona la empresa si media plantilla no puede abrirlo.
+  if (k === "estatutos") return true;
   if (esAdmin()) return true;
   if (k === "ingresos") return YO.permisos.indexOf("facturas") >= 0 || YO.permisos.indexOf("contabilidad") >= 0;
   return YO.permisos.indexOf(k) >= 0;
@@ -538,6 +544,7 @@ var MODULOS = {
 };
 
 MODULOS.equipo = { titulo: "Equipo", sub: "Quién entra al panel y a qué", icono: ico.equipo, especial: "equipo" };
+MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", icono: ico.normas, especial: "estatutos" };
 
 // Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
 // lo que crea un miembro es suyo sin preguntar.
@@ -554,7 +561,7 @@ var ORDEN_MENU = [
   { sep: "Gestión", items: ["obras", "clientes", "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "costes", "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
-  { sep: "Empresa", items: ["equipo"] }
+  { sep: "Empresa", items: ["estatutos", "equipo"] }
 ];
 
 /* ── Caché de referencias (para los desplegables) ─────────────────────── */
@@ -617,6 +624,7 @@ function ir(k) {
 
   if (m.especial === "dashboard") return verDashboard();
   if (m.especial === "equipo") return verMiembros();
+  if (m.especial === "estatutos") return verEstatutos();
   if (m.especial === "agenda") return verAgenda();
   if (m.especial === "contabilidad") return verContabilidad();
   if (m.especial === "obras") return verObras();
@@ -2126,6 +2134,135 @@ function verSuscripcion() {
       }).catch(function (e) { avisar(e.message, "err"); });
     });
   }).catch(function (e) { avisar(e.message, "err"); });
+}
+
+/* ── Estatutos: cómo funciona la empresa ──────────────────────────────── */
+/* El texto se guarda en crudo y se pinta aquí. Se escapa SIEMPRE antes de
+   reconocer el formato, así que lo que escriba el administrador no puede
+   colar etiquetas en una página que lee todo el equipo. */
+function negrita(t) {
+  return esc(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+}
+
+function textoRico(txt) {
+  var h = "", lista = false;
+  String(txt || "").split(/\r?\n/).forEach(function (linea) {
+    var t = linea.trim();
+    var cerrar = function () { if (lista) { h += "</ul>"; lista = false; } };
+    if (!t) { cerrar(); return; }
+    if (t.indexOf("## ") === 0) { cerrar(); h += "<h4>" + negrita(t.slice(3)) + "</h4>"; return; }
+    if (t.indexOf("- ") === 0) {
+      if (!lista) { h += "<ul>"; lista = true; }
+      h += "<li>" + negrita(t.slice(2)) + "</li>";
+      return;
+    }
+    cerrar();
+    h += "<p>" + negrita(t) + "</p>";
+  });
+  if (lista) h += "</ul>";
+  return h;
+}
+
+function verEstatutos() {
+  if (esAdmin()) {
+    $("#vista-acciones").innerHTML =
+      '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva sección</button>";
+    $("#btn-nuevo").addEventListener("click", function () { formSeccion(null); });
+  }
+
+  api("/api/admin/estatutos").then(function (secciones) {
+    if (!secciones.length) {
+      $("#vista").innerHTML = '<div class="tabla-caja"><div class="vacia">' +
+        (esAdmin()
+          ? "Aquí se escribe cómo funciona la empresa, para que todo el equipo lo tenga a mano: " +
+            "cómo se atiende una solicitud, qué se mira en una visita, cómo se cobra una obra, " +
+            "qué hacer ante una urgencia. Pulsa «Nueva sección» para empezar."
+          : "Todavía no hay nada escrito. Cuando el administrador lo redacte, aparecerá aquí.") +
+        "</div></div>";
+      return;
+    }
+    var h = '<div class="estatutos">';
+    secciones.forEach(function (s, i) {
+      h += '<article class="tarjeta est"><div class="est__cab"><h3>' + esc(s.titulo) + "</h3>" +
+        (esAdmin()
+          ? '<div class="acciones">' +
+            (i > 0 ? '<button data-sube="' + s.id + '" title="Subir">' + svg(ico.arriba) + "</button>" : "") +
+            (i < secciones.length - 1 ? '<button data-baja="' + s.id + '" title="Bajar">' + svg(ico.abajo) + "</button>" : "") +
+            '<button data-editar="' + s.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
+            '<button class="borrar" data-borrar="' + s.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
+            "</div>"
+          : "") +
+        "</div>" +
+        '<div class="est__texto">' + textoRico(s.contenido) + "</div>" +
+        (s.actualizado
+          ? '<p class="est__pie">Actualizado ' + esc(hace(s.actualizado)) +
+            (s.autor_nombre || s.autor_email ? " por " + esc(s.autor_nombre || s.autor_email) : "") + "</p>"
+          : "") +
+        "</article>";
+    });
+    $("#vista").innerHTML = h + "</div>";
+
+    var buscar = function (id) { return secciones.filter(function (x) { return String(x.id) === String(id); })[0]; };
+    $$("[data-editar]").forEach(function (b) {
+      b.addEventListener("click", function () { formSeccion(buscar(b.dataset.editar)); });
+    });
+    var mover = function (b, hacia) {
+      b.disabled = true;
+      api("/api/admin/estatutos/" + b.dataset[hacia === "arriba" ? "sube" : "baja"] + "/mover?hacia=" + hacia,
+          { metodo: "POST" })
+        .then(function () { ir("estatutos"); })
+        .catch(function (e) { b.disabled = false; avisar(e.message, "err"); });
+    };
+    $$("[data-sube]").forEach(function (b) { b.addEventListener("click", function () { mover(b, "arriba"); }); });
+    $$("[data-baja]").forEach(function (b) { b.addEventListener("click", function () { mover(b, "abajo"); }); });
+    $$("[data-borrar]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var s = buscar(b.dataset.borrar);
+        modal("Borrar la sección",
+          "<p style='color:var(--muted);line-height:1.55'>Se va a borrar <b>" + esc(s.titulo) +
+          "</b> de los estatutos. No se puede deshacer.</p>",
+          '<button class="btn btn--fant" id="b-no">Cancelar</button>' +
+          '<button class="btn btn--peligro" id="b-si">Borrar</button>');
+        $("#b-no").addEventListener("click", cerrarModal);
+        $("#b-si").addEventListener("click", function () {
+          api("/api/admin/estatutos/" + s.id, { metodo: "DELETE" })
+            .then(function () { cerrarModal(); ir("estatutos"); })
+            .catch(function (e) { cerrarModal(); avisar(e.message, "err"); });
+        });
+      });
+    });
+  }).catch(error);
+}
+
+function formSeccion(s) {
+  var editando = !!s;
+  s = s || { titulo: "", contenido: "" };
+  modal(editando ? "Editar sección" : "Nueva sección",
+    '<div class="aviso aviso--err" id="es-err" hidden></div>' +
+    '<div class="campo"><label for="es-titulo">Título *</label>' +
+    '<input id="es-titulo" value="' + esc(s.titulo) + '" placeholder="Cómo atendemos una solicitud"></div>' +
+    '<div class="campo"><label for="es-texto">Contenido</label>' +
+    '<textarea id="es-texto" style="min-height:260px">' + esc(s.contenido) + "</textarea>" +
+    '<small style="color:var(--muted-2);font-size:.79rem">Puedes usar <b>## </b> al principio de una ' +
+    'línea para un subtítulo, <b>- </b> para viñetas y <b>**negrita**</b>.</small></div>',
+    '<button class="btn btn--fant" id="es-cancelar">Cancelar</button>' +
+    '<button class="btn btn--amber" id="es-guardar">Guardar</button>', true);
+
+  $("#es-cancelar").addEventListener("click", cerrarModal);
+  $("#es-titulo").focus();
+  $("#es-guardar").addEventListener("click", function () {
+    var datos = { titulo: $("#es-titulo").value.trim(), contenido: $("#es-texto").value };
+    var err = $("#es-err"), btn = this;
+    if (!datos.titulo) { err.textContent = "Ponle un título."; err.hidden = false; return; }
+    btn.disabled = true; btn.textContent = "Guardando…";
+    api("/api/admin/estatutos" + (editando ? "/" + s.id : ""),
+        { metodo: editando ? "PUT" : "POST", datos: datos })
+      .then(function () { cerrarModal(); ir("estatutos"); })
+      .catch(function (e) {
+        err.textContent = e.message; err.hidden = false;
+        btn.disabled = false; btn.textContent = "Guardar";
+      });
+  });
 }
 
 /* ── Equipo: quién entra al panel y a qué ─────────────────────────────── */

@@ -31,6 +31,7 @@ from pydantic import BaseModel, EmailStr, Field
 from . import auth, db, empresa
 from .admin import router as router_admin, router_crud as router_admin_crud
 from .equipo import router as router_equipo
+from .estatutos import router as router_estatutos
 from .documentos import router as router_documentos
 from .agenda import router as router_agenda, publico as router_agenda_publico
 
@@ -122,6 +123,7 @@ def _arranque():
 # se tragaría rutas concretas como /api/admin/dashboard.
 app.include_router(router_admin)
 app.include_router(router_equipo)
+app.include_router(router_estatutos)
 app.include_router(router_documentos)
 # La agenda también antes del CRUD: /api/admin/{recurso} se tragaría
 # /api/admin/agenda como si fuese una tabla.

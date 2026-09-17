@@ -320,6 +320,18 @@ CREATE TABLE IF NOT EXISTS usuarios (
   creado         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Estatutos: cómo funciona la empresa, por escrito ─────────────────
+-- Secciones que escribe el administrador y lee todo el equipo. El texto se
+-- guarda en crudo, sin HTML: lo pinta el panel.
+CREATE TABLE IF NOT EXISTS estatutos (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo          TEXT NOT NULL,
+  contenido       TEXT NOT NULL DEFAULT '',
+  orden           INTEGER NOT NULL DEFAULT 0,
+  actualizado     TEXT,
+  actualizado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
 -- Enlaces de un solo uso para crear la contraseña (invitación) o cambiarla
 -- (recuperación). Se guarda la huella SHA-256 del enlace, no el enlace: quien
 -- lea la base de datos no puede usarlos.

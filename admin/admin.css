@@ -467,6 +467,19 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .estado-rapido--descartada{ color:var(--muted); }
 .estado-rapido option{ background:var(--ink-2); color:var(--txt); }
 
+/* ── Estatutos ────────────────────────────────────────────────────────── */
+.estatutos{ display:grid; gap:16px; max-width:900px; }
+.est__cab{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:10px; }
+.est__cab h3{ font-size:1.05rem; margin:0; }
+.est__texto{ color:#C7CBD2; font-size:.94rem; line-height:1.65; }
+.est__texto p{ margin:0 0 10px; }
+.est__texto h4{ font-size:.95rem; margin:16px 0 8px; color:var(--txt); }
+.est__texto ul{ margin:0 0 12px; padding-left:20px; }
+.est__texto li{ margin-bottom:6px; }
+.est__texto b{ color:var(--txt); }
+.est__pie{ margin:14px 0 0; padding-top:10px; border-top:1px solid var(--line);
+  font-size:.79rem; color:var(--muted-2); }
+
 /* ── Agenda ───────────────────────────────────────────────────────────── */
 .ag-barra{ display:flex; justify-content:space-between; align-items:center; gap:12px;
   flex-wrap:wrap; margin-bottom:14px; }
