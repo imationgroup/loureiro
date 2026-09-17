@@ -385,6 +385,22 @@ MIGRACIONES = [
     ("citas", "motivo_cancelacion", "TEXT"),
     ("presupuestos", "motivo_cancelacion", "TEXT"),
     ("presupuestos", "cancelado_el", "TEXT"),
+    # Firma del presupuesto por el cliente. Se guardan las pruebas de quién
+    # firmó, cuándo y qué documento exacto: una firma sin eso no vale de nada
+    # el día que alguien la discuta.
+    ("presupuestos", "firma_token", "TEXT"),
+    ("presupuestos", "firmado_el", "TEXT"),
+    ("presupuestos", "firmante_nombre", "TEXT"),
+    ("presupuestos", "firmante_nif", "TEXT"),
+    ("presupuestos", "firma_ip", "TEXT"),
+    ("presupuestos", "firma_agente", "TEXT"),
+    ("presupuestos", "firma_imagen", "TEXT"),
+    ("presupuestos", "firma_huella", "TEXT"),
+    ("presupuestos", "firma_hash_pdf", "TEXT"),
+    ("presupuestos", "firma_inicio_inmediato", "INTEGER"),
+    # El PDF tal como se firmó. Se guarda entero a propósito: si el
+    # presupuesto se tocara después, lo firmado sigue siendo esto.
+    ("presupuestos", "firma_pdf", "BLOB"),
 ]
 
 # Tablas donde cada fila tiene responsable (usuario_id). Lo que ya existía
@@ -417,6 +433,7 @@ def migrar():
     # todavía cuando se ejecuta el CREATE TABLE de una base antigua.
     for tabla in TABLAS_CON_RESPONSABLE:
         con.execute(f"CREATE INDEX IF NOT EXISTS idx_{tabla}_usuario ON {tabla}(usuario_id)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_presupuestos_firma ON presupuestos(firma_token)")
     for viejo, nuevo in ESTADOS_SOLICITUD_ANTIGUOS.items():
         con.execute("UPDATE solicitudes SET estado = ? WHERE estado = ?", (nuevo, viejo))
     # Un presupuesto no se "rechaza", se cancela, y al cancelarlo se pide el
