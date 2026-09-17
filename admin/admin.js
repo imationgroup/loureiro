@@ -50,6 +50,8 @@ var ico = {
   sincro:'<path d="M4 12a8 8 0 0 1 14-5.3L20 8"/><path d="M20 3v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 16"/><path d="M4 21v-5h5"/>',
   proforma:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 14h6M12 11v6"/>',
   altaCliente:'<path d="M14 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M15 11h6"/>',
+  ok:'<path d="M20 6L9 17l-5-5"/>',
+  no:'<path d="M18 6L6 18M6 6l12 12"/>',
   equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
 };
 function svg(d, cls) {
@@ -225,6 +227,7 @@ var ESTADOS_OBRA = ["presupuesto", "en curso", "pausada", "terminada", "cancelad
 var ESTADOS_SOL  = ["pendiente", "atendida", "descartada"];
 var TIPOS_CITA   = ["visita", "presupuesto", "obra", "revisión", "otro"];
 var ESTADOS_CITA = ["pendiente", "hecha", "cancelada"];
+var QUIEN_CANCELA = ["cliente", "profesional", "empresa"];
 var CAT_COSTE    = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata", "otros"];
 
 /* ── Provincias y municipios ──────────────────────────────────────────────
@@ -318,6 +321,11 @@ var MODULOS = {
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras" },
       { c: "direccion", t: "Dirección", ayuda: "Si la dejas vacía se usa la de la obra o, si no hay obra, la del cliente" },
+      { c: "cancelada_por", t: "¿Quién la cancela?", tipo: "select",
+        ops: QUIEN_CANCELA, soloSi: { campo: "estado", valor: "cancelada" } },
+      { c: "motivo_cancelacion", t: "Motivo de la cancelación", tipo: "area",
+        soloSi: { campo: "estado", valor: "cancelada" },
+        ayuda: "Para acordarse dentro de tres meses de por qué se cayó" },
       { c: "notas", t: "Notas", tipo: "area" }
     ]
   },
@@ -775,8 +783,9 @@ function campoHTML(campo, valor, esNuevo) {
     v = (campo.pordefecto === "hoy") ? new Date().toISOString().slice(0, 10)
                                      : campo.pordefecto;
   }
-  var h = '<div class="campo">' +
-          '<label for="c-' + campo.c + '">' + esc(campo.t) + (campo.req ? " *" : "") + "</label>";
+  var h = '<div class="campo"' +
+          (campo.soloSi ? ' data-solosi="' + esc(campo.soloSi.campo) + "=" + esc(campo.soloSi.valor) + '"' : "") +
+          '><label for="c-' + campo.c + '">' + esc(campo.t) + (campo.req ? " *" : "") + "</label>";
   if (campo.tipo === "area") {
     h += '<textarea id="c-' + campo.c + '" data-c="' + campo.c + '">' + esc(v) + "</textarea>";
   } else if (campo.tipo === "select") {
@@ -901,6 +910,17 @@ function abrirFormulario(clave, registro, inicial) {
         refrescarCiudades();
       });
     }
+
+    // Campos que solo se pintan cuando otro campo tiene cierto valor: el
+    // motivo de la cancelación no tiene por qué estorbar mientras la cita
+    // sigue en pie.
+    $$("#f-form [data-solosi]").forEach(function (caja) {
+      var partes = caja.dataset.solosi.split("="), mando = $("#c-" + partes[0]);
+      if (!mando) return;
+      var repintar = function () { caja.style.display = mando.value === partes[1] ? "" : "none"; };
+      repintar();
+      mando.addEventListener("change", repintar);
+    });
 
     $("#f-cancelar").addEventListener("click", cerrarModal);
     if ($("#f-borrar")) $("#f-borrar").addEventListener("click", function () {
@@ -1393,7 +1413,7 @@ function moverStock(art) {
 
 /* ── Presupuestos y facturas ──────────────────────────────────────────── */
 var ESTADOS_DOC = {
-  presupuestos: ["borrador", "enviado", "aceptado", "rechazado"],
+  presupuestos: ["borrador", "enviado", "aceptado", "cancelado"],
   facturas: ["emitida", "cobrada", "anulada"],
   proformas: ["borrador", "enviada", "aceptada", "facturada", "anulada"]
 };
@@ -1427,7 +1447,7 @@ function verDocumentos(clave) {
         '<th class="num">Acciones</th></tr></thead><tbody>';
       docs.forEach(function (d) {
         var clase = ["aceptado", "aceptada", "cobrada", "facturada"].indexOf(d.estado) >= 0 ? "tag--verde"
-                  : (d.estado === "rechazado" || d.estado === "anulada") ? "tag--rojo" : "tag--amber";
+                  : (d.estado === "cancelado" || d.estado === "anulada") ? "tag--rojo" : "tag--amber";
         h += "<tr><td><b>" + (esc(d.numero) || "#" + d.id) + "</b>" +
              '<div style="font-size:.78rem;color:var(--muted-2)">' + d.n_lineas +
              " línea" + (d.n_lineas === 1 ? "" : "s") + "</div></td>" +
@@ -1439,6 +1459,10 @@ function verDocumentos(clave) {
              '<td class="num" style="color:var(--muted)">' + eur(d.iva) + "</td>" +
              '<td class="num"><b>' + eur(d.total) + "</b></td>" +
              '<td class="acciones">' +
+             (tipo === "presupuestos" && d.estado !== "aceptado" && d.estado !== "cancelado"
+               ? '<button data-aceptar="' + d.id + '" title="Marcar como aceptado">' + svg(ico.ok) + "</button>" +
+                 '<button data-cancelar="' + d.id + '" title="Cancelar el presupuesto">' + svg(ico.no) + "</button>"
+               : "") +
              '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
                '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
              (tipo === "presupuestos" && puedeVer("proformas")
@@ -1460,6 +1484,18 @@ function verDocumentos(clave) {
         b.addEventListener("click", function () {
           descargarPdf(tipo, b.dataset.pdf, b.dataset.num);
         });
+      });
+      $$("[data-aceptar]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          b.disabled = true;
+          api("/api/admin/documentos/" + tipo + "/" + b.dataset.aceptar + "/estado",
+              { metodo: "POST", datos: { estado: "aceptado" } })
+            .then(function () { avisar("Presupuesto aceptado"); ir(clave); })
+            .catch(function (e) { b.disabled = false; avisar(e.message, "err"); });
+        });
+      });
+      $$("[data-cancelar]").forEach(function (b) {
+        b.addEventListener("click", function () { cancelarPresupuesto(tipo, b.dataset.cancelar, clave); });
       });
       $$("[data-editar]").forEach(function (b) {
         b.addEventListener("click", function () { editarDocumento(tipo, b.dataset.editar); });
@@ -1512,6 +1548,28 @@ function verDocumentos(clave) {
         });
       });
     }).catch(error);
+}
+
+function cancelarPresupuesto(tipo, id, clave) {
+  modal("Cancelar el presupuesto",
+    '<div class="aviso aviso--err" id="cx-err" hidden></div>' +
+    '<p style="color:var(--muted);line-height:1.55">Queda como cancelado, con la fecha de hoy. ' +
+    "No se borra: sigue ahí con su número y sus líneas.</p>" +
+    '<div class="campo"><label for="cx-motivo">Motivo de la cancelación *</label>' +
+    '<textarea id="cx-motivo" placeholder="Lo deja para el año que viene, cogió otra oferta, no contesta…"></textarea></div>',
+    '<button class="btn btn--fant" id="cx-no">Volver</button>' +
+    '<button class="btn btn--peligro" id="cx-si">Cancelar el presupuesto</button>');
+  $("#cx-no").addEventListener("click", cerrarModal);
+  $("#cx-motivo").focus();
+  $("#cx-si").addEventListener("click", function () {
+    var motivo = $("#cx-motivo").value.trim(), err = $("#cx-err"), btn = this;
+    if (!motivo) { err.textContent = "Escribe el motivo."; err.hidden = false; return; }
+    btn.disabled = true;
+    api("/api/admin/documentos/" + tipo + "/" + id + "/estado",
+        { metodo: "POST", datos: { estado: "cancelado", motivo: motivo } })
+      .then(function () { cerrarModal(); avisar("Presupuesto cancelado"); ir(clave); })
+      .catch(function (e) { err.textContent = e.message; err.hidden = false; btn.disabled = false; });
+  });
 }
 
 function editarDocumento(tipo, id) {
@@ -1568,6 +1626,12 @@ function editarDocumento(tipo, id) {
           ? '<div class="campo"><label for="d-venc">Vencimiento</label><input id="d-venc" type="date" value="' + esc(doc.vencimiento) + '"></div>'
           : '<div class="campo"><label for="d-validez">Validez (días)</label><input id="d-validez" type="number" value="' + (doc.validez || 30) + '"></div>') +
       "</div>" +
+      (tipo === "presupuestos"
+        ? '<div class="campo" id="d-motivo-caja"><label for="d-motivo">Motivo de la cancelación</label>' +
+          '<textarea id="d-motivo">' + esc(doc.motivo_cancelacion) + "</textarea>" +
+          (doc.cancelado_el ? '<small style="color:var(--muted-2);font-size:.79rem">Cancelado el ' +
+            esc(fecha(doc.cancelado_el)) + "</small>" : "") + "</div>"
+        : "") +
       (esAdmin()
         ? '<div class="campo"><label for="d-resp">Responsable</label><select id="d-resp">' +
           opciones("equipo", doc.usuario_id) + "</select>" +
@@ -1634,6 +1698,16 @@ function editarDocumento(tipo, id) {
 
     pintarLineas(); pintarTotales();
 
+    // El motivo solo estorba mientras el presupuesto sigue vivo.
+    if ($("#d-motivo-caja")) {
+      var selEstado = $("#d-estado");
+      var verMotivo = function () {
+        $("#d-motivo-caja").style.display = selEstado.value === "cancelado" ? "" : "none";
+      };
+      verMotivo();
+      selEstado.addEventListener("change", verMotivo);
+    }
+
     $("#d-add").addEventListener("click", function () {
       lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
       pintarLineas(); pintarTotales();
@@ -1658,6 +1732,7 @@ function editarDocumento(tipo, id) {
       if (esFactura) cabecera.vencimiento = $("#d-venc").value || null;
       else cabecera.validez = Number($("#d-validez").value) || 30;
       if (esAdmin()) cabecera.usuario_id = $("#d-resp").value ? Number($("#d-resp").value) : null;
+      if ($("#d-motivo")) cabecera.motivo_cancelacion = $("#d-motivo").value.trim() || null;
 
       var btn = $("#d-guardar");
       btn.disabled = true; btn.textContent = "Guardando…";
@@ -1794,6 +1869,8 @@ function textoCita(c, varios) {
   return nombreTipo(c.tipo) + ": " + c.titulo + " · " + rango +
     (c.cliente ? " · " + c.cliente : "") + (c.profesional ? " (" + c.profesional + ")" : "") +
     (c.estado !== "pendiente" ? " · " + c.estado : "") +
+    (c.estado === "cancelada" && c.cancelada_por ? " (la cancela el " + c.cancelada_por + ")" : "") +
+    (c.motivo_cancelacion ? ": " + c.motivo_cancelacion : "") +
     (c.solapa ? ". ¡Este profesional tiene otra cita a la vez!" : "");
 }
 function clasesCita(c) {
@@ -1912,8 +1989,10 @@ function pintarLista(primero, citas) {
     var varios = diasDeCita(c).length > 1;
     var horas = varios ? fechaHora(c.inicio) + " → " + fechaHora(c.fin_efectivo)
                        : horaDe(c.inicio) + "–" + horaDe(c.fin_efectivo);
-    var detalle = [nombreTipo(c.tipo), c.cliente, c.profesional, c.direccion_efectiva]
-      .filter(Boolean).join(" · ");
+    var detalle = c.estado === "cancelada"
+      ? "Cancelada" + (c.cancelada_por ? " por el " + c.cancelada_por : "") +
+        (c.motivo_cancelacion ? ": " + c.motivo_cancelacion : "")
+      : [nombreTipo(c.tipo), c.cliente, c.profesional, c.direccion_efectiva].filter(Boolean).join(" · ");
     var clase = c.estado === "hecha" ? " tag--verde" : c.estado === "cancelada" ? " tag--rojo" : " tag--amber";
     h += '<button type="button" class="ag-item ' + claseTipo(c.tipo) + ' ag-item--' + esc(c.estado) +
       '" data-cita="' + c.id + '">' +
