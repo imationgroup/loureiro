@@ -198,6 +198,11 @@ a{color:var(--amber);text-underline-offset:3px}
 .campo textarea{resize:vertical;min-height:80px}
 .campo input:focus,.campo select:focus,.campo textarea:focus{outline:none;border-color:var(--amber);background:var(--ink-4)}
 .campo input::placeholder,.campo textarea::placeholder{color:var(--muted-2)}
+/* Campos que no se escriben (el importe de la obra, que lo pone el
+   presupuesto): sin caja, para que nadie se pelee con ellos. */
+.campo input[readonly]{background:transparent;border-color:var(--ink-3);
+  color:var(--muted);cursor:default}
+.campo input[readonly]:focus{border-color:var(--ink-3);background:transparent}
 .campo select{appearance:none;cursor:pointer;
   background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%239AA0AA' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center;background-size:11px;padding-right:34px}

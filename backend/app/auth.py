@@ -210,8 +210,10 @@ def fijar_responsable(u: dict, entrada: dict, datos: dict, creando: bool):
 
     - Un miembro no elige: lo que crea es suyo y no se lo puede pasar a otro.
     - El administrador puede ponerlo o cambiarlo. Si al crear no dice nada,
-      queda sin responsable, que es como estaba todo antes del equipo: lo ve
-      solo él.
+      lo que hace es suyo: es lo normal, y así lo que se da de alta desde
+      fuera del panel no queda sin dueño. Para dejarlo en blanco a propósito
+      hay que mandar el responsable vacío, que es lo que hace el desplegable
+      con «— nadie —».
 
     `entrada` es lo que llegó en la petición y `datos` lo que se va a
     escribir, que se modifica aquí.
@@ -222,6 +224,8 @@ def fijar_responsable(u: dict, entrada: dict, datos: dict, creando: bool):
             datos["usuario_id"] = u["id"]
         return
     if "usuario_id" not in entrada:
+        if creando:
+            datos["usuario_id"] = u["id"]
         return
     valor = entrada["usuario_id"]
     if valor in (None, ""):
