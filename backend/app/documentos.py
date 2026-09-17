@@ -64,11 +64,10 @@ ESTADOS = {
 }
 
 # Series que, además del contador, siguen siempre detrás del número más alto
-# que ya exista ese año. Las facturas lo necesitan por dos motivos: al activar
-# la numeración ya había facturas con número puesto a mano y la serie tiene
-# que continuar desde ahí, y si alguien fuerza un número a mano la siguiente
-# no puede repetirlo. Los presupuestos no: ahí un número forzado no debe
-# arrastrar la serie.
+# que ya exista ese año. Las facturas lo necesitan porque al activar la
+# numeración ya había facturas con el número puesto a mano y la serie tiene
+# que continuar desde ahí sin repetir ninguno. Los presupuestos no: los suyos
+# se numeran desde el contador y punto.
 CONTINUAN_DETRAS = {"facturas"}
 
 
@@ -300,13 +299,16 @@ def crear(tipo: str, doc: Documento, u: dict = Depends(sesion_actual)):
     d = _doc(tipo)
     exigir(u, tipo)
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"] and v is not None}
+    # El número lo pone la serie, nunca quien manda la petición: un número
+    # elegido a mano puede repetir uno ya emitido o dejar huecos, y una
+    # numeración de facturas con huecos o repetidos no se sostiene ante
+    # Hacienda. El campo ni siquiera está en el formulario.
+    cab.pop("numero", None)
     fijar_responsable(u, doc.cabecera, cab, creando=True)
     comprobar_referencias(u, cab)
     _cancelacion(tipo, cab)
     with db.tx() as con:
-        # El número se genera solo, salvo que venga escrito a mano: el campo
-        # sigue siendo editable para poder corregir uno concreto.
-        if tipo in SERIES and not str(cab.get("numero") or "").strip():
+        if tipo in SERIES:
             anio = int(str(cab.get("fecha") or date.today().isoformat())[:4])
             cab["numero"] = siguiente_numero(con, tipo, anio)
         if cab:
@@ -330,6 +332,10 @@ def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_act
     existente = _visible(tipo, u, id_)
     _bloqueado(tipo, existente, cab_estado(doc.cabecera))
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"]}
+    # El número que tiene puesto se queda como está. Renumerar un documento
+    # que ya salió por la puerta lo convierte en otro distinto, y los que se
+    # numeraron a mano antes de todo esto conservan el suyo.
+    cab.pop("numero", None)
     fijar_responsable(u, doc.cabecera, cab, creando=False)
     comprobar_referencias(u, cab, existente)
     _cancelacion(tipo, cab, existente)

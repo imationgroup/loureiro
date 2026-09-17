@@ -1970,16 +1970,17 @@ function editarDocumento(tipo, id) {
 
     var cuerpo = '<div class="aviso aviso--err" id="d-err" hidden></div>' +
       '<div class="rejilla-2">' +
-        '<div class="campo"><label for="d-numero">Número</label><input id="d-numero" value="' +
-          esc(doc.numero) + '" placeholder="' +
-          "Se genera solo al guardar" + '">' +
+        // El número no se escribe: lo pone la serie al guardar y luego ya no
+        // cambia. Se enseña para poder leerlo y copiarlo, nada más.
+        '<div class="campo"><label for="d-numero">Número</label>' +
+          '<input id="d-numero" readonly value="' + esc(doc.numero) +
+          '" placeholder="Se pone solo al guardar">' +
           (doc.numero ? "" :
             '<small style="color:var(--muted-2);font-size:.79rem">' +
             (esFactura
-              ? "Déjalo vacío y se numera sola, detrás de la última factura. No fuerces " +
-                "números a mano: la serie de facturas tiene que ser correlativa."
-              : "Déjalo vacío y se numera solo siguiendo la serie. Escribe uno solo si " +
-                "necesitas forzar un número concreto.") + "</small>") + "</div>" +
+              ? "Va detrás de la última factura. La serie tiene que ser correlativa, "
+                + "así que no se toca a mano."
+              : "Sigue la serie y no se toca a mano.") + "</small>") + "</div>" +
         '<div class="campo"><label for="d-fecha">Fecha</label><input id="d-fecha" type="date" value="' +
           esc(doc.fecha) + '"></div>' +
       "</div>" +
@@ -2142,7 +2143,6 @@ function editarDocumento(tipo, id) {
         return;
       }
       var cabecera = {
-        numero: $("#d-numero").value.trim() || null,
         fecha: $("#d-fecha").value || null,
         cliente_id: $("#d-cliente").value ? Number($("#d-cliente").value) : null,
         obra_id: $("#d-obra").value ? Number($("#d-obra").value) : null,
