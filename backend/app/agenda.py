@@ -34,6 +34,10 @@ PANEL_URL = "https://loureirosoluciones.es/admin/#agenda"
 
 TIPOS = ("visita", "presupuesto", "obra", "revisión", "otro")
 ESTADOS = ("pendiente", "hecha", "cancelada")
+# Una cita se puede caer en cualquier momento, y casi siempre importa saber de
+# quién salió: el cliente que no puede, el profesional que se retrasa en otra
+# obra o la empresa que reorganiza el día.
+CANCELA = ("cliente", "profesional", "empresa")
 FORMATO = "%Y-%m-%dT%H:%M"
 DURACION = timedelta(hours=1)
 
@@ -61,6 +65,15 @@ def validar_cita(nuevo: dict, existente: dict | None = None) -> None:
         raise HTTPException(422, "Tipo de cita desconocido.")
     if c.get("estado") and c["estado"] not in ESTADOS:
         raise HTTPException(422, "Estado de cita desconocido.")
+
+    if c.get("estado") == "cancelada":
+        if (c.get("cancelada_por") or "") not in CANCELA:
+            raise HTTPException(422, "Di quién cancela la cita: el cliente, el profesional o la empresa.")
+    elif existente and (existente.get("cancelada_por") or existente.get("motivo_cancelacion")):
+        # Si se reactiva, se borra el rastro de la cancelación anterior para
+        # que no quede un motivo que ya no viene a cuento.
+        nuevo["cancelada_por"] = None
+        nuevo["motivo_cancelacion"] = None
 
 
 # ── Consulta de citas ───────────────────────────────────────────────────────
@@ -145,6 +158,8 @@ def _citas(desde: str, hasta: str, u: dict | None = None) -> list[dict]:
             "obra_id": c["obra_id"], "obra": c["obra"],
             "direccion": c["direccion"], "direccion_efectiva": _direccion(c),
             "notas": c["notas"], "solapa": False,
+            "cancelada_por": c.get("cancelada_por"),
+            "motivo_cancelacion": c.get("motivo_cancelacion"),
             "_ini": ini, "_fin": fin,
         })
     # Dos citas a la vez del mismo profesional: se marcan las dos. Las

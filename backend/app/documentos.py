@@ -26,7 +26,7 @@ DOCUMENTOS = {
         "tabla": "presupuestos", "lineas": "presupuesto_lineas",
         "fk": "presupuesto_id",
         "campos": ["numero", "cliente_id", "obra_id", "fecha", "validez",
-                   "estado", "notas"],
+                   "estado", "notas", "motivo_cancelacion", "cancelado_el"],
     },
     "facturas": {
         "tabla": "facturas", "lineas": "factura_lineas",
@@ -50,6 +50,14 @@ DOCUMENTOS = {
 # proforma no es una factura, y si consumiese números de esa serie dejaría
 # huecos en una numeración que tiene que ser correlativa.
 SERIES = {"presupuestos": "P", "proformas": "PF", "facturas": "F"}
+
+# Estados válidos de cada documento. Un presupuesto no se "rechaza": se
+# cancela, y al cancelarlo hay que decir por qué.
+ESTADOS = {
+    "presupuestos": ("borrador", "enviado", "aceptado", "cancelado"),
+    "facturas": ("emitida", "cobrada", "anulada"),
+    "proformas": ("borrador", "enviada", "aceptada", "facturada", "anulada"),
+}
 
 # Series que, además del contador, siguen siempre detrás del número más alto
 # que ya exista ese año. Las facturas lo necesitan por dos motivos: al activar
@@ -121,6 +129,29 @@ def _doc(tipo: str):
     if not d:
         raise HTTPException(404, "Tipo de documento desconocido")
     return d
+
+
+def _cancelacion(tipo: str, cab: dict, existente: dict | None = None):
+    """Reglas de la cancelación de un presupuesto.
+
+    Cancelar sin motivo deja un documento muerto del que nadie se acuerda por
+    qué cayó, que es justo lo que interesa saber al cabo de unos meses. La
+    fecha se pone sola y no se pisa si ya estaba cancelado.
+    """
+    actual = {**(existente or {}), **cab}
+    if cab.get("estado") and cab["estado"] not in ESTADOS[tipo]:
+        raise HTTPException(422, "Estado de documento desconocido.")
+    if tipo != "presupuestos":
+        return
+    if actual.get("estado") == "cancelado":
+        if not str(actual.get("motivo_cancelacion") or "").strip():
+            raise HTTPException(422, "Di por qué se cancela el presupuesto.")
+        if not actual.get("cancelado_el"):
+            cab["cancelado_el"] = date.today().isoformat()
+    elif actual.get("estado") and (existente or {}).get("estado") == "cancelado":
+        # Vuelve a estar vivo: se borra el rastro de la cancelación anterior.
+        cab["motivo_cancelacion"] = None
+        cab["cancelado_el"] = None
 
 
 def totales(lineas: list[dict]) -> dict:
@@ -237,6 +268,7 @@ def crear(tipo: str, doc: Documento, u: dict = Depends(sesion_actual)):
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"] and v is not None}
     fijar_responsable(u, doc.cabecera, cab, creando=True)
     comprobar_referencias(u, cab)
+    _cancelacion(tipo, cab)
     with db.tx() as con:
         # El número se genera solo, salvo que venga escrito a mano: el campo
         # sigue siendo editable para poder corregir uno concreto.
@@ -265,6 +297,7 @@ def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_act
     cab = {k: v for k, v in doc.cabecera.items() if k in d["campos"]}
     fijar_responsable(u, doc.cabecera, cab, creando=False)
     comprobar_referencias(u, cab, existente)
+    _cancelacion(tipo, cab, existente)
     with db.tx() as con:
         if cab:
             sets = ", ".join(f"{k} = ?" for k in cab)
@@ -291,6 +324,35 @@ def borrar(tipo: str, id_: int, u: dict = Depends(sesion_actual)):
         if cur.rowcount == 0:
             raise HTTPException(404, "No encontrado")
     return {"ok": True}
+
+
+class CambioEstado(BaseModel):
+    estado: str
+    motivo: str | None = None
+
+
+@router.post("/documentos/{tipo}/{id_}/estado")
+def cambiar_estado(tipo: str, id_: int, datos: CambioEstado,
+                   u: dict = Depends(sesion_actual)):
+    """Acepta o cancela un documento desde el listado, sin abrir la ficha.
+
+    Solo toca la cabecera: si esto reutilizase el PUT de siempre, que sustituye
+    las líneas por las que le manden, aceptar un presupuesto desde la lista se
+    llevaría por delante todo su detalle.
+    """
+    d = _doc(tipo)
+    exigir(u, tipo)
+    existente = _visible(tipo, u, id_)
+    cab = {"estado": datos.estado}
+    if tipo == "presupuestos" and datos.estado == "cancelado":
+        cab["motivo_cancelacion"] = (datos.motivo or "").strip() or None
+    _cancelacion(tipo, cab, existente)
+    sets = ", ".join(f"{k} = ?" for k in cab)
+    with db.tx() as con:
+        con.execute(f"UPDATE {d['tabla']} SET {sets} WHERE id = ?", (*cab.values(), id_))
+    if tipo == "facturas":
+        sincronizar_ingreso(id_)
+    return _ver(tipo, id_)
 
 
 @router.get("/documentos/{tipo}/{id_}/pdf")

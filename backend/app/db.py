@@ -367,6 +367,12 @@ MIGRACIONES = [
     ("ingresos", "factura_id", "INTEGER"),
     ("solicitudes", "cliente_id", "INTEGER"),
     ("sesiones", "usuario_id", "INTEGER"),
+    # Cancelaciones: quién las pide y por qué. Sin esto, una cita cancelada o
+    # un presupuesto caído no dejan rastro de lo que pasó.
+    ("citas", "cancelada_por", "TEXT"),
+    ("citas", "motivo_cancelacion", "TEXT"),
+    ("presupuestos", "motivo_cancelacion", "TEXT"),
+    ("presupuestos", "cancelado_el", "TEXT"),
 ]
 
 # Tablas donde cada fila tiene responsable (usuario_id). Lo que ya existía
@@ -401,6 +407,9 @@ def migrar():
         con.execute(f"CREATE INDEX IF NOT EXISTS idx_{tabla}_usuario ON {tabla}(usuario_id)")
     for viejo, nuevo in ESTADOS_SOLICITUD_ANTIGUOS.items():
         con.execute("UPDATE solicitudes SET estado = ? WHERE estado = ?", (nuevo, viejo))
+    # Un presupuesto no se "rechaza", se cancela, y al cancelarlo se pide el
+    # motivo. Los que quedaron rechazados pasan al nombre nuevo.
+    con.execute("UPDATE presupuestos SET estado = 'cancelado' WHERE estado = 'rechazado'")
     con.commit()
 
 
