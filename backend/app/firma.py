@@ -34,7 +34,7 @@ import secrets
 from datetime import datetime, timezone
 from html import escape
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from . import db, empresa, pdf
@@ -190,7 +190,29 @@ def ver_firma(id_: int, u: dict = Depends(sesion_actual)):
         "hash_pdf": doc.get("firma_hash_pdf"),
         "inicio_inmediato": bool(doc.get("firma_inicio_inmediato")),
         "enlace": _enlace(doc["firma_token"]) if doc.get("firma_token") else None,
+        # Las de antes de editarlo. Se quedan guardadas para poder enseñar qué
+        # aceptó el cliente en su día, aunque el presupuesto ya diga otra cosa.
+        "anteriores": db.filas(
+            """SELECT id, numero, firmado_el, firmante_nombre, firmante_nif,
+                      huella, hash_pdf, inicio_inmediato, anulada_el
+               FROM firmas WHERE presupuesto_id = ? ORDER BY id DESC""", (id_,)),
     }
+
+
+@router.get("/documentos/presupuestos/{id_}/firmas/{firma_id}/pdf")
+def pdf_firma_archivada(id_: int, firma_id: int, u: dict = Depends(sesion_actual)):
+    """El PDF de una firma que dejó de valer, tal como se firmó."""
+    exigir(u, "presupuestos")
+    _presupuesto(id_, u)
+    f = db.fila("SELECT numero, pdf FROM firmas WHERE id = ? AND presupuesto_id = ?",
+                (firma_id, id_))
+    if not (f and f["pdf"]):
+        raise HTTPException(404, "No hay PDF guardado de esa firma")
+    nombre = (f["numero"] or f"presupuesto-{id_}").replace("/", "-")
+    return Response(
+        content=bytes(f["pdf"]), media_type="application/pdf",
+        headers={"Content-Disposition":
+                 f'attachment; filename="{nombre}-firmado-{firma_id}.pdf"'})
 
 
 # ── Lo que ve y hace el cliente (sin sesión, lo protege el token) ────────
