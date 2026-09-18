@@ -345,6 +345,22 @@ CREATE TABLE IF NOT EXISTS visita_fotos (
   creado      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Categorías y estados de los gastos ───────────────────────────────
+-- Se editan desde el panel (Gastos > Categorías / Estados). Los gastos guardan
+-- el nombre, no el id: ver gastos.py.
+CREATE TABLE IF NOT EXISTS gasto_categorias (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre  TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  orden   INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS gasto_estados (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre  TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  pagado  INTEGER NOT NULL DEFAULT 0,   -- si un gasto en este estado está pagado
+  orden   INTEGER NOT NULL DEFAULT 0
+);
+
 -- ── Notas ────────────────────────────────────────────────────────────
 -- Apuntes sueltos. Pueden ir colgados de una obra (lo que se habló con el
 -- cliente, lo que falta por pedir) o de ninguna.
@@ -471,7 +487,16 @@ MIGRACIONES = [
     ("presupuestos", "firma_pdf", "BLOB"),
     # De qué visita sale el presupuesto: las fotos y notas de la toma de datos.
     ("presupuestos", "visita_id", "INTEGER"),
+    # Estado del gasto (pendiente, pagado… editable). `pagado` se sigue
+    # rellenando a juego, que es lo que suma contabilidad.
+    ("costes", "estado", "TEXT"),
 ]
+
+# Punto de partida de las listas editables de gastos. Solo se siembran si la
+# tabla está vacía: después son del usuario.
+CATEGORIAS_GASTO = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata",
+                    "desplazamiento", "otros"]
+ESTADOS_GASTO = [("pendiente", 0), ("pagado", 1)]
 
 # Tablas donde cada fila tiene responsable (usuario_id). Lo que ya existía
 # antes del equipo queda con el responsable vacío, que es lo del
@@ -507,6 +532,24 @@ def migrar():
     con.execute("CREATE INDEX IF NOT EXISTS idx_presupuestos_firma ON presupuestos(firma_token)")
     for viejo, nuevo in ESTADOS_SOLICITUD_ANTIGUOS.items():
         con.execute("UPDATE solicitudes SET estado = ? WHERE estado = ?", (nuevo, viejo))
+    # Listas de gastos: se siembran la primera vez, y se añaden las categorías
+    # que ya usaba algún gasto para que ninguno se quede con una que no existe.
+    if not con.execute("SELECT COUNT(*) FROM gasto_categorias").fetchone()[0]:
+        for i, nombre in enumerate(CATEGORIAS_GASTO, 1):
+            con.execute("INSERT INTO gasto_categorias (nombre, orden) VALUES (?,?)", (nombre, i))
+    con.execute("""INSERT OR IGNORE INTO gasto_categorias (nombre, orden)
+                   SELECT DISTINCT categoria, 100 FROM costes
+                   WHERE categoria IS NOT NULL AND trim(categoria) != ''""")
+    if not con.execute("SELECT COUNT(*) FROM gasto_estados").fetchone()[0]:
+        for i, (nombre, pagado) in enumerate(ESTADOS_GASTO, 1):
+            con.execute("INSERT INTO gasto_estados (nombre, pagado, orden) VALUES (?,?,?)",
+                        (nombre, pagado, i))
+    # Gastos sin estado (los de antes, o uno que se colara sin él): el primer
+    # estado que diga lo mismo que su casilla de pagado.
+    con.execute("""UPDATE costes SET estado = (
+                     SELECT nombre FROM gasto_estados e WHERE e.pagado = costes.pagado
+                     ORDER BY orden, id LIMIT 1)
+                   WHERE estado IS NULL OR estado = ''""")
     # Un presupuesto no se "rechaza", se cancela, y al cancelarlo se pide el
     # motivo. Los que quedaron rechazados pasan al nombre nuevo.
     con.execute("UPDATE presupuestos SET estado = 'cancelado' WHERE estado = 'rechazado'")

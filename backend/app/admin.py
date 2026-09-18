@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from . import db
 from .agenda import validar_cita
 from .documentos import totales
+from .gastos import completar_gasto, estado_pendiente
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
                    limpiar_intentos, publico, puede, registrar_intento, sesion_actual,
@@ -169,8 +170,9 @@ TABLAS = {
         modulo="obras", lectura=_LEE_OBRAS, responsable=True),
     "costes": Tabla("costes",
         ["obra_id", "profesional_id", "proveedor_id", "categoria", "concepto",
-         "importe", "iva", "fecha", "factura_ref", "pagado", "notas"],
+         "importe", "iva", "fecha", "factura_ref", "estado", "notas"],
         orden="fecha DESC, id DESC", obligatorios=("concepto",), presentes=("obra_id",),
+        validar=completar_gasto,
         modulo="costes", responsable=True),
     "ingresos": Tabla("ingresos",
         ["obra_id", "cliente_id", "concepto", "importe", "iva", "fecha",
@@ -635,13 +637,15 @@ def mover_stock(stock_id: int, m: Movimiento, u: dict = Depends(sesion_actual)):
             importe = (art["precio_unitario"] or 0) * m.cantidad
             if importe:
                 con.execute("""INSERT INTO costes
-                               (obra_id, categoria, concepto, importe, iva, fecha, notas, usuario_id)
-                               VALUES (?,?,?,?,?,?,?,?)""",
+                               (obra_id, categoria, concepto, importe, iva, fecha, notas, usuario_id,
+                                estado, pagado)
+                               VALUES (?,?,?,?,?,?,?,?,?,0)""",
                             (m.obra_id, "material",
                              f"Salida de almacén: {art['nombre']} "
                              f"({m.cantidad:g} {art['unidad']})",
                              importe, 21, m.fecha or date.today().isoformat(),
-                             "Generado automáticamente desde almacén", obra.get("usuario_id")))
+                             "Generado automáticamente desde almacén", obra.get("usuario_id"),
+                             estado_pendiente(con)))
     return {"ok": True, "cantidad": nueva}
 
 

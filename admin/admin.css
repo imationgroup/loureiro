@@ -685,3 +685,7 @@ td.acciones button.borrar:hover{color:var(--rojo)}
   padding:9px 12px; font:inherit; font-size:.9rem; min-width:240px; }
 .herr__cliente:focus{ outline:none; border-color:var(--amber); }
 @media (max-width:640px){ .herr__cliente, .herr select, .herr input[type="search"]{ width:100%; min-width:0; } }
+/* Submenús del lateral (Gastos > Categorías, Estados). */
+.lat__nav button .lat__flecha{ width:14px; height:14px; margin-left:auto; opacity:.7; }
+.lat__nav button.lat__sub{ padding:7px 13px 7px 42px; font-size:.86rem; }
+#tabla-resumen .metricas{ margin-bottom:16px; }
