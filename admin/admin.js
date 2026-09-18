@@ -347,7 +347,9 @@ var MODULOS = {
       { c: "inicio", t: "Empieza", tipo: "fechahora", req: true, mitad: true },
       { c: "fin", t: "Termina", tipo: "fechahora", mitad: true, ayuda: "Se pone sola una hora después. Cámbiala si dura más, aunque sean varios días" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true },
-      { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
+      // Se escribe el cliente y el desplegable de obras se queda con las suyas.
+      { c: "cliente_id", t: "Cliente", tipo: "busca", de: "clientes", mitad: true, filtraObras: "obra_id",
+        placeholder: "Escribe para buscar el cliente", etiqueta: function (c) { return c.nombre; } },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras" },
       { c: "direccion", t: "Dirección", ayuda: "Si la dejas vacía se usa la de la obra o, si no hay obra, la del cliente" },
       { c: "cancelada_por", t: "¿Quién la cancela?", tipo: "select",
@@ -1080,6 +1082,8 @@ function campoHTML(campo, valor, esNuevo) {
     var ops = opcionesBusca(campo);
     var yaEsta = ops.filter(function (o) { return String(o.id) === String(v); })[0];
     h += '<input id="c-' + campo.c + '" data-busca="' + campo.c + '"' +
+         // Si además filtra obras, lo engancha el mismo código que en Gastos.
+         (campo.filtraObras ? ' data-filtra-obras="' + esc(campo.filtraObras) + '" data-lista="' + esc(campo.de) + '"' : "") +
          ' list="lista-' + campo.c + '" autocomplete="off"' +
          ' placeholder="' + esc(campo.placeholder || "Escribe para buscar…") + '"' +
          ' value="' + esc(yaEsta ? yaEsta.txt : "") + '">' +
@@ -1330,6 +1334,8 @@ function abrirFormulario(clave, registro, inicial) {
       clienteDeLaObra();
       filtrar();
       inp.addEventListener("input", filtrar);
+      // También al salir del campo: el buscador borra lo que no es un cliente.
+      inp.addEventListener("change", filtrar);
       sel.addEventListener("change", clienteDeLaObra);
     });
 
