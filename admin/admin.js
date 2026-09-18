@@ -1755,15 +1755,29 @@ function verObras() {
         $("#vista").innerHTML = '<div class="tabla-caja"><div class="vacia">Todavía no hay obras. Pulsa «Nueva obra».</div></div>';
         return;
       }
-      var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr>' +
-        "<th>Obra</th><th>Cliente</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
-        "<th>Estado</th><th>Profesionales</th>" + (conNotas ? "<th>Notas</th>" : "") +
-        '<th class="num">Presupuestado</th><th class="num">Gastos</th><th class="num">Facturado</th>' +
-        '<th class="num">Margen</th><th class="num">Acciones</th></tr></thead><tbody>';
-      obras.forEach(function (o) {
+      // Filtro por cliente (se escribe) y por estado. Se conserva al volver
+      // de guardar una obra, como el de Gastos.
+      var est = FILTRO.obras = FILTRO.obras || { cliente: "", estado: "" };
+      $("#vista").innerHTML =
+        '<div class="herr">' +
+          '<input id="filtro-cliente" list="lista-filtro-cliente" autocomplete="off" class="herr__cliente"' +
+          ' placeholder="Cliente: escribe para filtrar…" value="' + esc(est.cliente) + '">' +
+          '<datalist id="lista-filtro-cliente">' + (cache.clientes || []).map(function (c) {
+            return '<option value="' + esc(c.nombre) + '"></option>';
+          }).join("") + "</datalist>" +
+          '<select id="filtro-estado" aria-label="Estado"><option value="">Todos los estados</option>' +
+          ESTADOS_OBRA.map(function (e) {
+            return '<option value="' + esc(e) + '"' + (e === est.estado ? " selected" : "") + ">" + esc(e) + "</option>";
+          }).join("") + "</select>" +
+          '<input type="search" id="buscar" placeholder="Buscar obra…">' +
+        "</div>" +
+        '<div id="obras-resumen"></div>' +
+        '<div class="tabla-caja"><div class="tabla-scroll" id="obras-tabla"></div></div>';
+
+      function fila(o) {
         var margen = (o.importe_venta || 0) - (o.costes || 0);
         var pct = o.importe_venta ? Math.round(margen / o.importe_venta * 100) : null;
-        h += "<tr><td><b>" + esc(o.titulo) + "</b>" +
+        return "<tr><td><b>" + esc(o.titulo) + "</b>" +
              (o.codigo ? '<div style="font-size:.78rem;color:var(--muted-2)">' + esc(o.codigo) + "</div>" : "") +
              "</td><td>" + (esc(o.cliente) || "—") + "</td>" +
              (esAdmin() ? "<td>" + (esc(nombreDe("equipo", o.usuario_id)) || "—") + "</td>" : "") +
@@ -1781,25 +1795,59 @@ function verObras() {
              (pct !== null ? '<div style="font-size:.76rem;color:var(--muted)">' + pct + "%</div>" : "") + "</td>" +
              '<td class="acciones"><button data-editar="' + o.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
              '<button class="borrar" data-borrar="' + o.id + '" title="Borrar">' + svg(ico.papelera) + "</button></td></tr>";
-      });
-      $("#vista").innerHTML = h + "</tbody></table></div></div>";
+      }
 
-      $$("[data-editar]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          api("/api/admin/obras").then(function (todas) {
-            abrirFormulario("obras", todas.filter(function (x) { return x.id == b.dataset.editar; })[0]);
+      function repintar() {
+        var clis = clientesQueEncajan("clientes", est.cliente), q = llano($("#buscar").value);
+        var vistas = obras.filter(function (o) {
+          if (est.estado && o.estado !== est.estado) return false;
+          if (clis && clis.indexOf(String(o.cliente_id)) < 0) return false;
+          return !q || llano([o.titulo, o.codigo, o.cliente, o.ciudad, o.estado].join(" ")).indexOf(q) >= 0;
+        });
+
+        // Resumen de lo que se ve: presupuestado, gastos y margen.
+        var sum = function (c) { return vistas.reduce(function (a, o) { return a + (Number(o[c]) || 0); }, 0); };
+        var venta = sum("importe_venta"), gastos = sum("costes"), margen = venta - gastos;
+        $("#obras-resumen").innerHTML = '<div class="metricas">' +
+          metrica(eur(venta), "Presupuestado · " + vistas.length + " obra" + (vistas.length === 1 ? "" : "s"), "metrica--azul") +
+          metrica(eur(gastos), "Gastos", "metrica--rojo") +
+          metrica(eur(margen), "Margen" + (venta ? " · " + Math.round(margen / venta * 100) + " %" : ""),
+                  margen >= 0 ? "metrica--verde" : "metrica--rojo") +
+          "</div>";
+
+        var caja = $("#obras-tabla");
+        if (!vistas.length) {
+          caja.innerHTML = '<div class="vacia">Ninguna obra con estos filtros.</div>';
+          return;
+        }
+        caja.innerHTML = "<table><thead><tr>" +
+          "<th>Obra</th><th>Cliente</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
+          "<th>Estado</th><th>Profesionales</th>" + (conNotas ? "<th>Notas</th>" : "") +
+          '<th class="num">Presupuestado</th><th class="num">Gastos</th><th class="num">Facturado</th>' +
+          '<th class="num">Margen</th><th class="num">Acciones</th></tr></thead><tbody>' +
+          vistas.map(fila).join("") + "</tbody></table>";
+
+        $$("[data-editar]", caja).forEach(function (b) {
+          b.addEventListener("click", function () {
+            api("/api/admin/obras").then(function (todas) {
+              abrirFormulario("obras", todas.filter(function (x) { return x.id == b.dataset.editar; })[0]);
+            });
           });
         });
-      });
-      $$("[data-borrar]").forEach(function (b) {
-        b.addEventListener("click", function () { confirmarBorrado("obras", b.dataset.borrar); });
-      });
-      $$("[data-equipo]").forEach(function (b) {
-        b.addEventListener("click", function () { verEquipo(b.dataset.equipo); });
-      });
-      $$("[data-notas]").forEach(function (b) {
-        b.addEventListener("click", function () { notasDeObra(b.dataset.notas); });
-      });
+        $$("[data-borrar]", caja).forEach(function (b) {
+          b.addEventListener("click", function () { confirmarBorrado("obras", b.dataset.borrar); });
+        });
+        $$("[data-equipo]", caja).forEach(function (b) {
+          b.addEventListener("click", function () { verEquipo(b.dataset.equipo); });
+        });
+        $$("[data-notas]", caja).forEach(function (b) {
+          b.addEventListener("click", function () { notasDeObra(b.dataset.notas); });
+        });
+      }
+      repintar();
+      $("#filtro-cliente").addEventListener("input", function () { est.cliente = this.value; repintar(); });
+      $("#filtro-estado").addEventListener("change", function () { est.estado = this.value; repintar(); });
+      $("#buscar").addEventListener("input", repintar);
     }).catch(error);
 }
 

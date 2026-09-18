@@ -656,7 +656,7 @@ def informe_obras(u: dict = Depends(sesion_actual)):
     exigir(u, "obras")
     cond, params = filtro_responsable(u, "o")
     return db.filas(f"""
-        SELECT o.id, o.codigo, o.titulo, o.estado, o.ciudad, o.importe_venta, o.usuario_id,
+        SELECT o.id, o.codigo, o.titulo, o.estado, o.ciudad, o.importe_venta, o.usuario_id, o.cliente_id,
                c.nombre AS cliente,
                COALESCE((SELECT SUM(importe) FROM costes   WHERE obra_id = o.id), 0) AS costes,
                COALESCE((SELECT SUM(importe) FROM ingresos WHERE obra_id = o.id), 0) AS facturado,
