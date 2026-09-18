@@ -146,10 +146,19 @@ def _correo_firma(doc: dict, cliente: dict, enlace: str) -> bool:
                       body=texto, html=html)
 
 
+class EnvioFirma(BaseModel):
+    # correo: lo manda el servidor. whatsapp: el servidor solo prepara el
+    # enlace y el panel abre WhatsApp con el mensaje escrito, porque el
+    # mensaje sale del teléfono de quien lo manda y no de aquí.
+    canal: str = Field(default="correo", pattern="^(correo|whatsapp)$")
+
+
 @router.post("/documentos/presupuestos/{id_}/enviar-firma")
-def enviar_a_firmar(id_: int, u: dict = Depends(sesion_actual)):
-    """Genera el enlace de firma y se lo manda al cliente por correo."""
+def enviar_a_firmar(id_: int, datos: EnvioFirma | None = None,
+                    u: dict = Depends(sesion_actual)):
+    """Genera el enlace de firma y se lo manda al cliente por correo o WhatsApp."""
     exigir(u, "presupuestos")
+    canal = (datos or EnvioFirma()).canal
     doc = _presupuesto(id_, u)
     if doc.get("firmado_el"):
         raise HTTPException(status.HTTP_409_CONFLICT, "Este presupuesto ya está firmado.")
@@ -164,6 +173,10 @@ def enviar_a_firmar(id_: int, u: dict = Depends(sesion_actual)):
 
     cliente = db.fila("SELECT * FROM clientes WHERE id = ?", (doc["cliente_id"],)) \
         if doc["cliente_id"] else None
+    if canal == "whatsapp":
+        return {"enviado": False, "enlace": enlace,
+                "telefono": (cliente or {}).get("telefono"),
+                "nombre": (cliente or {}).get("nombre")}
     if not (cliente and (cliente.get("email") or "").strip()):
         # Sin correo no se puede mandar, pero el enlace vale igual por WhatsApp.
         return {"enviado": False, "enlace": enlace,

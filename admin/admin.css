@@ -646,3 +646,19 @@ td.acciones button.borrar:hover{color:var(--rojo)}
   .vis-lista{ grid-template-columns:1fr; }
   .fotos{ grid-template-columns:repeat(3, 1fr); }
 }
+
+/* ── Mandar a firmar: por dónde ──────────────────────────────────────── */
+.envios{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0; }
+.envio{ display:flex; align-items:center; gap:12px; text-align:left; font:inherit; color:var(--txt);
+  background:var(--ink-3); border:1px solid var(--line-2); border-radius:var(--r); padding:14px;
+  cursor:pointer; min-width:0; }
+.envio:hover{ border-color:var(--amber); }
+.envio svg{ flex:none; width:24px; height:24px; fill:none; stroke:var(--amber); stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round; }
+.envio span{ display:grid; gap:2px; min-width:0; }
+.envio small{ font-size:.78rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
+.envio--off{ opacity:.5; cursor:not-allowed; }
+.envio--off:hover{ border-color:var(--line-2); }
+.envio--off svg{ stroke:var(--muted-2); }
+.envio.is-cargando{ opacity:.6; pointer-events:none; }
+@media (max-width:640px){ .envios{ grid-template-columns:1fr; } }
