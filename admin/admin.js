@@ -257,7 +257,7 @@ function opcionesIva(v) {
     return '<option value="' + o.v + '"' + (Number(o.v) === Number(v) ? " selected" : "") + ">" + esc(o.t) + "</option>";
   }).join("");
 }
-var CAT_COSTE    = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata", "otros"];
+var CAT_COSTE    = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata", "desplazamiento", "otros"];
 
 /* ── Provincias y municipios ──────────────────────────────────────────────
    Ourense va con sus 92 concellos completos porque es la zona de trabajo.
@@ -496,7 +496,8 @@ var MODULOS = {
   // lo que cambia es el nombre que se ve.
   costes: {
     titulo: "Gastos", sub: "Todo lo que sale de caja, por obra o de la empresa", icono: ico.euro,
-    recurso: "costes", uno: "gasto",
+    // «nuevo» porque gasto es masculino: el título por defecto es «Nueva …».
+    recurso: "costes", uno: "gasto", nuevo: "Nuevo gasto",
     // Desplegable encima de la tabla para ver los gastos de una sola obra.
     filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Gastos de empresa",
               cliente: "clientes" },
@@ -1199,7 +1200,7 @@ function abrirFormulario(clave, registro, inicial) {
     if (buffer.length) cuerpo += campoHTML(buffer[0], vals && vals[buffer[0].c], !editando);
     cuerpo += "</form>";
 
-    modal(m.uno ? (editando ? "Editar " : "Nueva ") + m.uno
+    modal(m.uno ? (editando ? "Editar " + m.uno : m.nuevo || "Nueva " + m.uno)
                : (editando ? "Editar " : "Nuevo en ") + m.titulo.toLowerCase(), cuerpo,
       (editando && m.borrarDesdeFicha
         ? '<button class="btn btn--peligro" id="f-borrar" style="margin-right:auto">Borrar</button>'
