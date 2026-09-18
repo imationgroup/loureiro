@@ -532,6 +532,15 @@ def migrar():
     con.execute("CREATE INDEX IF NOT EXISTS idx_presupuestos_firma ON presupuestos(firma_token)")
     for viejo, nuevo in ESTADOS_SOLICITUD_ANTIGUOS.items():
         con.execute("UPDATE solicitudes SET estado = ? WHERE estado = ?", (nuevo, viejo))
+    # El importe de una obra es la base de su presupuesto, sin IVA, como los
+    # gastos con los que se compara (antes se copiaba el total con IVA y el
+    # margen salía inflado). Se recalcula siempre: si el presupuesto se retocó,
+    # la obra queda al día. Las obras sin presupuesto llevan el suyo a mano.
+    con.execute("""UPDATE obras SET importe_venta = (
+                     SELECT ROUND(SUM(cantidad * precio), 2) FROM presupuesto_lineas l
+                     WHERE l.presupuesto_id = obras.presupuesto_id)
+                   WHERE presupuesto_id IS NOT NULL AND EXISTS (
+                     SELECT 1 FROM presupuesto_lineas l WHERE l.presupuesto_id = obras.presupuesto_id)""")
     # Listas de gastos: se siembran la primera vez, y se añaden las categorías
     # que ya usaba algún gasto para que ninguno se quede con una que no existe.
     if not con.execute("SELECT COUNT(*) FROM gasto_categorias").fetchone()[0]:

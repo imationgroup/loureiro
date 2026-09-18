@@ -477,10 +477,10 @@ var MODULOS = {
           return p.numero + " · " + (p.cliente || "sin cliente") + " · " + eur(p.total);
         },
         filtra: function (p) { return p.estado !== "cancelado"; },
-        trae: [{ campo: "importe_venta", de: "total" },
+        trae: [{ campo: "importe_venta", de: "base" },
                { campo: "cliente_id", de: "cliente_id" }],
         ayuda: "De aquí salen el importe y el cliente de la obra. Los cancelados no se ofrecen." },
-      { c: "importe_venta", t: "Importe presupuestado al cliente", tipo: "eurofijo",
+      { c: "importe_venta", t: "Importe presupuestado al cliente (sin IVA)", tipo: "eurofijo",
         placeholder: "Sale del presupuesto que elijas" },
       { c: "direccion", t: "Dirección" },
       { c: "cp", t: "Código postal", mitad: true },
@@ -1809,8 +1809,8 @@ function verObras() {
         var sum = function (c) { return vistas.reduce(function (a, o) { return a + (Number(o[c]) || 0); }, 0); };
         var venta = sum("importe_venta"), gastos = sum("costes"), margen = venta - gastos;
         $("#obras-resumen").innerHTML = '<div class="metricas">' +
-          metrica(eur(venta), "Presupuestado · " + vistas.length + " obra" + (vistas.length === 1 ? "" : "s"), "metrica--azul") +
-          metrica(eur(gastos), "Gastos", "metrica--rojo") +
+          metrica(eur(venta), "Presupuestado sin IVA · " + vistas.length + " obra" + (vistas.length === 1 ? "" : "s"), "metrica--azul") +
+          metrica(eur(gastos), "Gastos sin IVA", "metrica--rojo") +
           metrica(eur(margen), "Margen" + (venta ? " · " + Math.round(margen / venta * 100) + " %" : ""),
                   margen >= 0 ? "metrica--verde" : "metrica--rojo") +
           "</div>";
