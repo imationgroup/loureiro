@@ -247,6 +247,31 @@ def sincronizar_ingreso(factura_id: int):
                            VALUES (?,?,?,?,?,?,?,?,?,?)""", datos)
 
 
+# Corrección de una sola vez (2026-09-18). Hasta el PR #70 el precio de las
+# líneas se guardaba tal como se tecleaba, y el usuario siempre tecleó el
+# precio con IVA: el documento le sumaba el IVA otra vez. Se pasa cada precio
+# guardado a base, se rehacen los apuntes de ingresos de las facturas y el
+# importe de las obras. Una marca en `ajustes` impide aplicarla dos veces.
+# Copia de la base de antes: /data/copia-antes-precios-con-iva-2026-09-18.db
+MARCA_PRECIOS_IVA = "correccion_precios_con_iva_2026_09_18"
+
+
+def corregir_precios_con_iva():
+    if db.fila("SELECT 1 FROM ajustes WHERE clave = ?", (MARCA_PRECIOS_IVA,)):
+        return
+    with db.tx() as con:
+        for t in ("presupuesto_lineas", "factura_lineas", "proforma_lineas"):
+            con.execute(f"UPDATE {t} SET precio = ROUND(precio / (1 + iva / 100.0), 6)")
+        con.execute("""UPDATE obras SET importe_venta = (
+                         SELECT ROUND(SUM(cantidad * precio), 2) FROM presupuesto_lineas l
+                         WHERE l.presupuesto_id = obras.presupuesto_id)
+                       WHERE presupuesto_id IS NOT NULL AND EXISTS (
+                         SELECT 1 FROM presupuesto_lineas l WHERE l.presupuesto_id = obras.presupuesto_id)""")
+        con.execute("INSERT INTO ajustes (clave, valor) VALUES (?, datetime('now'))", (MARCA_PRECIOS_IVA,))
+    for f in db.filas("SELECT id FROM facturas"):
+        sincronizar_ingreso(f["id"])
+
+
 def _firmas_previas(id_: int) -> int:
     """Firmas archivadas de ese presupuesto: las de antes de editarlo."""
     return db.escalar("SELECT COUNT(*) FROM firmas WHERE presupuesto_id = ?", (id_,))
