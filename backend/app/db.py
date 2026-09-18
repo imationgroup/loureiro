@@ -499,6 +499,8 @@ MIGRACIONES = [
     # Estado del gasto (pendiente, pagado… editable). `pagado` se sigue
     # rellenando a juego, que es lo que suma contabilidad.
     ("costes", "estado", "TEXT"),
+    # Una nota puede ser de un cliente además de (o en vez de) una obra.
+    ("notas", "cliente_id", "INTEGER"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la
