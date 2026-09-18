@@ -130,7 +130,7 @@ def limpiar_intentos(ip: str):
 
 # Módulos que el administrador puede dar a un miembro. El Panel (resumen) lo
 # tiene todo el mundo, con sus propios números; Equipo, solo el administrador.
-MODULOS = ("agenda", "solicitudes", "obras", "clientes", "profesionales",
+MODULOS = ("agenda", "solicitudes", "visitas", "obras", "clientes", "profesionales",
            "presupuestos", "proformas", "facturas", "costes", "contabilidad",
            "stock", "proveedores")
 
@@ -183,7 +183,8 @@ def filtro_responsable(u: dict, alias: str = "") -> tuple[str, tuple]:
 
 REFERENCIAS = (("cliente_id", "clientes", "ese cliente"),
                ("obra_id", "obras", "esa obra"),
-               ("presupuesto_id", "presupuestos", "ese presupuesto"))
+               ("presupuesto_id", "presupuestos", "ese presupuesto"),
+               ("visita_id", "visitas", "esa visita"))
 
 
 def comprobar_referencias(u: dict, datos: dict, existente: dict | None = None):

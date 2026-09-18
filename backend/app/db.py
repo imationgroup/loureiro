@@ -318,6 +318,33 @@ CREATE TABLE IF NOT EXISTS citas (
   creado         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Visitas ──────────────────────────────────────────────────────────
+-- Lo que se ve y se apunta en casa del cliente antes de presupuestar: notas y
+-- fotos. Un presupuesto puede decir de qué visita sale (presupuestos.visita_id).
+CREATE TABLE IF NOT EXISTS visitas (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo      TEXT,                     -- qué se quiere hacer: "reforma de baño"
+  cliente_id  INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  fecha       TEXT NOT NULL DEFAULT (date('now')),
+  direccion   TEXT,
+  notas       TEXT,
+  usuario_id  INTEGER,
+  creado      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Las fotos van en la base y no sueltas en disco, igual que el PDF firmado:
+-- así la copia de seguridad sigue siendo un solo fichero. Llegan ya reducidas
+-- desde el móvil (unos cientos de KB), con una miniatura aparte para que la
+-- galería no tenga que bajarse las grandes.
+CREATE TABLE IF NOT EXISTS visita_fotos (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  visita_id   INTEGER NOT NULL REFERENCES visitas(id) ON DELETE CASCADE,
+  tipo        TEXT NOT NULL,             -- image/jpeg | image/png | image/webp
+  datos       BLOB NOT NULL,
+  miniatura   BLOB,
+  creado      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Ajustes sueltos del panel (clave -> valor). Hoy solo el token secreto del
 -- enlace de la agenda para Google Calendar.
 CREATE TABLE IF NOT EXISTS ajustes (
@@ -388,6 +415,7 @@ CREATE INDEX IF NOT EXISTS idx_obraprof_obra     ON obra_profesionales(obra_id);
 CREATE INDEX IF NOT EXISTS idx_mov_stock         ON movimientos_stock(stock_id);
 CREATE INDEX IF NOT EXISTS idx_solicitudes_estado ON solicitudes(estado);
 CREATE INDEX IF NOT EXISTS idx_firmas_presupuesto ON firmas(presupuesto_id);
+CREATE INDEX IF NOT EXISTS idx_visita_fotos       ON visita_fotos(visita_id);
 """
 
 
@@ -427,13 +455,15 @@ MIGRACIONES = [
     # El PDF tal como se firmó. Se guarda entero a propósito: si el
     # presupuesto se tocara después, lo firmado sigue siendo esto.
     ("presupuestos", "firma_pdf", "BLOB"),
+    # De qué visita sale el presupuesto: las fotos y notas de la toma de datos.
+    ("presupuestos", "visita_id", "INTEGER"),
 ]
 
 # Tablas donde cada fila tiene responsable (usuario_id). Lo que ya existía
 # antes del equipo queda con el responsable vacío, que es lo del
 # administrador: nadie más lo ve hasta que él lo reparta.
 TABLAS_CON_RESPONSABLE = ("clientes", "obras", "citas", "presupuestos", "proformas",
-                          "facturas", "costes", "ingresos", "solicitudes")
+                          "facturas", "costes", "ingresos", "solicitudes", "visitas")
 MIGRACIONES += [(t, "usuario_id", "INTEGER") for t in TABLAS_CON_RESPONSABLE]
 
 

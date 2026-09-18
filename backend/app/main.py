@@ -35,6 +35,7 @@ from .estatutos import router as router_estatutos
 from .firma import router as router_firma, publico as router_firma_publico
 from .documentos import router as router_documentos
 from .agenda import router as router_agenda, publico as router_agenda_publico
+from .visitas import router as router_visitas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("loureiro-contact")
@@ -132,6 +133,7 @@ app.include_router(router_documentos)
 # /api/admin/agenda como si fuese una tabla.
 app.include_router(router_agenda)
 app.include_router(router_agenda_publico)
+app.include_router(router_visitas)
 app.include_router(router_admin_crud)
 
 
