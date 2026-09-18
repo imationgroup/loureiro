@@ -245,6 +245,18 @@ var ESTADOS_SOL  = ["pendiente", "atendida", "descartada"];
 var TIPOS_CITA   = ["visita", "presupuesto", "obra", "revisión", "otro"];
 var ESTADOS_CITA = ["pendiente", "hecha", "cancelada"];
 var QUIEN_CANCELA = ["cliente", "profesional", "empresa"];
+var IVAS = [{ v: 21, t: "21 %" }, { v: 10, t: "10 %" }, { v: 0, t: "0 %" }];
+// Desplegable de IVA para las líneas de los documentos. Un tipo antiguo que no
+// esté en la lista (un 4 %) se conserva como opción: si no, al guardar se
+// cambiaría sin que nadie lo decidiera.
+function opcionesIva(v) {
+  var ops = IVAS.slice();
+  if (v !== "" && v !== null && v !== undefined &&
+      !ops.some(function (o) { return Number(o.v) === Number(v); })) ops.push({ v: Number(v), t: v + " %" });
+  return ops.map(function (o) {
+    return '<option value="' + o.v + '"' + (Number(o.v) === Number(v) ? " selected" : "") + ">" + esc(o.t) + "</option>";
+  }).join("");
+}
 var CAT_COSTE    = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata", "otros"];
 
 /* ── Provincias y municipios ──────────────────────────────────────────────
@@ -486,7 +498,15 @@ var MODULOS = {
     // Desplegable encima de la tabla para ver los gastos de una sola obra.
     filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Gastos de empresa",
               cliente: "clientes" },
-    suma: { c: "importe", t: "Base imponible" },
+    // El importe se escribe con el IVA incluido, que es lo que pone el tique.
+    // Se guarda la base (lo que cuenta la contabilidad) y se enseña el total.
+    conIva: true,
+    suma: function (filas) {
+      var base = filas.reduce(function (a, f) { return a + (Number(f.importe) || 0); }, 0);
+      var total = filas.reduce(function (a, f) { return a + conIva(f); }, 0);
+      return "Total de lo que se ve: <b>" + eur(total) + "</b>" +
+             ' <span style="color:var(--muted)">· base ' + eur(base) + " · IVA " + eur(total - base) + "</span>";
+    },
     columnas: [
       { c: "fecha", t: "Fecha", tipo: "fecha" },
       { c: "concepto", t: "Concepto" },
@@ -494,15 +514,15 @@ var MODULOS = {
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", vacio: "Empresa" },
       { c: "obra_id", t: "Cliente", tipo: "clienteObra" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales" },
-      { c: "importe", t: "Base", tipo: "eur", num: true },
+      { c: "importe", t: "Total (IVA incl.)", tipo: "conIva", num: true },
       { c: "pagado", t: "Pago", tipo: "bool", si: "Pagado", no: "Pendiente" }
     ],
     campos: [
       { c: "concepto", t: "Concepto", req: true },
       { c: "categoria", t: "Categoría", tipo: "select", ops: CAT_COSTE, mitad: true },
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
-      { c: "importe", t: "Base imponible (€)", tipo: "numero", mitad: true },
-      { c: "iva", t: "IVA (%)", tipo: "numero", mitad: true, pordefecto: 21 },
+      { c: "importe", t: "Importe con IVA incluido (€)", tipo: "numero", mitad: true, req: true },
+      { c: "iva", t: "IVA", tipo: "select", ops: IVAS, mitad: true, pordefecto: 21 },
       { c: "_cliente", t: "Cliente", tipo: "filtraObras", de: "clientes", para: "obra_id",
         ayuda: "Para encontrar la obra: escribe el cliente y se quedan solo sus obras" },
       // Obligatorio: o una obra o, a propósito, gastos de la empresa (seguros,
@@ -532,7 +552,7 @@ var MODULOS = {
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "factura_ref", t: "Nº de factura", mitad: true },
       { c: "importe", t: "Base imponible (€)", tipo: "numero", mitad: true },
-      { c: "iva", t: "IVA (%)", tipo: "numero", mitad: true, pordefecto: 21 },
+      { c: "iva", t: "IVA", tipo: "select", ops: IVAS, mitad: true, pordefecto: 21 },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", mitad: true },
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
       { c: "cobrado", t: "Estado", tipo: "select", ops: [{ v: 0, t: "Pendiente de cobro" }, { v: 1, t: "Cobrado" }] },
@@ -835,10 +855,7 @@ function verTabla(clave) {
           return !q || textoBusqueda(m, f).indexOf(q) >= 0;
         });
         pintarFilas(clave, vistas);
-        if (m.suma) {
-          $("#tabla-suma").innerHTML = esc(m.suma.t) + " de lo que se ve: <b>" +
-            eur(vistas.reduce(function (a, f) { return a + (Number(f[m.suma.c]) || 0); }, 0)) + "</b>";
-        }
+        if (m.suma) $("#tabla-suma").innerHTML = m.suma(vistas);
       }
       if (fil) pintarObras();
       repintar();
@@ -880,6 +897,9 @@ function textoBusqueda(m, f) {
   return llano(partes.join(" "));
 }
 
+// Importe con IVA de un apunte que guarda la base.
+function conIva(f) { return (Number(f.importe) || 0) * (1 + (Number(f.iva) || 0) / 100); }
+
 // Cliente de la obra de una fila, para los gastos, que cuelgan de la obra.
 function clienteDeObra(obraId) {
   var o = (cache.obras || []).filter(function (x) { return x.id === obraId; })[0];
@@ -890,6 +910,7 @@ function celda(col, fila) {
   var v = fila[col.c];
   if (col.tipo === "eur") return v ? eur(v) : "—";
   if (col.tipo === "fecha") return esc(fecha(v));
+  if (col.tipo === "conIva") return fila[col.c] ? eur(conIva(fila)) : "—";
   if (col.tipo === "clienteObra") return esc(clienteDeObra(v)) || "—";
   if (col.tipo === "ref") {
     return esc(nombreDe(col.de, v)) || (col.vacio ? '<span class="tag">' + esc(col.vacio) + "</span>" : "—");
@@ -1019,6 +1040,10 @@ function campoHTML(campo, valor, esNuevo) {
     h += '<textarea id="c-' + campo.c + '" data-c="' + campo.c + '">' + esc(v) + "</textarea>";
   } else if (campo.tipo === "select") {
     h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '">';
+    var enLista = campo.ops.some(function (o) {
+      return String(typeof o === "object" ? o.v : o) === String(v);
+    });
+    if (v !== "" && !enLista) h += '<option value="' + esc(v) + '" selected>' + esc(v) + (campo.c === "iva" ? " %" : "") + "</option>";
     campo.ops.forEach(function (o) {
       var val = (typeof o === "object") ? o.v : o;
       var txt = (typeof o === "object") ? o.t : o;
@@ -1137,6 +1162,9 @@ function abrirFormulario(clave, registro, inicial) {
   // "inicial": valores de partida para uno NUEVO (la agenda abre la cita en
   // el día que se pinchó). No es un registro: se crea, no se edita.
   var vals = registro || inicial || null;
+  if (m.conIva && registro && registro.importe !== null && registro.importe !== undefined) {
+    vals = Object.assign({}, registro, { importe: Math.round(conIva(registro) * 100) / 100 });
+  }
   var refs = [];
   var campos = camposDe(m);
   campos.forEach(function (c) {
@@ -1423,6 +1451,10 @@ function abrirFormulario(clave, registro, inicial) {
         if (elegido) datos.cliente_id = elegido.id;
       }
       if (falta) { var e = $("#f-err"); e.textContent = "Falta: " + falta; e.hidden = false; return; }
+      if (m.conIva && datos.importe !== undefined) {
+        // Con cuatro decimales: la base de 110 € al 10 % es 100, no 99,999999…
+        datos.importe = Math.round(datos.importe / (1 + (Number(datos.iva) || 0) / 100) * 10000) / 10000;
+      }
 
       var btn = $("#f-guardar"); btn.disabled = true; btn.textContent = "Guardando…";
       api("/api/admin/" + m.recurso + (editando ? "/" + registro.id : ""),
@@ -2860,7 +2892,7 @@ function editarDocumento(tipo, id, inicial) {
           '<input class="l-cant" type="number" step="any" placeholder="Cant." value="' + esc(l.cantidad) + '">' +
           '<input class="l-ud" placeholder="ud" value="' + esc(l.unidad) + '">' +
           '<input class="l-precio" type="number" step="any" placeholder="Precio" value="' + esc(l.precio) + '">' +
-          '<input class="l-iva" type="number" step="any" placeholder="IVA" value="' + esc(l.iva) + '">' +
+          '<select class="l-iva" aria-label="IVA">' + opcionesIva(l.iva) + "</select>" +
           '<span class="l-total">' + eur((l.cantidad || 0) * (l.precio || 0)) + "</span>" +
           '<button class="l-borrar" title="Quitar línea">' + svg(ico.papelera) + "</button>" +
           "</div>";
@@ -2878,7 +2910,7 @@ function editarDocumento(tipo, id, inicial) {
           $(".l-total", fila).textContent = eur(lineas[i].cantidad * lineas[i].precio);
           pintarTotales();
         }
-        $$("input", fila).forEach(function (inp) { inp.addEventListener("input", leer); });
+        $$("input, select", fila).forEach(function (inp) { inp.addEventListener("input", leer); });
         $(".l-borrar", fila).addEventListener("click", function () {
           lineas.splice(i, 1);
           if (!lineas.length) lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
