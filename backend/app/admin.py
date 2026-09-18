@@ -826,9 +826,18 @@ def dashboard(u: dict = Depends(sesion_actual)):
             "ingresos": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE strftime('%Y-%m',fecha)=? AND {f}", (mes, *p)),
             "gastos": db.escalar(f"SELECT SUM(importe) FROM costes WHERE strftime('%Y-%m',fecha)=? AND {f}", (mes, *p)),
         },
+        # Lo pendiente es dinero que va a entrar o salir, así que va con IVA:
+        # es lo que paga el cliente y lo que se paga al proveedor. Lo cobrado de
+        # facturas sale de sus líneas (no del apunte redondeado a base), y se
+        # suman los ingresos apuntados a mano sin factura.
         "pendientes": {
-            "cobro": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE cobrado=0 AND {f}", p),
-            "pago": db.escalar(f"SELECT SUM(importe) FROM costes WHERE pagado=0 AND {f}", p),
+            "cobro": round(sum(
+                totales(db.filas("SELECT * FROM factura_lineas WHERE factura_id = ?", (x["id"],)))["total"]
+                for x in db.filas(f"SELECT id FROM facturas WHERE estado = 'emitida' AND {f}", p))
+                + db.escalar(f"""SELECT SUM(importe * (1 + iva / 100.0)) FROM ingresos
+                                 WHERE cobrado = 0 AND factura_id IS NULL AND {f}""", p), 2),
+            "pago": round(db.escalar(
+                f"SELECT SUM(importe * (1 + iva / 100.0)) FROM costes WHERE pagado = 0 AND {f}", p), 2),
         },
         "evolucion": db.filas(f"""
             SELECT mes, SUM(ingresos) AS ingresos, SUM(gastos) AS gastos FROM (
