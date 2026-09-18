@@ -696,8 +696,10 @@ def mover_stock(stock_id: int, m: Movimiento, u: dict = Depends(sesion_actual)):
 
         # Una salida a una obra es un coste de material de esa obra, y lo
         # lleva quien lleva la obra.
+        # El precio del almacén se escribe con IVA incluido; el gasto guarda la
+        # base, como todos los gastos.
         if m.tipo == "salida" and obra:
-            importe = (art["precio_unitario"] or 0) * m.cantidad
+            importe = round((art["precio_unitario"] or 0) * m.cantidad / 1.21, 4)
             if importe:
                 con.execute("""INSERT INTO costes
                                (obra_id, categoria, concepto, importe, iva, fecha, notas, usuario_id,

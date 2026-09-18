@@ -563,20 +563,21 @@ var MODULOS = {
 
   ingresos: {
     titulo: "Ingresos", sub: "Facturación a clientes", icono: ico.euro, recurso: "ingresos",
+    conIva: true,
     columnas: [
       { c: "fecha", t: "Fecha", tipo: "fecha" },
       { c: "concepto", t: "Concepto" },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras" },
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes" },
       { c: "factura_ref", t: "Factura" },
-      { c: "importe", t: "Base", tipo: "eur", num: true },
+      { c: "importe", t: "Total (IVA incl.)", tipo: "conIva", num: true },
       { c: "cobrado", t: "Cobro", tipo: "bool", si: "Cobrado", no: "Pendiente" }
     ],
     campos: [
       { c: "concepto", t: "Concepto", req: true },
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "factura_ref", t: "Nº de factura", mitad: true },
-      { c: "importe", t: "Base imponible (€)", tipo: "numero", mitad: true },
+      { c: "importe", t: "Importe con IVA incluido (€)", tipo: "numero", mitad: true, req: true },
       { c: "iva", t: "IVA", tipo: "select", ops: IVAS, mitad: true, pordefecto: 21 },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", mitad: true },
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
@@ -593,7 +594,7 @@ var MODULOS = {
       { c: "categoria", t: "Categoría" },
       { c: "cantidad", t: "Cantidad", tipo: "cantidad", num: true },
       { c: "minimo", t: "Mínimo", num: true },
-      { c: "precio_unitario", t: "Precio ud.", tipo: "eur", num: true },
+      { c: "precio_unitario", t: "Precio ud. (IVA incl.)", tipo: "eur", num: true },
       { c: "ubicacion", t: "Ubicación" }
     ],
     campos: [
@@ -603,7 +604,8 @@ var MODULOS = {
       { c: "cantidad", t: "Cantidad actual", tipo: "numero", mitad: true },
       { c: "unidad", t: "Unidad", mitad: true, ayuda: "ud, m, m², kg, l…" },
       { c: "minimo", t: "Stock mínimo", tipo: "numero", mitad: true, ayuda: "Avisa cuando baje de aquí" },
-      { c: "precio_unitario", t: "Precio unitario (€)", tipo: "numero", mitad: true },
+      { c: "precio_unitario", t: "Precio unitario con IVA (€)", tipo: "numero", mitad: true,
+        ayuda: "Lo que pone el tique. Al sacar material a una obra se apunta el gasto con este precio" },
       { c: "proveedor_id", t: "Proveedor", tipo: "ref", de: "proveedores", mitad: true },
       { c: "ubicacion", t: "Ubicación", mitad: true }
     ]
@@ -3241,6 +3243,12 @@ var CAMPO_PRESUPUESTO = {
 
 // `inicial`: valores de partida de uno nuevo. La ficha de una visita abre así
 // el presupuesto, ya con su cliente y colgado de ella.
+// Precio con IVA de una línea que guarda la base, y al revés. La base se
+// guarda con seis decimales: con dos, 21 € con IVA al 21 % serían 17,36 € y
+// siete unidades ya no sumarían 147 €.
+function pvpDe(l) { return Math.round((Number(l.precio) || 0) * (1 + (Number(l.iva) || 0) / 100) * 100) / 100; }
+function baseDe(pvp, iva) { return Math.round(pvp / (1 + (iva || 0) / 100) * 1e6) / 1e6; }
+
 function editarDocumento(tipo, id, inicial) {
   var esFactura = tipo === "facturas";
   // Solo el presupuesto dice de qué visita sale: es el documento que se hace
@@ -3263,10 +3271,10 @@ function editarDocumento(tipo, id, inicial) {
     var lineas = (doc.lineas || []).map(function (l) {
       return {
         concepto: l.concepto, cantidad: l.cantidad, unidad: l.unidad,
-        precio: l.precio, iva: l.iva, dePresu: false
+        precio: l.precio, iva: l.iva, pvp: pvpDe(l), dePresu: false
       };
     });
-    if (!lineas.length) lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
+    if (!lineas.length) lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21, pvp: 0 });
 
     function mismaLinea(a, b) {
       return String(a.concepto).trim() === String(b.concepto).trim() &&
@@ -3384,7 +3392,7 @@ function editarDocumento(tipo, id, inicial) {
         : "") +
       '<label style="font-size:.83rem;color:var(--muted);display:block;margin:18px 0 8px">Líneas</label>' +
       '<div class="lineas-cab"><span>Concepto</span><span>Cant.</span><span>Ud.</span>' +
-        "<span>Precio</span><span>IVA %</span><span>Importe</span><span></span></div>" +
+        "<span>Precio IVA incl.</span><span>IVA %</span><span>Importe IVA incl.</span><span></span></div>" +
       '<div class="lineas" id="d-lineas"></div>' +
       '<button class="btn btn--fant btn--sm" id="d-add" style="margin-top:10px">' +
         svg(ico.mas) + "Añadir línea</button>" +
@@ -3402,29 +3410,31 @@ function editarDocumento(tipo, id, inicial) {
           '<input class="l-concepto" placeholder="Concepto" value="' + esc(l.concepto) + '">' +
           '<input class="l-cant" type="number" step="any" placeholder="Cant." value="' + esc(l.cantidad) + '">' +
           '<input class="l-ud" placeholder="ud" value="' + esc(l.unidad) + '">' +
-          '<input class="l-precio" type="number" step="any" placeholder="Precio" value="' + esc(l.precio) + '">' +
+          '<input class="l-precio" type="number" step="any" placeholder="Precio con IVA" value="' + esc(l.pvp) + '">' +
           '<select class="l-iva" aria-label="IVA">' + opcionesIva(l.iva) + "</select>" +
-          '<span class="l-total">' + eur((l.cantidad || 0) * (l.precio || 0)) + "</span>" +
+          '<span class="l-total">' + eur((l.cantidad || 0) * (l.pvp || 0)) + "</span>" +
           '<button class="l-borrar" title="Quitar línea">' + svg(ico.papelera) + "</button>" +
           "</div>";
       }).join("");
       $$("#d-lineas .linea").forEach(function (fila) {
         var i = Number(fila.dataset.i);
         function leer() {
+          // Se escribe el precio con IVA, como pone el tique; la base sale de
+          // ahí. Si se cambia el IVA, el precio con IVA escrito se mantiene.
+          var pvp = Number($(".l-precio", fila).value) || 0, iva = Number($(".l-iva", fila).value) || 0;
           lineas[i] = {
             concepto: $(".l-concepto", fila).value,
             cantidad: Number($(".l-cant", fila).value) || 0,
             unidad: $(".l-ud", fila).value || "ud",
-            precio: Number($(".l-precio", fila).value) || 0,
-            iva: Number($(".l-iva", fila).value) || 0
+            pvp: pvp, iva: iva, precio: baseDe(pvp, iva)
           };
-          $(".l-total", fila).textContent = eur(lineas[i].cantidad * lineas[i].precio);
+          $(".l-total", fila).textContent = eur(lineas[i].cantidad * pvp);
           pintarTotales();
         }
         $$("input, select", fila).forEach(function (inp) { inp.addEventListener("input", leer); });
         $(".l-borrar", fila).addEventListener("click", function () {
           lineas.splice(i, 1);
-          if (!lineas.length) lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
+          if (!lineas.length) lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21, pvp: 0 });
           pintarLineas(); pintarTotales();
         });
       });
@@ -3470,7 +3480,7 @@ function editarDocumento(tipo, id, inicial) {
         });
         lineas = r.lineas.map(function (l) {
           return { concepto: l.concepto, cantidad: l.cantidad, unidad: l.unidad,
-                   precio: l.precio, iva: l.iva, dePresu: true };
+                   precio: l.precio, iva: l.iva, pvp: pvpDe(l), dePresu: true };
         }).concat(propias);
         // El cliente lo manda siempre el presupuesto: una factura con las líneas
         // de un presupuesto y el nombre de otro cliente está mal emitida, y es
@@ -3545,7 +3555,7 @@ function editarDocumento(tipo, id, inicial) {
     });
 
     $("#d-add").addEventListener("click", function () {
-      lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
+      lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21, pvp: 0 });
       pintarLineas(); pintarTotales();
     });
     $("#d-cancelar").addEventListener("click", cerrarModal);
