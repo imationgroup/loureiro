@@ -545,6 +545,19 @@ def migrar():
     con.execute("CREATE INDEX IF NOT EXISTS idx_presupuestos_firma ON presupuestos(firma_token)")
     for viejo, nuevo in ESTADOS_SOLICITUD_ANTIGUOS.items():
         con.execute("UPDATE solicitudes SET estado = ? WHERE estado = ?", (nuevo, viejo))
+    # Enlace obra ↔ presupuesto en los dos lados. Antes se escribía solo el de
+    # donde se elegía, y la otra pantalla no lo veía. El presupuesto elegido en
+    # una obra apunta a ella; y una obra sin presupuesto toma el único (no
+    # cancelado) que apunte a ella.
+    con.execute("""UPDATE presupuestos SET obra_id = (
+                     SELECT o.id FROM obras o WHERE o.presupuesto_id = presupuestos.id LIMIT 1)
+                   WHERE obra_id IS NULL AND EXISTS (
+                     SELECT 1 FROM obras o WHERE o.presupuesto_id = presupuestos.id)""")
+    con.execute("""UPDATE obras SET presupuesto_id = (
+                     SELECT p.id FROM presupuestos p WHERE p.obra_id = obras.id AND p.estado != 'cancelado')
+                   WHERE presupuesto_id IS NULL AND (
+                     SELECT COUNT(*) FROM presupuestos p
+                     WHERE p.obra_id = obras.id AND p.estado != 'cancelado') = 1""")
     # El importe de una obra es la base de su presupuesto, sin IVA, como los
     # gastos con los que se compara (antes se copiaba el total con IVA y el
     # margen salía inflado). Se recalcula siempre: si el presupuesto se retocó,

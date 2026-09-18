@@ -272,6 +272,16 @@ def corregir_precios_con_iva():
         sincronizar_ingreso(f["id"])
 
 
+def enlazar_obra(presupuesto_id: int, obra_id):
+    """Al poner la obra en un presupuesto, la obra lo toma como el suyo si aún
+    no tenía ninguno. Si ya tenía otro, no se le cambia: puede haber más de un
+    presupuesto por obra (ampliaciones) y el que manda es el que se eligió."""
+    if obra_id:
+        with db.tx() as con:
+            con.execute("UPDATE obras SET presupuesto_id = ? WHERE id = ? AND presupuesto_id IS NULL",
+                        (presupuesto_id, obra_id))
+
+
 def sincronizar_obras(presupuesto_id: int):
     """Deja el importe de las obras que salen de este presupuesto en su base.
 
@@ -386,6 +396,7 @@ def crear(tipo: str, doc: Documento, u: dict = Depends(sesion_actual)):
     if tipo == "facturas":
         sincronizar_ingreso(nuevo)
     if tipo == "presupuestos":
+        enlazar_obra(nuevo, cab.get("obra_id"))
         sincronizar_obras(nuevo)
     return _ver(tipo, nuevo)
 
@@ -424,6 +435,7 @@ def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_act
     if tipo == "facturas":
         sincronizar_ingreso(id_)
     if tipo == "presupuestos":
+        enlazar_obra(id_, cab.get("obra_id"))
         sincronizar_obras(id_)
     return _ver(tipo, id_)
 

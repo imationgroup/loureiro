@@ -226,6 +226,19 @@ def _con_cliente(d: dict):
         raise HTTPException(422, "Una visita tiene que ser de un cliente.")
 
 
+def _presupuesto_a_la_obra(obra_id: int, d: dict):
+    """El presupuesto elegido en una obra queda también apuntando a ella.
+
+    La relación se guarda en los dos lados (obras.presupuesto_id y
+    presupuestos.obra_id). Si solo se escribe uno, la lista de presupuestos
+    enseña un guion en la obra de un presupuesto que sí tiene obra.
+    """
+    if d.get("presupuesto_id"):
+        with db.tx() as con:
+            con.execute("UPDATE presupuestos SET obra_id = ? WHERE id = ?",
+                        (obra_id, d["presupuesto_id"]))
+
+
 def _importe_de_obra(d: dict):
     """El importe de una obra lo pone el presupuesto, no quien teclea.
 
@@ -321,6 +334,8 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
         cur = con.execute(f"INSERT INTO {t.nombre} ({cols}) VALUES ({marcas})",
                           tuple(d.values()))
         nuevo = cur.lastrowid
+    if t.nombre == "obras":
+        _presupuesto_a_la_obra(nuevo, d)
     return db.fila(f"SELECT * FROM {t.nombre} WHERE id = ?", (nuevo,))
 
 
@@ -346,6 +361,8 @@ def actualizar(recurso: str, id_: int, datos: dict[str, Any],
                           (*d.values(), id_))
         if cur.rowcount == 0:
             raise HTTPException(404, "No encontrado")
+    if t.nombre == "obras":
+        _presupuesto_a_la_obra(id_, d)
     return db.fila(f"SELECT * FROM {t.nombre} WHERE id = ?", (id_,))
 
 
