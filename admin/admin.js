@@ -503,6 +503,8 @@ var MODULOS = {
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "importe", t: "Base imponible (€)", tipo: "numero", mitad: true },
       { c: "iva", t: "IVA (%)", tipo: "numero", mitad: true, pordefecto: 21 },
+      { c: "_cliente", t: "Cliente", tipo: "filtraObras", de: "clientes", para: "obra_id",
+        ayuda: "Para encontrar la obra: escribe el cliente y se quedan solo sus obras" },
       // Obligatorio: o una obra o, a propósito, gastos de la empresa (seguros,
       // gestoría, la furgoneta). Sin elegir no se guarda.
       { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "obras", req: true, sinObra: "Gastos de empresa (no es de una obra)" },
@@ -628,7 +630,8 @@ function invalidar() { cache = {}; }
 // Lista del servidor que necesita un campo para pintarse: el desplegable de
 // un "ref" y también el del nombre con fichero de clientes detrás.
 function listaDe(c) {
-  return (c.tipo === "ref" || c.tipo === "cliente" || c.tipo === "busca") ? c.de : null;
+  return (c.tipo === "ref" || c.tipo === "cliente" || c.tipo === "busca" ||
+          c.tipo === "filtraObras") ? c.de : null;
 }
 
 // Un desplegable con buscador no guarda lo que se escribe, sino el registro al
@@ -760,7 +763,15 @@ function verTabla(clave) {
 
   $("#vista-acciones").innerHTML =
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nuevo</button>";
-  $("#btn-nuevo").addEventListener("click", function () { abrirFormulario(clave, null); });
+  $("#btn-nuevo").addEventListener("click", function () {
+    var e = m.filtro && FILTRO[clave], inicial = null;
+    if (e && (e.obra || e.cliente)) {
+      inicial = {};
+      if (e.obra) inicial[m.filtro.c] = e.obra === "ninguna" ? "ninguna" : Number(e.obra);
+      if (e.cliente) inicial._cliente = e.cliente;
+    }
+    abrirFormulario(clave, null, inicial);
+  });
 
   var fil = m.filtro;
   if (fil && fil.cliente && refs.indexOf(fil.cliente) < 0) refs.push(fil.cliente);
@@ -786,16 +797,7 @@ function verTabla(clave) {
         '<div class="tabla-caja"><div class="tabla-scroll" id="caja-tabla"></div>' +
         (m.suma ? '<div class="tabla-suma" id="tabla-suma"></div>' : "") + "</div>";
 
-      // Clientes que encajan con lo escrito. Si el nombre está entero, solo
-      // ese: «Carmen López» no tiene por qué traer también a «Carmen López Díaz».
-      function clientesEscritos() {
-        var q = llano(est && est.cliente);
-        if (!q) return null;
-        var lista = cache[fil.cliente] || [];
-        var exacto = lista.filter(function (c) { return llano(c.nombre) === q; });
-        var caben = exacto.length ? exacto : lista.filter(function (c) { return llano(c.nombre).indexOf(q) >= 0; });
-        return caben.map(function (c) { return String(c.id); });
-      }
+      function clientesEscritos() { return clientesQueEncajan(fil.cliente, est && est.cliente); }
       function obraDe(id) {
         return (cache[fil.de] || []).filter(function (o) { return String(o.id) === String(id); })[0];
       }
@@ -852,6 +854,18 @@ function verTabla(clave) {
       });
     })
     .catch(error);
+}
+
+// Ids de los clientes que encajan con lo escrito, o null si no hay nada
+// escrito. Si el nombre está entero, solo ese: «Carmen López» no tiene por
+// qué traer también a «Carmen López Díaz».
+function clientesQueEncajan(lista, texto) {
+  var q = llano(texto);
+  if (!q) return null;
+  var todos = cache[lista] || [];
+  var exacto = todos.filter(function (c) { return llano(c.nombre) === q; });
+  var caben = exacto.length ? exacto : todos.filter(function (c) { return llano(c.nombre).indexOf(q) >= 0; });
+  return caben.map(function (c) { return String(c.id); });
 }
 
 // Lo que se busca en una fila: sus datos y además los nombres que enseña la
@@ -1067,11 +1081,20 @@ function campoHTML(campo, valor, esNuevo) {
          (cache[campo.de] || []).map(function (o) {
            return '<option value="' + esc(o.nombre) + '"></option>';
          }).join("") + "</datalist>";
+  } else if (campo.tipo === "filtraObras") {
+    // No se guarda (no lleva data-c): solo sirve para encontrar la obra. Se
+    // escribe y el desplegable de obras se queda con las de ese cliente.
+    h += '<input id="c-' + campo.c + '" data-filtra-obras="' + esc(campo.para) + '"' +
+         ' data-lista="' + esc(campo.de) + '" list="lista-' + campo.c + '" autocomplete="off"' +
+         ' placeholder="Escribe para filtrar las obras…" value="' + esc(v) + '">' +
+         '<datalist id="lista-' + campo.c + '">' + (cache[campo.de] || []).map(function (o) {
+           return '<option value="' + esc(o.nombre) + '"></option>';
+         }).join("") + "</datalist>";
   } else if (campo.tipo === "ref" && campo.sinObra) {
     // Aquí vacío no significa «sin rellenar» sino una elección: ninguna obra.
     // Por eso va aparte del vacío de verdad, que no deja guardar. Un registro
     // que ya existe sin obra se abre con esa opción elegida.
-    var ninguna = !esNuevo && v === "";
+    var ninguna = (!esNuevo && v === "") || v === "ninguna";
     h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '">' +
          '<option value=""' + (!ninguna && v === "" ? " selected" : "") + ">— elige a qué va —</option>" +
          '<option value="ninguna"' + (ninguna ? " selected" : "") + ">" + esc(campo.sinObra) + "</option>";
@@ -1249,6 +1272,37 @@ function abrirFormulario(clave, registro, inicial) {
           }
         });
       });
+    });
+
+    // Cliente para encontrar la obra: deja en el desplegable solo sus obras.
+    // «Gastos de empresa» y lo que lleva otra persona se ofrecen siempre. Al
+    // editar, o al elegir la obra con el cliente vacío, se pone el de la obra.
+    $$("#f-form [data-filtra-obras]").forEach(function (inp) {
+      var sel = $("#c-" + inp.dataset.filtraObras);
+      if (!sel) return;
+      var todas = $$("option", sel).map(function (o) { return { v: o.value, t: o.text }; });
+      function obraDe(id) {
+        return (cache.obras || []).filter(function (o) { return String(o.id) === String(id); })[0];
+      }
+      function clienteDeLaObra() {
+        var o = obraDe(sel.value);
+        if (!inp.value.trim() && o && o.cliente_id) inp.value = nombreDe(inp.dataset.lista, o.cliente_id);
+      }
+      function filtrar() {
+        var clis = clientesQueEncajan(inp.dataset.lista, inp.value), antes = sel.value;
+        sel.innerHTML = todas.filter(function (op) {
+          var o = obraDe(op.v);
+          return !clis || !o || clis.indexOf(String(o.cliente_id)) >= 0;
+        }).map(function (op) {
+          return '<option value="' + esc(op.v) + '">' + esc(op.t) + "</option>";
+        }).join("");
+        sel.value = antes;
+        if (sel.value !== antes) sel.value = "";
+      }
+      clienteDeLaObra();
+      filtrar();
+      inp.addEventListener("input", filtrar);
+      sel.addEventListener("change", clienteDeLaObra);
     });
 
     // Campos que solo se pintan cuando otro campo tiene cierto valor: el
