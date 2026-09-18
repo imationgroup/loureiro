@@ -29,7 +29,7 @@ DOCUMENTOS = {
         # sale cada obra, aunque no tenga la pestaña de presupuestos. Solo la
         # lista: abrir, editar o descargar uno sigue pidiendo su módulo.
         "lectura": ("presupuestos", "obras"),
-        "campos": ["numero", "cliente_id", "obra_id", "fecha", "validez",
+        "campos": ["numero", "cliente_id", "obra_id", "visita_id", "fecha", "validez",
                    "estado", "notas", "motivo_cancelacion", "cancelado_el"],
     },
     "facturas": {

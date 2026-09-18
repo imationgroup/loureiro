@@ -61,6 +61,7 @@ var ico = {
   arriba:'<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
   abajo:'<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>',
   firma:'<path d="M3 17c3 0 4-9 7-9s3 9 6 9c2 0 3-2 5-3"/><path d="M3 21h18"/>',
+  camara:'<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
   no:'<path d="M18 6L6 18M6 6l12 12"/>',
   equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
@@ -374,6 +375,9 @@ var MODULOS = {
     ]
   },
 
+  visitas: { titulo: "Visitas", sub: "Notas y fotos de la toma de datos, antes del presupuesto",
+             icono: ico.camara, especial: "visitas" },
+
   clientes: {
     titulo: "Clientes", sub: "Quién te contrata", icono: ico.gente, recurso: "clientes",
     // Botón para ir a casa del cliente. Solo sale si hay calle: con solo la
@@ -577,7 +581,7 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 });
 
 var ORDEN_MENU = [
-  { sep: null, items: ["dashboard", "agenda", "solicitudes"] },
+  { sep: null, items: ["dashboard", "agenda", "solicitudes", "visitas"] },
   { sep: "Gestión", items: ["obras", "clientes", "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "costes", "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
@@ -705,6 +709,7 @@ function ir(k) {
   if (m.especial === "contabilidad") return verContabilidad();
   if (m.especial === "obras") return verObras();
   if (m.especial === "stock") return verStock();
+  if (m.especial === "visitas") return verVisitas();
   if (m.especial === "documento") return verDocumentos(k);
   return verTabla(k);
 }
@@ -1638,6 +1643,353 @@ function moverStock(art) {
   });
 }
 
+/* ── Visitas: notas y fotos de la toma de datos ───────────────────────── */
+// Las fotos piden sesión, así que no valen como src de un <img>: se bajan con
+// el token y se enseñan desde un blob. Se guardan las URL ya hechas para no
+// bajar dos veces la misma miniatura al repintar la lista.
+var FOTOS = {};
+function urlFoto(visita, foto, mini) {
+  var clave = visita + "/" + foto + (mini ? "/m" : "");
+  if (FOTOS[clave]) return FOTOS[clave];
+  FOTOS[clave] = fetch(API + "/api/admin/visitas/" + visita + "/fotos/" + foto + (mini ? "?mini=1" : ""),
+                       { headers: { Authorization: "Bearer " + token } })
+    .then(function (r) {
+      if (!r.ok) throw new Error("No se ha podido cargar la foto");
+      return r.blob();
+    })
+    .then(function (b) { return URL.createObjectURL(b); })
+    .catch(function (e) { delete FOTOS[clave]; throw e; });
+  return FOTOS[clave];
+}
+// Rellena los <img data-foto="visita/foto[/m]"> que haya dentro de `caja`.
+function pintarFotos(caja) {
+  $$("img[data-foto]", caja).forEach(function (img) {
+    var p = img.dataset.foto.split("/");
+    urlFoto(p[0], p[1], p[2] === "m").then(function (u) { img.src = u; })
+      .catch(function () { img.alt = "No se ha podido cargar"; img.classList.add("is-rota"); });
+  });
+}
+
+// La foto del móvil pesa varios megas y no hace falta: se reduce aquí, antes
+// de subirla. 1600 px de lado dan para ver una grieta o leer una etiqueta, y
+// cada foto queda por debajo del mega que deja pasar Nginx por petición.
+var FOTO_LADO = 1600, FOTO_MAX = 850000, MINI_LADO = 360;
+function lienzo(img, lado) {
+  var w = img.width, h = img.height, k = Math.min(1, lado / Math.max(w, h));
+  var c = document.createElement("canvas");
+  c.width = Math.round(w * k); c.height = Math.round(h * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+function cargarImagen(file) {
+  // createImageBitmap endereza la foto según su EXIF. Si el navegador no lo
+  // tiene, un <img>, que los navegadores de hoy también enderezan al pintar.
+  if (window.createImageBitmap) {
+    return createImageBitmap(file, { imageOrientation: "from-image" }).catch(function () {
+      return cargarConImg(file);
+    });
+  }
+  return cargarConImg(file);
+}
+function cargarConImg(file) {
+  return new Promise(function (ok, ko) {
+    var u = URL.createObjectURL(file), img = new Image();
+    img.onload = function () { URL.revokeObjectURL(u); ok(img); };
+    img.onerror = function () {
+      URL.revokeObjectURL(u);
+      ko(new Error("«" + file.name + "» no es una imagen que se pueda abrir"));
+    };
+    img.src = u;
+  });
+}
+function reducirFoto(file) {
+  return cargarImagen(file).then(function (img) {
+    var lado = FOTO_LADO, calidad = 0.82, datos;
+    // Si aun así pesa demasiado (fotos con mucho detalle), se baja la calidad y
+    // luego el tamaño hasta que quepa.
+    for (var i = 0; i < 8; i++) {
+      datos = lienzo(img, lado).toDataURL("image/jpeg", calidad);
+      if (datos.length <= FOTO_MAX) break;
+      if (calidad > 0.6) calidad -= 0.1; else lado = Math.round(lado * 0.8);
+    }
+    return { imagen: datos, miniatura: lienzo(img, MINI_LADO).toDataURL("image/jpeg", 0.7) };
+  });
+}
+
+// Visor a pantalla completa. Escape lo cierra a él y no a la ficha de debajo.
+function verFotoGrande(visita, foto) {
+  var capa = document.createElement("div");
+  capa.className = "visor";
+  capa.innerHTML = '<button class="visor__x" aria-label="Cerrar">&times;</button>' +
+                   '<div class="vacia">Cargando…</div>';
+  document.body.appendChild(capa);
+  function cerrar() { capa.remove(); window.removeEventListener("keydown", tecla, true); }
+  function tecla(e) { if (e.key === "Escape") { e.stopPropagation(); cerrar(); } }
+  window.addEventListener("keydown", tecla, true);
+  capa.addEventListener("click", cerrar);
+  urlFoto(visita, foto, false).then(function (u) {
+    capa.innerHTML = '<button class="visor__x" aria-label="Cerrar">&times;</button><img alt="" src="' + u + '">';
+  }).catch(function (e) { cerrar(); avisar(e.message, "err"); });
+}
+
+function tituloVisita(v) { return v.titulo || "Visita"; }
+function etiquetaVisita(v) {
+  return fecha(v.fecha) + " · " + tituloVisita(v) + (v.cliente ? " · " + v.cliente : "") +
+         (v.n_fotos ? " · " + v.n_fotos + " foto" + (v.n_fotos === 1 ? "" : "s") : "");
+}
+function chipsPresupuestos(lista) {
+  return (lista || []).map(function (p) {
+    var clase = p.estado === "cancelado" ? "tag--rojo"
+              : (p.estado === "aceptado" || p.estado === "firmado") ? "tag--verde" : "tag--amber";
+    return '<span class="tag ' + clase + '">' + esc(p.numero || "#" + p.id) + "</span>";
+  }).join(" ");
+}
+
+function verVisitas() {
+  $("#vista-acciones").innerHTML =
+    '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva visita</button>";
+  $("#btn-nuevo").addEventListener("click", function () { abrirVisita(null); });
+
+  Promise.all([api("/api/admin/visitas"), cargarRef("clientes")]).then(function (res) {
+    var visitas = res[0];
+    if (!visitas.length) {
+      $("#vista").innerHTML = '<div class="tabla-caja"><div class="vacia">Todavía no hay visitas. ' +
+        "Pulsa «Nueva visita» cuando vayas a casa de un cliente a tomar datos.</div></div>";
+      return;
+    }
+    $("#vista").innerHTML =
+      '<div class="herr"><input type="search" id="buscar" placeholder="Buscar por cliente, dirección o notas…"></div>' +
+      '<div class="vis-lista" id="vis-lista"></div>';
+    function pintar(filas) {
+      var caja = $("#vis-lista");
+      if (!filas.length) { caja.innerHTML = '<div class="vacia">Nada coincide con la búsqueda.</div>'; return; }
+      caja.innerHTML = filas.map(function (v) {
+        return '<button type="button" class="vis-item" data-visita="' + v.id + '">' +
+          '<span class="vis-item__foto">' +
+            (v.portada ? '<img alt="" data-foto="' + v.id + "/" + v.portada + '/m">' : svg(ico.camara)) +
+            (v.n_fotos > 1 ? "<em>" + v.n_fotos + "</em>" : "") + "</span>" +
+          '<span class="vis-item__txt"><b>' + esc(tituloVisita(v)) + "</b>" +
+            "<small>" + esc(fecha(v.fecha)) + " · " + esc(v.cliente || "sin cliente") + "</small>" +
+            (v.direccion ? "<small>" + esc(v.direccion) + "</small>" : "") +
+            (v.presupuestos.length
+              ? '<span class="vis-item__presu">' + chipsPresupuestos(v.presupuestos) + "</span>"
+              : '<small class="vis-item__sin">Sin presupuesto todavía</small>') +
+          "</span></button>";
+      }).join("");
+      $$("[data-visita]", caja).forEach(function (b) {
+        b.addEventListener("click", function () { abrirVisita(Number(b.dataset.visita)); });
+      });
+      pintarFotos(caja);
+    }
+    pintar(visitas);
+    $("#buscar").addEventListener("input", function () {
+      var q = llano(this.value);
+      pintar(!q ? visitas : visitas.filter(function (v) {
+        return [v.titulo, v.cliente, v.direccion, v.notas, fecha(v.fecha)]
+          .concat(v.presupuestos.map(function (p) { return p.numero; }))
+          .some(function (x) { return llano(x).indexOf(q) >= 0; });
+      }));
+    });
+  }).catch(error);
+}
+
+// Ficha de la visita: datos, notas y fotos en una sola ventana, que es como se
+// usa en la obra con el móvil en la mano. Las fotos nuevas se preparan al
+// elegirlas y se suben al guardar; si se corta la cobertura a medias, la
+// ventana sigue abierta con las que faltan y basta con volver a Guardar.
+function abrirVisita(id, inicial) {
+  var puedeEditar = puedeVer("visitas");
+  Promise.all([
+    id ? api("/api/admin/visitas/" + id) : Promise.resolve(null),
+    cargarRef("clientes")
+  ].concat(esAdmin() ? [cargarRef("equipo")] : [])).then(function (res) {
+    var v = res[0] || Object.assign({
+      fecha: new Date().toISOString().slice(0, 10), fotos: [], presupuestos: [],
+      usuario_id: YO && YO.id      // lo que se crea es de quien lo crea
+    }, inicial || {});
+    var nuevas = [];               // fotos elegidas, ya reducidas, sin subir
+
+    var cuerpo = '<div class="aviso aviso--err" id="v-err" hidden></div>' +
+      '<div class="rejilla-2">' +
+        '<div class="campo"><label for="v-cliente">Cliente *</label><select id="v-cliente">' +
+          '<option value="">— elige el cliente —</option>' +
+          (cache.clientes || []).map(function (o) {
+            return '<option value="' + o.id + '"' + (String(o.id) === String(v.cliente_id) ? " selected" : "") + ">" +
+                   esc(o.nombre) + "</option>";
+          }).join("") + "</select></div>" +
+        '<div class="campo"><label for="v-fecha">Fecha</label><input id="v-fecha" type="date" value="' +
+          esc(v.fecha) + '"></div>' +
+      "</div>" +
+      '<div class="campo"><label for="v-titulo">Qué quiere hacer</label><input id="v-titulo" value="' +
+        esc(v.titulo) + '" placeholder="Por ejemplo: reforma del baño y cambio de ventanas"></div>' +
+      '<div class="campo"><label for="v-dir">Dirección</label><input id="v-dir" value="' + esc(v.direccion) +
+        '" placeholder="Se copia de la ficha del cliente"></div>' +
+      '<div class="campo"><label for="v-notas">Notas</label><textarea id="v-notas" class="v-notas" ' +
+        'placeholder="Medidas, estado, materiales, lo que ha pedido el cliente…">' + esc(v.notas) + "</textarea></div>" +
+      (esAdmin()
+        ? '<div class="campo"><label for="v-resp">Responsable</label><select id="v-resp">' +
+          '<option value="">— nadie: solo el administrador —</option>' +
+          (cache.equipo || []).map(function (o) {
+            return '<option value="' + o.id + '"' + (String(o.id) === String(v.usuario_id) ? " selected" : "") + ">" +
+                   esc(o.nombre || o.email) + "</option>";
+          }).join("") + "</select>" +
+          '<small style="color:var(--muted-2);font-size:.79rem">Solo lo ven esa persona y el administrador.</small></div>'
+        : "") +
+      '<div class="vis-cab"><span class="vis-cab__t">Fotos</span>' +
+        (puedeEditar
+          ? '<span class="vis-cab__btns"><label class="btn btn--amber btn--sm">' + svg(ico.camara) + "Hacer foto" +
+              '<input type="file" accept="image/*" capture="environment" id="v-camara" hidden></label>' +
+            '<label class="btn btn--fant btn--sm">' + svg(ico.mas) + "De la galería" +
+              '<input type="file" accept="image/*" multiple id="v-galeria" hidden></label></span>'
+          : "") +
+      "</div>" +
+      '<div class="fotos" id="v-fotos"></div>' +
+      (id
+        ? '<div class="vis-cab" style="margin-top:20px"><span class="vis-cab__t">Presupuestos de esta visita</span>' +
+          (puedeVer("presupuestos")
+            ? '<button type="button" class="btn btn--fant btn--sm" id="v-presu">' + svg(ico.doc) + "Hacer presupuesto</button>"
+            : "") + "</div>" +
+          '<div style="font-size:.88rem;color:var(--muted)">' +
+          (v.presupuestos.length ? chipsPresupuestos(v.presupuestos) : "Todavía ninguno.") + "</div>"
+        : "");
+
+    modal(id ? tituloVisita(v) : "Nueva visita", cuerpo,
+      (id && puedeEditar ? '<button class="btn btn--peligro" id="v-borrar" style="margin-right:auto">Borrar</button>' : "") +
+      '<button class="btn btn--fant" id="v-cancelar">' + (puedeEditar ? "Cancelar" : "Cerrar") + "</button>" +
+      (puedeEditar ? '<button class="btn btn--amber" id="v-guardar">Guardar</button>' : ""), true);
+
+    function pintarGaleria() {
+      var h = (v.fotos || []).map(function (f) {
+        return '<div class="foto"><button type="button" class="foto__ver" data-ver="' + f.id + '" title="Ver en grande">' +
+          '<img alt="" data-foto="' + id + "/" + f.id + '/m"></button>' +
+          (puedeEditar ? '<button type="button" class="foto__x" data-quitar="' + f.id + '" title="Borrar la foto">&times;</button>' : "") +
+          "</div>";
+      }).join("") + nuevas.map(function (f, i) {
+        return '<div class="foto foto--nueva"><img alt="" src="' + f.miniatura + '">' +
+          '<span class="foto__marca">Sin subir</span>' +
+          '<button type="button" class="foto__x" data-descartar="' + i + '" title="Quitar">&times;</button></div>';
+      }).join("");
+      $("#v-fotos").innerHTML = h || '<div class="fotos__vacia">' +
+        (puedeEditar ? "Sin fotos. Hazlas desde aquí mismo con el móvil." : "Sin fotos.") + "</div>";
+      pintarFotos($("#v-fotos"));
+      $$("[data-ver]", $("#v-fotos")).forEach(function (b) {
+        b.addEventListener("click", function () { verFotoGrande(id, b.dataset.ver); });
+      });
+      $$("[data-descartar]", $("#v-fotos")).forEach(function (b) {
+        b.addEventListener("click", function () { nuevas.splice(Number(b.dataset.descartar), 1); pintarGaleria(); });
+      });
+      $$("[data-quitar]", $("#v-fotos")).forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (!confirm("¿Borrar esta foto? No se puede deshacer.")) return;
+          b.disabled = true;
+          api("/api/admin/visitas/" + id + "/fotos/" + b.dataset.quitar, { metodo: "DELETE" })
+            .then(function () {
+              v.fotos = v.fotos.filter(function (f) { return String(f.id) !== b.dataset.quitar; });
+              pintarGaleria();
+            })
+            .catch(function (e) { b.disabled = false; avisar(e.message, "err"); });
+        });
+      });
+    }
+    pintarGaleria();
+
+    function elegidas(input) {
+      var files = Array.prototype.slice.call(input.files || []);
+      input.value = "";           // para poder volver a elegir la misma
+      if (!files.length) return;
+      var btn = $("#v-guardar");
+      btn.disabled = true; btn.textContent = "Preparando fotos…";
+      // De una en una: reducir diez fotos de 12 megapíxeles a la vez puede
+      // dejar sin memoria a un móvil modesto.
+      files.reduce(function (cadena, file) {
+        return cadena.then(function () {
+          return reducirFoto(file).then(function (f) { nuevas.push(f); pintarGaleria(); })
+            .catch(function (e) { avisar(e.message, "err"); });
+        });
+      }, Promise.resolve()).then(function () {
+        btn.disabled = false; btn.textContent = "Guardar";
+      });
+    }
+    if ($("#v-camara")) $("#v-camara").addEventListener("change", function () { elegidas(this); });
+    if ($("#v-galeria")) $("#v-galeria").addEventListener("change", function () { elegidas(this); });
+
+    // La dirección sale de la ficha del cliente, salvo que ya se haya escrito
+    // otra a mano (una segunda vivienda, un local).
+    var dirPuesta = "";
+    $("#v-cliente").addEventListener("change", function () {
+      var sel = this.value;
+      var c = (cache.clientes || []).filter(function (x) { return String(x.id) === sel; })[0];
+      var dir = $("#v-dir");
+      if (dir.value.trim() && dir.value !== dirPuesta) return;
+      dir.value = dirPuesta = c
+        ? [c.direccion, [c.cp, c.ciudad].filter(Boolean).join(" ")].filter(Boolean).join(", ")
+        : "";
+    });
+    if (!id && v.cliente_id && !v.direccion) $("#v-cliente").dispatchEvent(new Event("change"));
+
+    function hayPendientes(que) {
+      return !nuevas.length || confirm("Hay " + nuevas.length + " foto" + (nuevas.length === 1 ? "" : "s") +
+                                       " sin subir. " + que);
+    }
+    if ($("#v-presu")) $("#v-presu").addEventListener("click", function () {
+      if (!hayPendientes("Si sigues se pierden. ¿Seguir?")) return;
+      editarDocumento("presupuestos", null, { cliente_id: v.cliente_id, visita_id: id });
+    });
+    $("#v-cancelar").addEventListener("click", function () {
+      if (hayPendientes("¿Cerrar sin subirlas?")) cerrarModal();
+    });
+    if ($("#v-borrar")) $("#v-borrar").addEventListener("click", function () {
+      var n = (v.fotos || []).length;
+      if (!confirm("Se borra la visita con sus notas" + (n ? " y sus " + n + " fotos" : "") +
+                   ". Los presupuestos que salieron de ella se quedan. ¿Borrar?")) return;
+      api("/api/admin/visitas/" + id, { metodo: "DELETE" })
+        .then(function () { invalidar(); cerrarModal(); avisar("Visita borrada"); ir("visitas"); })
+        .catch(function (e) { avisar(e.message, "err"); });
+    });
+
+    if ($("#v-guardar")) $("#v-guardar").addEventListener("click", function () {
+      var err = $("#v-err"), btn = this;
+      err.hidden = true;
+      var datos = {
+        cliente_id: $("#v-cliente").value ? Number($("#v-cliente").value) : null,
+        fecha: $("#v-fecha").value || null,
+        titulo: $("#v-titulo").value.trim() || null,
+        direccion: $("#v-dir").value.trim() || null,
+        notas: $("#v-notas").value.trim() || null
+      };
+      if (!datos.cliente_id) { err.textContent = "Elige el cliente de la visita."; err.hidden = false; return; }
+      if (esAdmin()) datos.usuario_id = $("#v-resp").value ? Number($("#v-resp").value) : null;
+      btn.disabled = true; btn.textContent = "Guardando…";
+
+      api("/api/admin/visitas" + (id ? "/" + id : ""), { metodo: id ? "PUT" : "POST", datos: datos })
+        .then(function (r) {
+          id = r.id;            // si falla una foto, el siguiente Guardar ya edita
+          var total = nuevas.length, n = 0;
+          return nuevas.slice().reduce(function (cadena, f) {
+            return cadena.then(function () {
+              n++;
+              btn.textContent = "Subiendo foto " + n + " de " + total + "…";
+              return api("/api/admin/visitas/" + id + "/fotos", { metodo: "POST", datos: f })
+                .then(function () { nuevas.splice(nuevas.indexOf(f), 1); });
+            });
+          }, Promise.resolve());
+        })
+        .then(function () {
+          invalidar(); cerrarModal(); avisar("Visita guardada"); ir("visitas");
+        })
+        .catch(function (e) {
+          err.textContent = e.message + (nuevas.length
+            ? ". Faltan " + nuevas.length + " foto" + (nuevas.length === 1 ? "" : "s") +
+              " por subir: pulsa Guardar otra vez cuando tengas cobertura."
+            : "");
+          err.hidden = false;
+          btn.disabled = false; btn.textContent = "Guardar";
+          pintarGaleria();
+        });
+    });
+  }).catch(error);
+}
+
 /* ── Presupuestos y facturas ──────────────────────────────────────────── */
 var ESTADOS_DOC = {
   presupuestos: ["borrador", "enviado", "firmado", "aceptado", "cancelado"],
@@ -1707,6 +2059,10 @@ function verDocumentos(clave) {
              (tipo === "presupuestos" && d.estado !== "cancelado"
                ? '<button data-cancelar="' + d.id + '" title="Cancelar el presupuesto">' + svg(ico.no) + "</button>"
                : "") +
+             (d.visita_id && puedeVer("visitas")
+               ? '<button data-visita="' + d.visita_id + '" title="Ver la visita: notas y fotos">' +
+                 svg(ico.camara) + "</button>"
+               : "") +
              '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
                '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
              (tipo === "presupuestos" && puedeVer("proformas")
@@ -1735,6 +2091,9 @@ function verDocumentos(clave) {
         b.addEventListener("click", function () {
           descargarPdf(tipo, b.dataset.pdf, b.dataset.num);
         });
+      });
+      $$("[data-visita]").forEach(function (b) {
+        b.addEventListener("click", function () { abrirVisita(Number(b.dataset.visita)); });
       });
       $$("[data-aceptar]").forEach(function (b) {
         b.addEventListener("click", function () {
@@ -1981,8 +2340,13 @@ var CAMPO_PRESUPUESTO = {
   filtra: function (p) { return p.estado !== "cancelado"; }
 };
 
-function editarDocumento(tipo, id) {
+// `inicial`: valores de partida de uno nuevo. La ficha de una visita abre así
+// el presupuesto, ya con su cliente y colgado de ella.
+function editarDocumento(tipo, id, inicial) {
   var esFactura = tipo === "facturas";
+  // Solo el presupuesto dice de qué visita sale: es el documento que se hace
+  // con las notas y las fotos delante.
+  var deVisita = tipo === "presupuestos";
   // Facturas y proformas salen de un presupuesto; un presupuesto no sale de
   // otro, así que ahí el campo no pinta nada.
   var dePresupuesto = tipo === "facturas" || tipo === "proformas";
@@ -1990,12 +2354,13 @@ function editarDocumento(tipo, id) {
     id ? api("/api/admin/documentos/" + tipo + "/" + id) : Promise.resolve(null),
     cargarRef("clientes"), cargarRef("obras")
   ].concat(esAdmin() ? [cargarRef("equipo")] : [])
-   .concat(dePresupuesto ? [cargarRef("documentos/presupuestos")] : [])).then(function (res) {
-    var doc = res[0] || {
+   .concat(dePresupuesto ? [cargarRef("documentos/presupuestos")] : [])
+   .concat(deVisita ? [cargarRef("visitas")] : [])).then(function (res) {
+    var doc = res[0] || Object.assign({
       lineas: [], estado: ESTADOS_DOC[tipo][0],
       fecha: new Date().toISOString().slice(0, 10),
       usuario_id: YO && YO.id      // lo que se crea es de quien lo crea
-    };
+    }, inicial || {});
     var lineas = (doc.lineas || []).map(function (l) {
       return {
         concepto: l.concepto, cantidad: l.cantidad, unidad: l.unidad,
@@ -2034,6 +2399,17 @@ function editarDocumento(tipo, id) {
         return '<option value="' + o.id + '"' + (String(o.id) === String(sel) ? " selected" : "") + ">" +
                esc(o.titulo || o.nombre) + "</option>";
       }).join("");
+    }
+
+    // Las visitas del cliente elegido, con fecha y fotos para reconocerlas.
+    function opcionesVisita(sel, cid) {
+      var ajena = sel && !(cache.visitas || []).some(function (o) { return String(o.id) === String(sel); });
+      return '<option value="">— sin visita —</option>' +
+        (ajena ? '<option value="' + esc(sel) + '" selected>(lo lleva otra persona)</option>' : "") +
+        soloDelCliente(cache.visitas || [], cid, sel).map(function (o) {
+          return '<option value="' + o.id + '"' + (String(o.id) === String(sel) ? " selected" : "") + ">" +
+                 esc(etiquetaVisita(o)) + "</option>";
+        }).join("");
     }
 
     function campoPresupuesto(sel) {
@@ -2081,6 +2457,12 @@ function editarDocumento(tipo, id) {
         '<div class="campo"><label for="d-obra">Obra</label><select id="d-obra">' +
           opciones("obras", doc.obra_id, doc.cliente_id) + "</select></div>" +
       "</div>" +
+      (deVisita
+        ? '<div class="campo"><label for="d-visita">Visita</label><select id="d-visita">' +
+          opcionesVisita(doc.visita_id, doc.cliente_id) + "</select>" +
+          '<small style="color:var(--muted-2);font-size:.79rem">La toma de datos de la que sale: ' +
+          "sus notas y sus fotos, en la pestaña Visitas.</small></div>"
+        : "") +
       '<div class="rejilla-2">' +
         '<div class="campo"><label for="d-estado">Estado</label><select id="d-estado">' +
           ESTADOS_DOC[tipo].map(function (e) {
@@ -2229,6 +2611,13 @@ function editarDocumento(tipo, id) {
       selObra.innerHTML = opciones("obras", sobra ? "" : selObra.value, cid);
 
       var quitado = sobra ? ["la obra"] : [];
+      var selVisita = $("#d-visita");
+      if (selVisita) {
+        var visita = (cache.visitas || []).filter(function (o) { return String(o.id) === selVisita.value; })[0];
+        var sobraVisita = cid && visita && visita.cliente_id && String(visita.cliente_id) !== String(cid);
+        selVisita.innerHTML = opcionesVisita(sobraVisita ? "" : selVisita.value, cid);
+        if (sobraVisita) quitado.push("la visita");
+      }
       if (inpPresu) {
         var elegido = buscaElegida(CAMPO_PRESUPUESTO, inpPresu.value);
         if (cid && elegido && elegido.fila.cliente_id &&
@@ -2245,6 +2634,16 @@ function editarDocumento(tipo, id) {
       }
     }
     $("#d-cliente").addEventListener("change", filtrarPorCliente);
+
+    // Elegir la visita antes que el cliente pone el cliente de la visita.
+    if ($("#d-visita")) $("#d-visita").addEventListener("change", function () {
+      var sel = this.value;
+      var visita = (cache.visitas || []).filter(function (o) { return String(o.id) === sel; })[0];
+      if (visita && visita.cliente_id && !$("#d-cliente").value) {
+        $("#d-cliente").value = visita.cliente_id;
+        filtrarPorCliente();
+      }
+    });
 
     $("#d-add").addEventListener("click", function () {
       lineas.push({ concepto: "", cantidad: 1, unidad: "ud", precio: 0, iva: 21 });
@@ -2268,6 +2667,7 @@ function editarDocumento(tipo, id) {
         fecha: $("#d-fecha").value || null,
         cliente_id: $("#d-cliente").value ? Number($("#d-cliente").value) : null,
         obra_id: $("#d-obra").value ? Number($("#d-obra").value) : null,
+        visita_id: $("#d-visita") && $("#d-visita").value ? Number($("#d-visita").value) : null,
         estado: $("#d-estado").value,
         notas: $("#d-notas").value.trim() || null
       };
@@ -2805,7 +3205,7 @@ function formSeccion(s) {
 
 /* ── Equipo: quién entra al panel y a qué ─────────────────────────────── */
 // Módulos que se pueden dar a un miembro, en el orden del menú.
-var MODULOS_EQUIPO = ["agenda", "solicitudes", "obras", "clientes", "profesionales",
+var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "clientes", "profesionales",
   "presupuestos", "proformas", "facturas", "costes", "contabilidad", "stock", "proveedores"];
 
 function verMiembros() {

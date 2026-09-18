@@ -137,7 +137,7 @@ class Tabla:
 
 # Quién necesita leer cada lista para sus desplegables.
 _LEE_CLIENTES = ("clientes", "obras", "agenda", "presupuestos", "proformas", "facturas",
-                 "costes", "solicitudes")
+                 "costes", "solicitudes", "visitas")
 _LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "costes", "stock")
 
 TABLAS = {
@@ -188,7 +188,20 @@ TABLAS = {
         orden="inicio DESC", obligatorios=("titulo", "inicio"),
         validar=validar_cita,
         modulo="agenda", responsable=True),
+    # La lista, el borrado y las fotos van en visitas.py; aquí solo el alta y
+    # la edición. Sin cliente no hay visita: es a casa de alguien.
+    "visitas": Tabla("visitas",
+        ["titulo", "cliente_id", "fecha", "direccion", "notas"],
+        orden="fecha DESC, id DESC", obligatorios=("cliente_id",),
+        validar=lambda d, _: _con_cliente(d),
+        modulo="visitas", lectura=("visitas", "presupuestos"), responsable=True),
 }
+
+
+def _con_cliente(d: dict):
+    """Al editar una visita tampoco se le puede quitar el cliente."""
+    if "cliente_id" in d and not d["cliente_id"]:
+        raise HTTPException(422, "Una visita tiene que ser de un cliente.")
 
 
 def _importe_de_obra(d: dict):
