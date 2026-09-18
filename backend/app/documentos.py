@@ -272,6 +272,19 @@ def corregir_precios_con_iva():
         sincronizar_ingreso(f["id"])
 
 
+def sincronizar_obras(presupuesto_id: int):
+    """Deja el importe de las obras que salen de este presupuesto en su base.
+
+    Sin esto, retocar las líneas de un presupuesto ya enlazado dejaba la obra
+    con el importe viejo hasta que alguien la volviera a guardar, y el margen
+    de la obra no cuadraba con el presupuesto que se tenía delante.
+    """
+    lineas = db.filas("SELECT * FROM presupuesto_lineas WHERE presupuesto_id = ?", (presupuesto_id,))
+    with db.tx() as con:
+        con.execute("UPDATE obras SET importe_venta = ? WHERE presupuesto_id = ?",
+                    (totales(lineas)["base"], presupuesto_id))
+
+
 def _firmas_previas(id_: int) -> int:
     """Firmas archivadas de ese presupuesto: las de antes de editarlo."""
     return db.escalar("SELECT COUNT(*) FROM firmas WHERE presupuesto_id = ?", (id_,))
@@ -372,6 +385,8 @@ def crear(tipo: str, doc: Documento, u: dict = Depends(sesion_actual)):
         _guardar_lineas(con, d, nuevo, doc.lineas)
     if tipo == "facturas":
         sincronizar_ingreso(nuevo)
+    if tipo == "presupuestos":
+        sincronizar_obras(nuevo)
     return _ver(tipo, nuevo)
 
 
@@ -408,6 +423,8 @@ def actualizar(tipo: str, id_: int, doc: Documento, u: dict = Depends(sesion_act
         _guardar_lineas(con, d, id_, doc.lineas)
     if tipo == "facturas":
         sincronizar_ingreso(id_)
+    if tipo == "presupuestos":
+        sincronizar_obras(id_)
     return _ver(tipo, id_)
 
 
