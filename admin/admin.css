@@ -707,3 +707,19 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .fc-tabla tbody tr:hover{ background:rgba(255,255,255,.03); }
 .fc-sub{ font-size:.78rem; color:var(--muted-2); }
 @media (max-width:900px){ .fc-datos{ grid-template-columns:1fr; } }
+
+/* ── Periodo del panel ───────────────────────────────────────────────── */
+.periodo{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.periodo__rapidos{ display:flex; border:1px solid var(--line-2); border-radius:9px; overflow:hidden; }
+.periodo__rapidos button{ background:none; border:0; color:var(--muted); font:inherit; font-size:.85rem;
+  padding:8px 12px; cursor:pointer; }
+.periodo__rapidos button + button{ border-left:1px solid var(--line-2); }
+.periodo__rapidos button:hover{ color:var(--txt); }
+.periodo__rapidos button.is-on{ background:var(--amber); color:#fff; }
+.periodo__nav{ display:flex; align-items:center; gap:6px; }
+.periodo__nav b{ min-width:130px; text-align:center; font-size:.92rem; }
+.periodo__nav button{ width:32px; height:32px; border-radius:8px; border:1px solid var(--line-2); background:none;
+  color:var(--txt); font-size:1.1rem; line-height:1; cursor:pointer; }
+.periodo__nav button:hover{ border-color:var(--amber); }
+.periodo__nav button[disabled]{ opacity:.35; cursor:default; }
+.barra-col small.is-on{ color:var(--amber); font-weight:700; }

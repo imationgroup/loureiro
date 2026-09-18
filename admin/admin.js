@@ -1681,18 +1681,65 @@ function error(err) {
 }
 
 /* ── Dashboard ────────────────────────────────────────────────────────── */
+// Periodo del panel: "2026" (un año) o "2026-09" (un mes). Por defecto, el
+// año en curso. Se conserva mientras dura la sesión en el navegador.
+var PERIODO = null;
+var MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+             "septiembre", "octubre", "noviembre", "diciembre"];
+
+function periodoDe(fecha, tipo) {
+  return tipo === "anio" ? String(fecha.getFullYear())
+    : fecha.getFullYear() + "-" + ("0" + (fecha.getMonth() + 1)).slice(-2);
+}
+function nombrePeriodo(p) {
+  if (p.length === 4) return "Año " + p;
+  var n = MESES[Number(p.slice(5)) - 1];
+  return n.charAt(0).toUpperCase() + n.slice(1) + " " + p.slice(0, 4);
+}
+// El periodo de al lado: un año o un mes antes (paso -1) o después (+1).
+function periodoVecino(p, paso) {
+  if (p.length === 4) return String(Number(p) + paso);
+  return periodoDe(new Date(Number(p.slice(0, 4)), Number(p.slice(5)) - 1 + paso, 1), "mes");
+}
+
 function verDashboard() {
-  api("/api/admin/dashboard").then(function (d) {
-    var c = d.contadores, margen = (d.mes.ingresos || 0) - (d.mes.gastos || 0);
+  var hoy = new Date();
+  var periodo = PERIODO || periodoDe(hoy, "anio");
+  var esAnio = periodo.length === 4;
+  var actual = periodoDe(hoy, esAnio ? "anio" : "mes");
+  var anterior = periodoVecino(periodoDe(hoy, "mes"), -1);
+  function boton(p, txt) {
+    return '<button type="button" data-periodo="' + p + '"' + (p === periodo ? ' class="is-on"' : "") + ">" + txt + "</button>";
+  }
+  $("#vista-acciones").innerHTML =
+    '<div class="periodo">' +
+      '<div class="periodo__rapidos">' +
+        boton(periodoDe(hoy, "anio"), "Este año") + boton(periodoDe(hoy, "mes"), "Este mes") +
+        boton(anterior, "Mes anterior") +
+      "</div>" +
+      '<div class="periodo__nav">' +
+        '<button type="button" data-periodo="' + periodoVecino(periodo, -1) + '" aria-label="Anterior">‹</button>' +
+        "<b>" + esc(nombrePeriodo(periodo)) + "</b>" +
+        '<button type="button" data-periodo="' + periodoVecino(periodo, 1) + '" aria-label="Siguiente"' +
+          (periodo >= actual ? " disabled" : "") + ">›</button>" +
+      "</div>" +
+    "</div>";
+  $$("#vista-acciones [data-periodo]").forEach(function (b) {
+    b.addEventListener("click", function () { PERIODO = b.dataset.periodo; verDashboard(); });
+  });
+
+  api("/api/admin/dashboard?periodo=" + periodo).then(function (d) {
+    var c = d.contadores, margen = (d.periodo.ingresos || 0) - (d.periodo.gastos || 0);
+    var del = esAnio ? "del año" : "del mes";
 
     var h = '<div class="metricas">' +
       metrica(c.obras_activas, "Obras activas", "") +
       (c.solicitudes_nuevas === null ? ""
         : metrica(c.solicitudes_nuevas, "Solicitudes sin atender", c.solicitudes_nuevas ? "metrica--azul" : "")) +
       // Resultados sin IVA (el IVA es de Hacienda); lo pendiente, con IVA.
-      metrica(eur(d.mes.ingresos), "Ingresos del mes · sin IVA", "metrica--verde") +
-      metrica(eur(d.mes.gastos), "Gastos del mes · sin IVA", "metrica--rojo") +
-      metrica(eur(margen), "Margen del mes · sin IVA", margen >= 0 ? "metrica--verde" : "metrica--rojo") +
+      metrica(eur(d.periodo.ingresos), "Ingresos " + del + " · sin IVA", "metrica--verde") +
+      metrica(eur(d.periodo.gastos), "Gastos " + del + " · sin IVA", "metrica--rojo") +
+      metrica(eur(margen), "Margen " + del + " · sin IVA", margen >= 0 ? "metrica--verde" : "metrica--rojo") +
       (c.stock_bajo === null ? ""
         : metrica(c.stock_bajo, "Artículos bajo mínimo", c.stock_bajo ? "metrica--rojo" : "")) +
       "</div>";
@@ -1700,17 +1747,23 @@ function verDashboard() {
     h += '<div class="paneles--3 paneles">';
 
     // Evolución
-    var ev = (d.evolucion || []).slice().reverse();
+    var ev = d.evolucion || [];
+    var altura = function (v) { return v ? Math.max(3, v / tope * 100) : 0; };
     var tope = Math.max.apply(null, ev.map(function (m) { return Math.max(m.ingresos || 0, m.gastos || 0); }).concat([1]));
-    h += '<div class="tarjeta"><h3>Ingresos y gastos <span>últimos 6 meses · sin IVA</span></h3>';
+    h += '<div class="tarjeta"><h3>Ingresos y gastos <span>' +
+         (esAnio ? esc(periodo) : "6 meses hasta " + esc(nombrePeriodo(periodo).toLowerCase())) +
+         " · sin IVA</span></h3>";
     if (!ev.length) h += '<div class="vacia">Sin movimientos todavía.</div>';
     else {
       h += '<div class="grafico">';
       ev.forEach(function (m) {
         h += '<div class="barra-col"><div class="barra-par">' +
-             '<div class="barra barra--in" style="height:' + Math.max(3, (m.ingresos || 0) / tope * 100) + '%"></div>' +
-             '<div class="barra barra--out" style="height:' + Math.max(3, (m.gastos || 0) / tope * 100) + '%"></div>' +
-             "</div><small>" + esc(String(m.mes).slice(5) + "/" + String(m.mes).slice(2, 4)) + "</small></div>";
+             // Un mes sin movimientos no pinta barra: la rayita mínima hacía
+             // creer que había algo.
+             '<div class="barra barra--in" style="height:' + altura(m.ingresos) + '%"></div>' +
+             '<div class="barra barra--out" style="height:' + altura(m.gastos) + '%"></div>' +
+             "</div><small" + (m.mes === periodo ? ' class="is-on"' : "") + ">" +
+             esc(String(m.mes).slice(5) + "/" + String(m.mes).slice(2, 4)) + "</small></div>";
       });
       h += '</div><div class="leyenda"><span><i style="background:var(--verde)"></i>Ingresos</span>' +
            '<span><i style="background:var(--rojo)"></i>Gastos</span></div>';

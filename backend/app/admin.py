@@ -13,6 +13,7 @@ ve: el administrador todas, un miembro solo las suyas. Una fila de otra
 persona responde 404 y no 403, para no confirmar siquiera que existe.
 """
 
+import re
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -800,12 +801,49 @@ def contabilidad(anio: int | None = None, u: dict = Depends(sesion_actual)):
 
 # ═══ Dashboard ══════════════════════════════════════════════════════════
 
+def _meses_del_periodo(periodo: str, hoy: date) -> tuple[str, list[str]]:
+    """Formato de strftime del periodo y los meses que pinta el gráfico.
+
+    Un año (2026): sus doce meses, o hasta el mes en curso si es el actual.
+    Un mes (2026-09): los seis meses que acaban en él, para verlo con contexto.
+    """
+    if len(periodo) == 4:
+        anio = int(periodo)
+        ultimo = hoy.month if anio == hoy.year else 12
+        return "%Y", [f"{anio}-{m:02d}" for m in range(1, ultimo + 1)]
+    anio, mes = int(periodo[:4]), int(periodo[5:])
+    meses = []
+    for _ in range(6):
+        meses.insert(0, f"{anio}-{mes:02d}")
+        mes -= 1
+        if mes == 0:
+            anio, mes = anio - 1, 12
+    return "%Y-%m", meses
+
+
 @router.get("/dashboard")
-def dashboard(u: dict = Depends(sesion_actual)):
-    """El resumen. Lo tiene todo el mundo, cada uno con sus números."""
+def dashboard(periodo: str | None = None, u: dict = Depends(sesion_actual)):
+    """El resumen. Lo tiene todo el mundo, cada uno con sus números.
+
+    `periodo` es un año (2026) o un mes (2026-09); por defecto, el año en
+    curso. Solo afecta a ingresos, gastos, margen y gráfico: lo pendiente, las
+    obras activas y lo reciente son siempre de hoy.
+    """
     hoy = date.today()
-    mes = hoy.strftime("%Y-%m")
+    periodo = periodo or str(hoy.year)
+    if not re.fullmatch(r"\d{4}(-(0[1-9]|1[0-2]))?", periodo):
+        raise HTTPException(422, "Periodo no válido: usa AAAA o AAAA-MM.")
+    fmt, meses = _meses_del_periodo(periodo, hoy)
     f, p = filtro_responsable(u)
+    # Todos los meses del periodo, también los que no tienen movimientos: un
+    # hueco en el gráfico dice más que un mes que desaparece.
+    por_mes = {r["mes"]: r for r in db.filas(f"""
+        SELECT mes, SUM(ingresos) AS ingresos, SUM(gastos) AS gastos FROM (
+          SELECT strftime('%Y-%m', fecha) AS mes, importe AS ingresos, 0 AS gastos FROM ingresos WHERE {f}
+          UNION ALL
+          SELECT strftime('%Y-%m', fecha) AS mes, 0, importe FROM costes WHERE {f}
+        ) WHERE mes BETWEEN ? AND ? GROUP BY mes
+    """, (*p, *p, meses[0], meses[-1]))}
     fo, po = filtro_responsable(u, "o")
     ve_solicitudes = puede(u, "solicitudes")
     ve_stock = puede(u, "stock")
@@ -821,10 +859,10 @@ def dashboard(u: dict = Depends(sesion_actual)):
             "stock_bajo": db.escalar("SELECT COUNT(*) FROM stock WHERE minimo > 0 AND cantidad <= minimo")
                           if ve_stock else None,
         },
-        "mes": {
-            "etiqueta": mes,
-            "ingresos": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE strftime('%Y-%m',fecha)=? AND {f}", (mes, *p)),
-            "gastos": db.escalar(f"SELECT SUM(importe) FROM costes WHERE strftime('%Y-%m',fecha)=? AND {f}", (mes, *p)),
+        "periodo": {
+            "clave": periodo,
+            "ingresos": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE strftime('{fmt}',fecha)=? AND {f}", (periodo, *p)),
+            "gastos": db.escalar(f"SELECT SUM(importe) FROM costes WHERE strftime('{fmt}',fecha)=? AND {f}", (periodo, *p)),
         },
         # Lo pendiente es dinero que va a entrar o salir, así que va con IVA:
         # es lo que paga el cliente y lo que se paga al proveedor. Lo cobrado de
@@ -839,13 +877,8 @@ def dashboard(u: dict = Depends(sesion_actual)):
             "pago": round(db.escalar(
                 f"SELECT SUM(importe * (1 + iva / 100.0)) FROM costes WHERE pagado = 0 AND {f}", p), 2),
         },
-        "evolucion": db.filas(f"""
-            SELECT mes, SUM(ingresos) AS ingresos, SUM(gastos) AS gastos FROM (
-              SELECT strftime('%Y-%m', fecha) AS mes, importe AS ingresos, 0 AS gastos FROM ingresos WHERE {f}
-              UNION ALL
-              SELECT strftime('%Y-%m', fecha) AS mes, 0, importe FROM costes WHERE {f}
-            ) GROUP BY mes ORDER BY mes DESC LIMIT 6
-        """, (*p, *p)),
+        "evolucion": [{"mes": m, "ingresos": (por_mes.get(m) or {}).get("ingresos", 0),
+                       "gastos": (por_mes.get(m) or {}).get("gastos", 0)} for m in meses],
         "obras_recientes": db.filas(f"""
             SELECT o.id, o.titulo, o.estado, o.ciudad, o.importe_venta,
                    c.nombre AS cliente,
