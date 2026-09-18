@@ -345,6 +345,19 @@ CREATE TABLE IF NOT EXISTS visita_fotos (
   creado      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Notas ────────────────────────────────────────────────────────────
+-- Apuntes sueltos. Pueden ir colgados de una obra (lo que se habló con el
+-- cliente, lo que falta por pedir) o de ninguna.
+CREATE TABLE IF NOT EXISTS notas (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo      TEXT,
+  contenido   TEXT NOT NULL DEFAULT '',
+  obra_id     INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  usuario_id  INTEGER,
+  actualizado TEXT,
+  creado      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Ajustes sueltos del panel (clave -> valor). Hoy solo el token secreto del
 -- enlace de la agenda para Google Calendar.
 CREATE TABLE IF NOT EXISTS ajustes (
@@ -416,6 +429,7 @@ CREATE INDEX IF NOT EXISTS idx_mov_stock         ON movimientos_stock(stock_id);
 CREATE INDEX IF NOT EXISTS idx_solicitudes_estado ON solicitudes(estado);
 CREATE INDEX IF NOT EXISTS idx_firmas_presupuesto ON firmas(presupuesto_id);
 CREATE INDEX IF NOT EXISTS idx_visita_fotos       ON visita_fotos(visita_id);
+CREATE INDEX IF NOT EXISTS idx_notas_obra         ON notas(obra_id);
 """
 
 
@@ -463,7 +477,8 @@ MIGRACIONES = [
 # antes del equipo queda con el responsable vacío, que es lo del
 # administrador: nadie más lo ve hasta que él lo reparta.
 TABLAS_CON_RESPONSABLE = ("clientes", "obras", "citas", "presupuestos", "proformas",
-                          "facturas", "costes", "ingresos", "solicitudes", "visitas")
+                          "facturas", "costes", "ingresos", "solicitudes", "visitas",
+                          "notas")
 MIGRACIONES += [(t, "usuario_id", "INTEGER") for t in TABLAS_CON_RESPONSABLE]
 
 

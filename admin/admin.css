@@ -662,3 +662,18 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .envio--off svg{ stroke:var(--muted-2); }
 .envio.is-cargando{ opacity:.6; pointer-events:none; }
 @media (max-width:640px){ .envios{ grid-template-columns:1fr; } }
+
+/* ── Notas ───────────────────────────────────────────────────────────── */
+.notas{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; align-items:start; }
+.nota{ display:grid; gap:8px; width:100%; text-align:left; cursor:pointer; font:inherit; color:var(--txt);
+  background:var(--ink-2); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; }
+.nota:hover{ border-color:var(--line-2); }
+.nota__cab{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.nota__cab small{ font-size:.76rem; color:var(--muted-2); white-space:nowrap; }
+.nota__txt{ font-size:.88rem; color:var(--muted); line-height:1.5; max-height:9.5em; overflow:hidden;
+  -webkit-mask-image:linear-gradient(#000 75%, transparent); mask-image:linear-gradient(#000 75%, transparent); }
+.nota__txt p, .nota__txt ul{ margin:0 0 6px; }
+.nota__txt ul{ padding-left:18px; }
+.nota__txt h4{ font-size:.88rem; color:var(--txt); margin:6px 0 4px; }
+#c-contenido{ min-height:220px; }
+@media (max-width:640px){ .notas{ grid-template-columns:1fr; } }

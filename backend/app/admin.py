@@ -13,7 +13,7 @@ ve: el administrador todas, un miembro solo las suyas. Una fila de otra
 persona responde 404 y no 403, para no confirmar siquiera que existe.
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -138,7 +138,8 @@ class Tabla:
 # Quién necesita leer cada lista para sus desplegables.
 _LEE_CLIENTES = ("clientes", "obras", "agenda", "presupuestos", "proformas", "facturas",
                  "costes", "solicitudes", "visitas")
-_LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "costes", "stock")
+_LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "costes", "stock",
+              "notas")
 
 TABLAS = {
     "clientes": Tabla("clientes",
@@ -195,7 +196,21 @@ TABLAS = {
         orden="fecha DESC, id DESC", obligatorios=("cliente_id",),
         validar=lambda d, _: _con_cliente(d),
         modulo="visitas", lectura=("visitas", "presupuestos"), responsable=True),
+    # Lo último que se ha tocado, arriba: una nota vieja que se retoca vuelve
+    # a estar al día.
+    "notas": Tabla("notas",
+        ["titulo", "contenido", "obra_id"],
+        orden="COALESCE(actualizado, creado) DESC, id DESC", obligatorios=("contenido",),
+        validar=lambda d, _: _sellar_nota(d),
+        modulo="notas", responsable=True),
 }
+
+
+def _sellar_nota(d: dict):
+    """Una nota vacía no es una nota; y cada cambio deja la hora."""
+    if "contenido" in d and not str(d["contenido"] or "").strip():
+        raise HTTPException(422, "La nota está vacía.")
+    d["actualizado"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _con_cliente(d: dict):

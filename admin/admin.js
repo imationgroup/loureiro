@@ -62,6 +62,7 @@ var ico = {
   abajo:'<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>',
   firma:'<path d="M3 17c3 0 4-9 7-9s3 9 6 9c2 0 3-2 5-3"/><path d="M3 21h18"/>',
   whatsapp:'<path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2z"/>',
+  nota:'<path d="M5 3h14v12l-6 6H5z"/><path d="M13 21v-6h6"/><path d="M8 8h8M8 12h5"/>',
   camara:'<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
   no:'<path d="M18 6L6 18M6 6l12 12"/>',
@@ -379,6 +380,18 @@ var MODULOS = {
   visitas: { titulo: "Visitas", sub: "Notas y fotos de la toma de datos, antes del presupuesto",
              icono: ico.camara, especial: "visitas" },
 
+  notas: {
+    titulo: "Notas", sub: "Apuntes sueltos y de cada obra", icono: ico.nota,
+    recurso: "notas", especial: "notas", uno: "nota", borrarDesdeFicha: true,
+    campos: [
+      { c: "titulo", t: "Título", ayuda: "Opcional. Por ejemplo: pedido de azulejo" },
+      { c: "obra_id", t: "Obra", tipo: "ref", de: "obras",
+        ayuda: "Déjala sin asignar si la nota no es de ninguna obra" },
+      { c: "contenido", t: "Nota", tipo: "area", req: true,
+        ayuda: "Admite **negrita**, listas empezando la línea con «- » y títulos con «## »" }
+    ]
+  },
+
   clientes: {
     titulo: "Clientes", sub: "Quién te contrata", icono: ico.gente, recurso: "clientes",
     // Botón para ir a casa del cliente. Solo sale si hay calle: con solo la
@@ -572,7 +585,7 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 
 // Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
 // lo que crea un miembro es suyo sin preguntar.
-["agenda", "solicitudes", "clientes", "obras", "costes", "ingresos"].forEach(function (k) {
+["agenda", "solicitudes", "clientes", "obras", "notas", "costes", "ingresos"].forEach(function (k) {
   MODULOS[k].campos.push({ c: "usuario_id", t: "Responsable", tipo: "ref", de: "equipo",
     soloAdmin: true, pordefecto: "yo",
     ayuda: "Solo lo ven esa persona y el administrador. Empieza puesto en ti." });
@@ -583,7 +596,7 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 
 var ORDEN_MENU = [
   { sep: null, items: ["dashboard", "agenda", "solicitudes", "visitas"] },
-  { sep: "Gestión", items: ["obras", "clientes", "profesionales"] },
+  { sep: "Gestión", items: ["obras", "notas", "clientes", "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "costes", "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
   { sep: "Empresa", items: ["estatutos", "equipo"] }
@@ -684,6 +697,8 @@ function pintarMenu() {
   $("#menu").innerHTML = h;
   $$("#menu button").forEach(function (b) {
     b.addEventListener("click", function () {
+      // Desde el menú, las notas se abren todas; filtradas, desde su obra.
+      if (b.dataset.vista === "notas") NOTAS_OBRA = "";
       ir(b.dataset.vista);
       $("#lat").classList.remove("is-open");
     });
@@ -711,6 +726,7 @@ function ir(k) {
   if (m.especial === "obras") return verObras();
   if (m.especial === "stock") return verStock();
   if (m.especial === "visitas") return verVisitas();
+  if (m.especial === "notas") return verNotas();
   if (m.especial === "documento") return verDocumentos(k);
   return verTabla(k);
 }
@@ -1452,17 +1468,20 @@ function verObras() {
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva obra</button>";
   $("#btn-nuevo").addEventListener("click", function () { abrirFormulario("obras", null); });
 
+  var conNotas = puedeVer("notas");
   Promise.all([api("/api/admin/informes/obras"), cargarRef("clientes"), cargarRef("obras")]
-              .concat(esAdmin() ? [cargarRef("equipo")] : []))
+              .concat([esAdmin() ? cargarRef("equipo") : null, conNotas ? api("/api/admin/notas") : []]))
     .then(function (res) {
       var obras = res[0];
+      var nNotas = {};
+      res[4].forEach(function (n) { if (n.obra_id) nNotas[n.obra_id] = (nNotas[n.obra_id] || 0) + 1; });
       if (!obras.length) {
         $("#vista").innerHTML = '<div class="tabla-caja"><div class="vacia">Todavía no hay obras. Pulsa «Nueva obra».</div></div>';
         return;
       }
       var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr>' +
         "<th>Obra</th><th>Cliente</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
-        "<th>Estado</th><th>Profesionales</th>" +
+        "<th>Estado</th><th>Profesionales</th>" + (conNotas ? "<th>Notas</th>" : "") +
         '<th class="num">Presupuestado</th><th class="num">Costes</th><th class="num">Facturado</th>' +
         '<th class="num">Margen</th><th class="num">Acciones</th></tr></thead><tbody>';
       obras.forEach(function (o) {
@@ -1476,6 +1495,11 @@ function verObras() {
              '<td><button class="btn btn--sm ' + (o.n_profesionales ? "btn--fant" : "btn--amber") +
              '" data-equipo="' + o.id + '" title="Asignar profesionales a esta obra">' +
              svg(ico.equipo) + (o.n_profesionales ? o.n_profesionales + " asignados" : "Asignar") + "</button></td>" +
+             (conNotas
+               ? '<td><button class="btn btn--sm btn--fant" data-notas="' + o.id + '" title="Ver las notas de esta obra">' +
+                 svg(ico.nota) + (nNotas[o.id] ? nNotas[o.id] + " nota" + (nNotas[o.id] === 1 ? "" : "s") : "Notas") +
+                 "</button></td>"
+               : "") +
              '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' + eur(o.costes) + '</td><td class="num">' + eur(o.facturado) + "</td>" +
              '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b>" +
              (pct !== null ? '<div style="font-size:.76rem;color:var(--muted)">' + pct + "%</div>" : "") + "</td>" +
@@ -1496,6 +1520,9 @@ function verObras() {
       });
       $$("[data-equipo]").forEach(function (b) {
         b.addEventListener("click", function () { verEquipo(b.dataset.equipo); });
+      });
+      $$("[data-notas]").forEach(function (b) {
+        b.addEventListener("click", function () { notasDeObra(b.dataset.notas); });
       });
     }).catch(error);
 }
@@ -1642,6 +1669,92 @@ function moverStock(art) {
     }).then(function () { invalidar(); cerrarModal(); ir("stock"); })
       .catch(function (err) { var e = $("#mv-err"); e.textContent = err.message; e.hidden = false; });
   });
+}
+
+/* ── Notas ────────────────────────────────────────────────────────────── */
+// Obra por la que se está filtrando: "" todas, "sin" las que no son de
+// ninguna, o el id de una obra. Se conserva al guardar una nota, y el botón
+// «Notas» de la lista de obras entra ya con la suya puesta.
+var NOTAS_OBRA = "";
+
+function notasDeObra(obraId) {
+  NOTAS_OBRA = String(obraId);
+  ir("notas");
+}
+
+function verNotas() {
+  $("#vista-acciones").innerHTML =
+    '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva nota</button>";
+  $("#btn-nuevo").addEventListener("click", function () {
+    // Con una obra elegida en el filtro, la nota nueva ya va a esa obra.
+    var obra = NOTAS_OBRA && NOTAS_OBRA !== "sin" ? Number(NOTAS_OBRA) : null;
+    abrirFormulario("notas", null, obra ? { obra_id: obra } : null);
+  });
+
+  Promise.all([api("/api/admin/notas"), cargarRef("obras")].concat(esAdmin() ? [cargarRef("equipo")] : []))
+    .then(function (res) {
+      var notas = res[0];
+      // En el filtro solo salen las obras que tienen notas, más la elegida.
+      var conNotas = {};
+      notas.forEach(function (n) { if (n.obra_id) conNotas[n.obra_id] = (conNotas[n.obra_id] || 0) + 1; });
+      var obras = (cache.obras || []).filter(function (o) {
+        return conNotas[o.id] || String(o.id) === NOTAS_OBRA;
+      });
+      var sinObra = notas.filter(function (n) { return !n.obra_id; }).length;
+      if (NOTAS_OBRA && NOTAS_OBRA !== "sin" && !obras.length) NOTAS_OBRA = "";
+
+      $("#vista").innerHTML =
+        '<div class="herr">' +
+          '<select id="notas-obra" aria-label="Obra">' +
+            '<option value="">Todas las notas (' + notas.length + ")</option>" +
+            '<option value="sin"' + (NOTAS_OBRA === "sin" ? " selected" : "") + ">Sin obra (" + sinObra + ")</option>" +
+            obras.map(function (o) {
+              return '<option value="' + o.id + '"' + (String(o.id) === NOTAS_OBRA ? " selected" : "") + ">" +
+                     esc(o.titulo) + " (" + (conNotas[o.id] || 0) + ")</option>";
+            }).join("") +
+          "</select>" +
+          '<input type="search" id="buscar" placeholder="Buscar en las notas…">' +
+        "</div>" +
+        '<div class="notas" id="notas-lista"></div>';
+
+      function pintar() {
+        var q = llano($("#buscar").value);
+        var filas = notas.filter(function (n) {
+          if (NOTAS_OBRA === "sin" && n.obra_id) return false;
+          if (NOTAS_OBRA && NOTAS_OBRA !== "sin" && String(n.obra_id) !== NOTAS_OBRA) return false;
+          return !q || [n.titulo, n.contenido, nombreDe("obras", n.obra_id)].some(function (x) {
+            return llano(x).indexOf(q) >= 0;
+          });
+        });
+        var caja = $("#notas-lista");
+        if (!filas.length) {
+          caja.innerHTML = '<div class="tabla-caja"><div class="vacia">' +
+            (notas.length ? "No hay notas con este filtro." : "Todavía no hay notas. Pulsa «Nueva nota».") +
+            "</div></div>";
+          return;
+        }
+        caja.innerHTML = filas.map(function (n) {
+          return '<button type="button" class="nota" data-nota="' + n.id + '">' +
+            '<span class="nota__cab">' +
+              (n.obra_id ? '<span class="tag tag--azul">' + esc(nombreDe("obras", n.obra_id)) + "</span>"
+                         : '<span class="tag">Sin obra</span>') +
+              "<small>" + esc(fecha(n.actualizado || n.creado)) +
+              (esAdmin() && n.usuario_id ? " · " + esc(nombreDe("equipo", n.usuario_id)) : "") + "</small>" +
+            "</span>" +
+            (n.titulo ? "<b>" + esc(n.titulo) + "</b>" : "") +
+            '<span class="nota__txt">' + textoRico(n.contenido) + "</span>" +
+            "</button>";
+        }).join("");
+        $$("[data-nota]", caja).forEach(function (b) {
+          b.addEventListener("click", function () {
+            abrirFormulario("notas", notas.filter(function (x) { return String(x.id) === b.dataset.nota; })[0]);
+          });
+        });
+      }
+      pintar();
+      $("#notas-obra").addEventListener("change", function () { NOTAS_OBRA = this.value; pintar(); });
+      $("#buscar").addEventListener("input", pintar);
+    }).catch(error);
 }
 
 /* ── Visitas: notas y fotos de la toma de datos ───────────────────────── */
@@ -3270,7 +3383,7 @@ function formSeccion(s) {
 
 /* ── Equipo: quién entra al panel y a qué ─────────────────────────────── */
 // Módulos que se pueden dar a un miembro, en el orden del menú.
-var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "clientes", "profesionales",
+var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "notas", "clientes", "profesionales",
   "presupuestos", "proformas", "facturas", "costes", "contabilidad", "stock", "proveedores"];
 
 function verMiembros() {
