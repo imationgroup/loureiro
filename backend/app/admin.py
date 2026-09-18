@@ -97,7 +97,8 @@ class Tabla:
     def __init__(self, nombre: str, campos: list[str], orden: str = "id DESC",
                  obligatorios: tuple[str, ...] = (), validar=None,
                  modulo: str = "", lectura: tuple[str, ...] = (),
-                 responsable: bool = False, defectos: dict | None = None):
+                 responsable: bool = False, defectos: dict | None = None,
+                 presentes: tuple[str, ...] = ()):
         self.nombre = nombre
         self.campos = campos
         self.orden = orden
@@ -119,6 +120,10 @@ class Tabla:
         # apuntada a mano en el panel puede no tenerlos, y sin esto el INSERT
         # revienta contra la restricción en vez de guardarse a medias.
         self.defectos = defectos or {}
+        # Campos que el alta tiene que traer, aunque sea vacíos a propósito. Un
+        # gasto dice a qué obra va o que no va a ninguna (gasto de empresa);
+        # lo que no vale es que no diga nada.
+        self.presentes = presentes
 
     def limpiar(self, datos: dict, creando: bool = False) -> dict:
         """Se queda solo con columnas conocidas: nadie inyecta campos raros.
@@ -165,7 +170,7 @@ TABLAS = {
     "costes": Tabla("costes",
         ["obra_id", "profesional_id", "proveedor_id", "categoria", "concepto",
          "importe", "iva", "fecha", "factura_ref", "pagado", "notas"],
-        orden="fecha DESC, id DESC", obligatorios=("concepto",),
+        orden="fecha DESC, id DESC", obligatorios=("concepto",), presentes=("obra_id",),
         modulo="costes", responsable=True),
     "ingresos": Tabla("ingresos",
         ["obra_id", "cliente_id", "concepto", "importe", "iva", "fecha",
@@ -283,6 +288,9 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
     t = _tabla(recurso)
     exigir(u, t.modulo)
     d = t.limpiar(datos, creando=True)
+    for campo in t.presentes:
+        if campo not in datos:
+            raise HTTPException(422, f"Falta el campo obligatorio: {campo}")
     for campo in t.obligatorios:
         if not str(d.get(campo, "")).strip():
             raise HTTPException(422, f"Falta el campo obligatorio: {campo}")
