@@ -1689,9 +1689,10 @@ function verDashboard() {
       metrica(c.obras_activas, "Obras activas", "") +
       (c.solicitudes_nuevas === null ? ""
         : metrica(c.solicitudes_nuevas, "Solicitudes sin atender", c.solicitudes_nuevas ? "metrica--azul" : "")) +
-      metrica(eur(d.mes.ingresos), "Ingresos del mes", "metrica--verde") +
-      metrica(eur(d.mes.gastos), "Gastos del mes", "metrica--rojo") +
-      metrica(eur(margen), "Margen del mes", margen >= 0 ? "metrica--verde" : "metrica--rojo") +
+      // Resultados sin IVA (el IVA es de Hacienda); lo pendiente, con IVA.
+      metrica(eur(d.mes.ingresos), "Ingresos del mes · sin IVA", "metrica--verde") +
+      metrica(eur(d.mes.gastos), "Gastos del mes · sin IVA", "metrica--rojo") +
+      metrica(eur(margen), "Margen del mes · sin IVA", margen >= 0 ? "metrica--verde" : "metrica--rojo") +
       (c.stock_bajo === null ? ""
         : metrica(c.stock_bajo, "Artículos bajo mínimo", c.stock_bajo ? "metrica--rojo" : "")) +
       "</div>";
@@ -1701,7 +1702,7 @@ function verDashboard() {
     // Evolución
     var ev = (d.evolucion || []).slice().reverse();
     var tope = Math.max.apply(null, ev.map(function (m) { return Math.max(m.ingresos || 0, m.gastos || 0); }).concat([1]));
-    h += '<div class="tarjeta"><h3>Ingresos y gastos <span>últimos 6 meses</span></h3>';
+    h += '<div class="tarjeta"><h3>Ingresos y gastos <span>últimos 6 meses · sin IVA</span></h3>';
     if (!ev.length) h += '<div class="vacia">Sin movimientos todavía.</div>';
     else {
       h += '<div class="grafico">';
@@ -1717,7 +1718,7 @@ function verDashboard() {
     h += "</div>";
 
     // Pendientes
-    h += '<div class="tarjeta"><h3>Pendiente</h3>' +
+    h += '<div class="tarjeta"><h3>Pendiente <span>con IVA</span></h3>' +
          '<div style="display:grid;gap:14px">' +
          '<div><b style="font-family:var(--ff-h);font-size:1.5rem;color:var(--verde)">' + eur(d.pendientes.cobro) + "</b>" +
          '<div style="font-size:.83rem;color:var(--muted)">Por cobrar a clientes</div></div>' +
@@ -1728,7 +1729,7 @@ function verDashboard() {
 
     // Obras y solicitudes recientes
     h += '<div class="paneles" style="margin-top:16px">';
-    h += '<div class="tarjeta"><h3>Últimas obras</h3>' + (d.obras_recientes.length
+    h += '<div class="tarjeta"><h3>Últimas obras <span>margen sin IVA</span></h3>' + (d.obras_recientes.length
       ? '<div class="tabla-scroll"><table><tbody>' + d.obras_recientes.map(function (o) {
           var m2 = (o.importe_venta || 0) - (o.costes || 0);
           return "<tr><td><b>" + esc(o.titulo) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
