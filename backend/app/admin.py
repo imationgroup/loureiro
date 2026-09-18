@@ -206,7 +206,7 @@ TABLAS = {
     # Lo último que se ha tocado, arriba: una nota vieja que se retoca vuelve
     # a estar al día.
     "notas": Tabla("notas",
-        ["titulo", "contenido", "obra_id"],
+        ["titulo", "contenido", "obra_id", "cliente_id"],
         orden="COALESCE(actualizado, creado) DESC, id DESC", obligatorios=("contenido",),
         validar=lambda d, _: _sellar_nota(d),
         modulo="notas", responsable=True),
@@ -362,6 +362,66 @@ def borrar(recurso: str, id_: int, u: dict = Depends(sesion_actual)):
 
 
 # ═══ Notificaciones (la campanita del panel) ════════════════════════════
+
+# ═══ Ficha de cliente ═══════════════════════════════════════════════════
+
+@router.get("/clientes/{id_}/ficha")
+def ficha_cliente(id_: int, u: dict = Depends(sesion_actual)):
+    """Todo lo de un cliente en una respuesta: obras, presupuestos, facturas,
+    lo cobrado y lo pendiente, visitas y notas.
+
+    Cada apartado sale solo si quien mira tiene ese módulo (si no, None), y
+    dentro de él solo lo que ve: al administrador todo, a un miembro lo suyo.
+    Lo cobrado y lo pendiente salen de las facturas, con IVA, que es lo que el
+    cliente paga de verdad; las anuladas no cuentan.
+    """
+    exigir(u, "clientes")
+    c = _fila_visible(TABLAS["clientes"], u, id_)
+    f, p = filtro_responsable(u, "x")
+    res: dict[str, Any] = {"cliente": c}
+
+    res["obras"] = db.filas(f"""
+        SELECT x.id, x.titulo, x.codigo, x.estado, x.importe_venta, x.fecha_inicio, x.fecha_fin_real,
+               COALESCE((SELECT SUM(importe) FROM costes WHERE obra_id = x.id), 0) AS costes
+        FROM obras x WHERE x.cliente_id = ? AND {f} ORDER BY x.id DESC""", (id_, *p)) \
+        if puede(u, "obras") else None
+
+    def documentos(tabla, lineas, fk):
+        docs = db.filas(f"""SELECT x.id, x.numero, x.fecha, x.estado, x.obra_id, o.titulo AS obra
+                            FROM {tabla} x LEFT JOIN obras o ON o.id = x.obra_id
+                            WHERE x.cliente_id = ? AND {f} ORDER BY x.fecha DESC, x.id DESC""",
+                        (id_, *p))
+        for d in docs:
+            d.update(totales(db.filas(f"SELECT * FROM {lineas} WHERE {fk} = ?", (d["id"],))))
+        return docs
+
+    res["presupuestos"] = documentos("presupuestos", "presupuesto_lineas", "presupuesto_id") \
+        if puede(u, "presupuestos") else None
+    res["facturas"] = documentos("facturas", "factura_lineas", "factura_id") \
+        if puede(u, "facturas") else None
+    if res["facturas"] is not None:
+        vivas = [x for x in res["facturas"] if x["estado"] != "anulada"]
+        res["cuentas"] = {
+            "facturado": round(sum(x["total"] for x in vivas), 2),
+            "cobrado": round(sum(x["total"] for x in vivas if x["estado"] == "cobrada"), 2),
+            "pendiente": round(sum(x["total"] for x in vivas if x["estado"] != "cobrada"), 2),
+        }
+
+    res["visitas"] = db.filas(f"""
+        SELECT x.id, x.titulo, x.fecha, x.direccion,
+               (SELECT COUNT(*) FROM visita_fotos WHERE visita_id = x.id) AS n_fotos,
+               (SELECT id FROM visita_fotos WHERE visita_id = x.id ORDER BY id LIMIT 1) AS portada
+        FROM visitas x WHERE x.cliente_id = ? AND {f} ORDER BY x.fecha DESC, x.id DESC""",
+        (id_, *p)) if puede(u, "visitas") else None
+
+    # Las notas del cliente y las de sus obras.
+    res["notas"] = db.filas(f"""
+        SELECT x.*, o.titulo AS obra FROM notas x LEFT JOIN obras o ON o.id = x.obra_id
+        WHERE (x.cliente_id = ? OR o.cliente_id = ?) AND {f}
+        ORDER BY COALESCE(x.actualizado, x.creado) DESC, x.id DESC""", (id_, id_, *p)) \
+        if puede(u, "notas") else None
+    return res
+
 
 @router.get("/notificaciones")
 def notificaciones(u: dict = Depends(sesion_actual)):

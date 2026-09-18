@@ -399,8 +399,10 @@ var MODULOS = {
     recurso: "notas", especial: "notas", uno: "nota", borrarDesdeFicha: true,
     campos: [
       { c: "titulo", t: "Título", ayuda: "Opcional. Por ejemplo: pedido de azulejo" },
-      { c: "obra_id", t: "Obra", tipo: "ref", de: "obras",
-        ayuda: "Déjala sin asignar si la nota no es de ninguna obra" },
+      { c: "cliente_id", t: "Cliente", tipo: "busca", de: "clientes", mitad: true, filtraObras: "obra_id",
+        placeholder: "Opcional", etiqueta: function (c) { return c.nombre; } },
+      { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", mitad: true,
+        ayuda: "Cliente y obra son opcionales: una nota puede no ser de nadie" },
       { c: "contenido", t: "Nota", tipo: "area", req: true,
         ayuda: "Admite **negrita**, listas empezando la línea con «- » y títulos con «## »" }
     ]
@@ -411,11 +413,12 @@ var MODULOS = {
     filtroPropio: "clientes",
     // Botón para ir a casa del cliente. Solo sale si hay calle: con solo la
     // ciudad o la provincia, el navegador llevaría al centro del pueblo.
-    accion: {
-      ico: "mapa", titulo: "Cómo llegar (Google Maps)",
-      oculta: function (f) { return !String(f.direccion || "").trim(); },
-      fn: function (f) { abrirMaps(f); }
-    },
+    acciones: [
+      { ico: "ojo", titulo: "Ficha del cliente", fn: function (f) { abrirFicha(f.id); } },
+      { ico: "mapa", titulo: "Cómo llegar (Google Maps)",
+        oculta: function (f) { return !String(f.direccion || "").trim(); },
+        fn: function (f) { abrirMaps(f); } }
+    ],
     columnas: [
       { c: "nombre", t: "Nombre" }, { c: "nif", t: "NIF" },
       { c: "telefono", t: "Teléfono" }, { c: "email", t: "Email" },
@@ -642,6 +645,9 @@ MODULOS.gastos_estados = { titulo: "Estados de gasto", menu: "Estados", sub: "Pe
   icono: ico.ok, especial: "listaEditable", lista: "gasto-estados", permiso: "costes" };
 MODULOS.obras_estados = { titulo: "Estados de obra", menu: "Estados", sub: "Presupuesto, en curso… los que uséis",
   icono: ico.ok, especial: "listaEditable", lista: "obra-estados", permiso: "obras" };
+// La ficha de un cliente: no sale en el menú, se entra desde Clientes.
+MODULOS.ficha_cliente = { titulo: "Ficha de cliente", sub: "", icono: ico.gente, especial: "fichaCliente",
+  permiso: "clientes" };
 MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", icono: ico.normas, especial: "estatutos" };
 
 // Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
@@ -775,7 +781,12 @@ function pintarMenu() {
   });
 }
 
+// Vista a la que se vuelve al guardar o borrar desde un formulario, si no es
+// la del propio módulo (la ficha de cliente). Cualquier navegación la olvida.
+var VOLVER = null;
+
 function ir(k) {
+  VOLVER = null;
   if (!MODULOS[k] || !puedeVer(k)) k = "dashboard";
   vistaActual = k;
   location.hash = k;
@@ -797,6 +808,7 @@ function ir(k) {
   if (m.especial === "stock") return verStock();
   if (m.especial === "visitas") return verVisitas();
   if (m.especial === "notas") return verNotas();
+  if (m.especial === "fichaCliente") return verFichaCliente();
   if (m.especial === "listaEditable") return verListaEditable(k);
   if (m.especial === "documento") return verDocumentos(k);
   return verTabla(k);
@@ -1000,6 +1012,9 @@ function celda(col, fila) {
   return esc(v) || "—";
 }
 
+// Botones propios de cada fila, además de editar y borrar.
+function accionesDe(m) { return m.acciones || (m.accion ? [m.accion] : []); }
+
 function pintarFilas(clave, filas) {
   var m = MODULOS[clave], caja = $("#caja-tabla");
   if (!filas.length) {
@@ -1014,10 +1029,10 @@ function pintarFilas(clave, filas) {
     h += "<tr>";
     cols.forEach(function (c) { h += "<td" + (c.num ? ' class="num"' : "") + ">" + celda(c, f) + "</td>"; });
     h += '<td class="acciones">' +
-         (m.accion && !(m.accion.oculta && m.accion.oculta(f))
-           ? '<button data-accion="' + f.id + '" title="' + esc(m.accion.titulo) + '">' +
-             svg(ico[m.accion.ico]) + "</button>"
-           : "") +
+         accionesDe(m).map(function (a, i) {
+           return a.oculta && a.oculta(f) ? ""
+             : '<button data-accion="' + i + ":" + f.id + '" title="' + esc(a.titulo) + '">' + svg(ico[a.ico]) + "</button>";
+         }).join("") +
          '<button data-editar="' + f.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
          '<button class="borrar" data-borrar="' + f.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
          "</td></tr>";
@@ -1034,7 +1049,8 @@ function pintarFilas(clave, filas) {
   });
   $$("[data-accion]", caja).forEach(function (b) {
     b.addEventListener("click", function () {
-      m.accion.fn(filas.filter(function (x) { return x.id == b.dataset.accion; })[0]);
+      var p = b.dataset.accion.split(":");
+      accionesDe(m)[p[0]].fn(filas.filter(function (x) { return String(x.id) === p[1]; })[0]);
     });
   });
   // Cambio de estado desde la fila. Si el servidor lo rechaza, el desplegable
@@ -1534,7 +1550,7 @@ function abrirFormulario(clave, registro, inicial) {
       var btn = $("#f-guardar"); btn.disabled = true; btn.textContent = "Guardando…";
       api("/api/admin/" + m.recurso + (editando ? "/" + registro.id : ""),
           { metodo: editando ? "PUT" : "POST", datos: datos })
-        .then(function () { invalidar(); cerrarModal(); ir(clave); })
+        .then(function () { invalidar(); cerrarModal(); ir(VOLVER || clave); })
         .catch(function (err) {
           var e = $("#f-err"); e.textContent = err.message; e.hidden = false;
           btn.disabled = false; btn.textContent = "Guardar";
@@ -1553,7 +1569,7 @@ function confirmarBorrado(clave, id) {
   $("#b-no").addEventListener("click", cerrarModal);
   $("#b-si").addEventListener("click", function () {
     api("/api/admin/" + m.recurso + "/" + id, { metodo: "DELETE" })
-      .then(function () { invalidar(); cerrarModal(); ir(clave); })
+      .then(function () { invalidar(); cerrarModal(); ir(VOLVER || clave); })
       .catch(error);
   });
 }
@@ -2124,6 +2140,180 @@ function borrarDeLista(clave, f, filas) {
   });
 }
 
+/* ── Ficha de cliente ─────────────────────────────────────────────────── */
+// Todo lo de un cliente en una página: datos, mapa, obras, presupuestos,
+// facturas con lo cobrado y lo pendiente, visitas y notas. Lo que se abre
+// desde aquí (editar, nueva nota, una factura…) vuelve aquí al guardar.
+var FICHA_ID = null;
+try { FICHA_ID = Number(sessionStorage.getItem("loureiro_ficha")) || null; } catch (e) {}
+
+function abrirFicha(id) {
+  FICHA_ID = Number(id);
+  try { sessionStorage.setItem("loureiro_ficha", String(FICHA_ID)); } catch (e) {}
+  ir("ficha_cliente");
+}
+
+// Lo que se abre desde la ficha vuelve a ella al guardar o borrar.
+function desdeFicha(fn) {
+  return function () { VOLVER = "ficha_cliente"; fn.apply(null, arguments); };
+}
+
+function direccionCompleta(c) {
+  return [c.direccion, [c.cp, c.ciudad].filter(Boolean).join(" "), c.provincia]
+    .map(function (x) { return String(x || "").trim(); }).filter(Boolean).join(", ");
+}
+
+function verFichaCliente() {
+  if (!FICHA_ID) return ir("clientes");
+  Promise.all([api("/api/admin/clientes/" + FICHA_ID + "/ficha"), cargarRef("clientes"), cargarRef("obras"),
+               puedeVer("obras") ? cargarRef("listas/obra-estados") : null, esAdmin() ? cargarRef("equipo") : null])
+    .then(function (res) {
+      var d = res[0], c = d.cliente;
+      $("#vista-titulo").textContent = c.nombre;
+      $("#vista-sub").textContent = ["Ficha de cliente", c.nif, c.ciudad].filter(Boolean).join(" · ");
+
+      // Acciones de arriba.
+      var acc = '<button class="btn btn--fant" id="fc-volver">← Clientes</button>' +
+        '<button class="btn btn--fant" id="fc-editar">' + svg(ico.lapiz) + "Editar</button>";
+      if (d.notas) acc += '<button class="btn btn--fant" id="fc-nota">' + svg(ico.nota) + "Nota</button>";
+      if (d.visitas && puedeVer("visitas")) acc += '<button class="btn btn--fant" id="fc-visita">' + svg(ico.camara) + "Visita</button>";
+      if (d.presupuestos) acc += '<button class="btn btn--amber" id="fc-presu">' + svg(ico.doc) + "Presupuesto</button>";
+      $("#vista-acciones").innerHTML = '<div class="fc-acciones">' + acc + "</div>";
+
+      var h = "";
+      // Números.
+      var obras = d.obras || [], presus = d.presupuestos || [];
+      var presupuestado = presus.filter(function (p) { return p.estado !== "cancelado"; })
+        .reduce(function (a, p) { return a + (p.total || 0); }, 0);
+      h += '<div class="metricas">';
+      if (d.obras) h += metrica(String(obras.length), obras.length === 1 ? "Obra" : "Obras", "");
+      if (d.presupuestos) h += metrica(eur(presupuestado), "Presupuestado (" + presus.length + ")", "metrica--azul");
+      if (d.cuentas) {
+        h += metrica(eur(d.cuentas.facturado), "Facturado", "") +
+             metrica(eur(d.cuentas.cobrado), "Pagado", "metrica--verde") +
+             metrica(eur(d.cuentas.pendiente), "Debe", d.cuentas.pendiente > 0 ? "metrica--rojo" : "metrica--verde");
+      }
+      h += "</div>";
+
+      // Datos y mapa.
+      var dir = direccionCompleta(c);
+      h += '<div class="paneles fc-datos"><div class="tarjeta"><h3>Datos</h3><dl class="fc-dl">' +
+        dato("Teléfono", c.telefono ? '<a href="tel:' + esc(c.telefono.replace(/\s/g, "")) + '">' + esc(c.telefono) + "</a>" +
+             (telefonoWhatsApp(c.telefono) ? ' · <a href="https://wa.me/' + telefonoWhatsApp(c.telefono) +
+               '" target="_blank" rel="noopener">WhatsApp</a>' : "") : "") +
+        dato("Email", c.email ? '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + "</a>" : "") +
+        dato("NIF", esc(c.nif)) +
+        dato("Dirección", esc(dir)) +
+        dato("Cliente desde", esc(fecha(c.creado))) +
+        (esAdmin() ? dato("Responsable", esc(nombreDe("equipo", c.usuario_id))) : "") +
+        "</dl>" + (c.notas ? '<div class="fc-notas-ficha">' + textoRico(c.notas) + "</div>" : "") + "</div>" +
+        '<div class="tarjeta fc-mapa"><h3>Localización' +
+          (c.direccion ? '<button class="btn btn--fant btn--sm" id="fc-ruta">' + svg(ico.mapa) + "Cómo llegar</button>" : "") +
+        "</h3>" +
+        (dir
+          ? '<iframe title="Mapa" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=' +
+            encodeURIComponent(dir + ", España") + '&z=15&output=embed"></iframe>'
+          : '<div class="vacia">Sin dirección en la ficha.</div>') +
+        "</div></div>";
+
+      // Obras.
+      if (d.obras) {
+        h += seccion("Obras", obras.length, obras.map(function (o) {
+          var margen = (o.importe_venta || 0) - (o.costes || 0);
+          return '<tr data-obra="' + o.id + '"><td><b>' + esc(o.titulo) + "</b>" +
+            (o.codigo ? '<div class="fc-sub">' + esc(o.codigo) + "</div>" : "") + "</td>" +
+            '<td><span class="tag ' + claseEstadoObra(o.estado, cache["listas/obra-estados"]) + '">' + esc(o.estado) + "</span></td>" +
+            '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' + eur(o.costes) + "</td>" +
+            '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b></td></tr>";
+        }), "<th>Obra</th><th>Estado</th><th class='num'>Presupuestado</th><th class='num'>Gastos</th><th class='num'>Margen</th>");
+      }
+      // Presupuestos y facturas.
+      [["presupuestos", "Presupuestos"], ["facturas", "Facturas"]].forEach(function (t) {
+        if (!d[t[0]]) return;
+        h += seccion(t[1], d[t[0]].length, d[t[0]].map(function (x) {
+          return '<tr data-doc="' + t[0] + ":" + x.id + '"><td><b>' + (esc(x.numero) || "#" + x.id) + "</b></td>" +
+            "<td>" + esc(fecha(x.fecha)) + "</td><td>" + (esc(x.obra) || "—") + "</td>" +
+            '<td><span class="tag ' + claseEstadoDoc(x.estado) + '">' + esc(x.estado) + "</span></td>" +
+            '<td class="num"><b>' + eur(x.total) + "</b></td></tr>";
+        }), "<th>Número</th><th>Fecha</th><th>Obra</th><th>Estado</th><th class='num'>Total</th>");
+      });
+      // Visitas.
+      if (d.visitas) {
+        h += '<div class="tarjeta fc-bloque"><h3>Visitas <span>' + d.visitas.length + "</span></h3>" +
+          (d.visitas.length ? '<div class="vis-lista">' + d.visitas.map(function (v) {
+            return '<button type="button" class="vis-item" data-visita="' + v.id + '">' +
+              '<span class="vis-item__foto">' +
+                (v.portada ? '<img alt="" data-foto="' + v.id + "/" + v.portada + '/m">' : svg(ico.camara)) +
+                (v.n_fotos > 1 ? "<em>" + v.n_fotos + "</em>" : "") + "</span>" +
+              '<span class="vis-item__txt"><b>' + esc(v.titulo || "Visita") + "</b><small>" + esc(fecha(v.fecha)) +
+              (v.n_fotos ? " · " + v.n_fotos + " foto" + (v.n_fotos === 1 ? "" : "s") : "") + "</small></span></button>";
+          }).join("") + "</div>" : '<div class="vacia">Sin visitas.</div>') + "</div>";
+      }
+      // Notas.
+      if (d.notas) {
+        h += '<div class="tarjeta fc-bloque"><h3>Notas <span>' + d.notas.length + "</span></h3>" +
+          (d.notas.length ? '<div class="notas">' + d.notas.map(function (n) {
+            return '<button type="button" class="nota" data-nota="' + n.id + '"><span class="nota__cab">' +
+              (n.obra ? '<span class="tag tag--azul">' + esc(n.obra) + "</span>" : '<span class="tag">Del cliente</span>') +
+              "<small>" + esc(fecha(n.actualizado || n.creado)) + "</small></span>" +
+              (n.titulo ? "<b>" + esc(n.titulo) + "</b>" : "") +
+              '<span class="nota__txt">' + textoRico(n.contenido) + "</span></button>";
+          }).join("") + "</div>" : '<div class="vacia">Sin notas. Pulsa «Nota» arriba para añadir una.</div>') + "</div>";
+      }
+      $("#vista").innerHTML = h;
+      pintarFotos($("#vista"));
+
+      // Manejadores.
+      $("#fc-volver").addEventListener("click", function () { ir("clientes"); });
+      $("#fc-editar").addEventListener("click", desdeFicha(function () { abrirFormulario("clientes", c); }));
+      if ($("#fc-nota")) $("#fc-nota").addEventListener("click", desdeFicha(function () {
+        abrirFormulario("notas", null, { cliente_id: c.id });
+      }));
+      if ($("#fc-visita")) $("#fc-visita").addEventListener("click", desdeFicha(function () {
+        abrirVisita(null, { cliente_id: c.id });
+      }));
+      if ($("#fc-presu")) $("#fc-presu").addEventListener("click", desdeFicha(function () {
+        editarDocumento("presupuestos", null, { cliente_id: c.id });
+      }));
+      if ($("#fc-ruta")) $("#fc-ruta").addEventListener("click", function () { abrirMaps(c); });
+      $$("[data-obra]").forEach(function (tr) {
+        tr.addEventListener("click", desdeFicha(function () {
+          api("/api/admin/obras").then(function (todas) {
+            abrirFormulario("obras", todas.filter(function (x) { return String(x.id) === tr.dataset.obra; })[0]);
+          });
+        }));
+      });
+      $$("[data-doc]").forEach(function (tr) {
+        tr.addEventListener("click", desdeFicha(function () {
+          var p = tr.dataset.doc.split(":");
+          if (puedeVer(p[0])) editarDocumento(p[0], p[1]);
+        }));
+      });
+      $$("[data-visita]").forEach(function (b) {
+        b.addEventListener("click", desdeFicha(function () { abrirVisita(Number(b.dataset.visita)); }));
+      });
+      $$("[data-nota]").forEach(function (b) {
+        b.addEventListener("click", desdeFicha(function () {
+          abrirFormulario("notas", d.notas.filter(function (n) { return String(n.id) === b.dataset.nota; })[0]);
+        }));
+      });
+    }).catch(function (e) {
+      // Un cliente que ya no existe (o de otra persona): de vuelta a la lista.
+      FICHA_ID = null;
+      avisar(e.message, "err");
+      ir("clientes");
+    });
+
+  function dato(t, v) { return v ? "<dt>" + esc(t) + "</dt><dd>" + v + "</dd>" : ""; }
+  function seccion(titulo, n, filas, cab) {
+    return '<div class="tarjeta fc-bloque"><h3>' + esc(titulo) + " <span>" + n + "</span></h3>" +
+      (filas.length
+        ? '<div class="tabla-scroll"><table class="fc-tabla"><thead><tr>' + cab + "</tr></thead><tbody>" +
+          filas.join("") + "</tbody></table></div>"
+        : '<div class="vacia">Nada todavía.</div>') + "</div>";
+  }
+}
+
 /* ── Notas ────────────────────────────────────────────────────────────── */
 // Obra por la que se está filtrando: "" todas, "sin" las que no son de
 // ninguna, o el id de una obra. Se conserva al guardar una nota, y el botón
@@ -2144,7 +2334,7 @@ function verNotas() {
     abrirFormulario("notas", null, obra ? { obra_id: obra } : null);
   });
 
-  Promise.all([api("/api/admin/notas"), cargarRef("obras")].concat(esAdmin() ? [cargarRef("equipo")] : []))
+  Promise.all([api("/api/admin/notas"), cargarRef("obras"), cargarRef("clientes")].concat(esAdmin() ? [cargarRef("equipo")] : []))
     .then(function (res) {
       var notas = res[0];
       // En el filtro solo salen las obras que tienen notas, más la elegida.
@@ -2190,6 +2380,7 @@ function verNotas() {
           return '<button type="button" class="nota" data-nota="' + n.id + '">' +
             '<span class="nota__cab">' +
               (n.obra_id ? '<span class="tag tag--azul">' + esc(nombreDe("obras", n.obra_id)) + "</span>"
+                         : n.cliente_id ? '<span class="tag">' + esc(nombreDe("clientes", n.cliente_id)) + "</span>"
                          : '<span class="tag">Sin obra</span>') +
               "<small>" + esc(fecha(n.actualizado || n.creado)) +
               (esAdmin() && n.usuario_id ? " · " + esc(nombreDe("equipo", n.usuario_id)) : "") + "</small>" +
@@ -2510,7 +2701,7 @@ function abrirVisita(id, inicial) {
       if (!confirm("Se borra la visita con sus notas" + (n ? " y sus " + n + " fotos" : "") +
                    ". Los presupuestos que salieron de ella se quedan. ¿Borrar?")) return;
       api("/api/admin/visitas/" + id, { metodo: "DELETE" })
-        .then(function () { invalidar(); cerrarModal(); avisar("Visita borrada"); ir("visitas"); })
+        .then(function () { invalidar(); cerrarModal(); avisar("Visita borrada"); ir(VOLVER || "visitas"); })
         .catch(function (e) { avisar(e.message, "err"); });
     });
 
@@ -2542,7 +2733,7 @@ function abrirVisita(id, inicial) {
           }, Promise.resolve());
         })
         .then(function () {
-          invalidar(); cerrarModal(); avisar("Visita guardada"); ir("visitas");
+          invalidar(); cerrarModal(); avisar("Visita guardada"); ir(VOLVER || "visitas");
         })
         .catch(function (e) {
           err.textContent = e.message + (nuevas.length
@@ -3392,7 +3583,7 @@ function editarDocumento(tipo, id, inicial) {
       btn.disabled = true; btn.textContent = "Guardando…";
       api("/api/admin/documentos/" + tipo + (id ? "/" + id : ""),
           { metodo: id ? "PUT" : "POST", datos: { cabecera: cabecera, lineas: utiles } })
-        .then(function () { invalidar(); cerrarModal(); ir(tipo); })
+        .then(function () { invalidar(); cerrarModal(); ir(VOLVER || tipo); })
         .catch(function (err) {
           var e = $("#d-err"); e.textContent = err.message; e.hidden = false;
           btn.disabled = false; btn.textContent = "Guardar";
