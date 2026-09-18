@@ -61,6 +61,7 @@ var ico = {
   arriba:'<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
   abajo:'<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>',
   firma:'<path d="M3 17c3 0 4-9 7-9s3 9 6 9c2 0 3-2 5-3"/><path d="M3 21h18"/>',
+  whatsapp:'<path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2z"/>',
   camara:'<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
   no:'<path d="M18 6L6 18M6 6l12 12"/>',
@@ -2173,35 +2174,99 @@ function verDocumentos(clave) {
 }
 
 /* ── Firma del presupuesto ────────────────────────────────────────────── */
+// Teléfono listo para wa.me: solo cifras y con prefijo de país. Un móvil
+// español de 9 cifras lleva el 34 delante; si ya trae prefijo (+351, 0033…) se
+// respeta. Si no salen al menos 9 cifras no es un teléfono que valga.
+function telefonoWhatsApp(t) {
+  var n = String(t || "").replace(/[^\d+]/g, "");
+  if (n.indexOf("00") === 0) n = n.slice(2);
+  n = n.replace(/\D/g, "");
+  if (n.length === 9) n = "34" + n;
+  return n.length >= 11 ? n : "";
+}
+
 function enviarAFirmar(d, clave) {
   var numero = d.numero || "#" + d.id;
+  var cli = (cache.clientes || []).filter(function (c) { return c.id === d.cliente_id; })[0];
+  var email = cli && String(cli.email || "").trim();
+  var tel = cli && telefonoWhatsApp(cli.telefono);
+
+  // Cada canal se ofrece solo si hay a dónde mandarlo. Desactivado se sigue
+  // viendo, con el motivo: así se sabe qué falta en la ficha del cliente.
+  function opcion(canal, icono, titulo, destino, falta) {
+    return '<button type="button" class="envio' + (destino ? "" : " envio--off") + '" data-canal="' + canal + '"' +
+      (destino ? "" : " disabled") + ">" + svg(icono) +
+      "<span><b>" + esc(titulo) + "</b><small>" + esc(destino || falta) + "</small></span></button>";
+  }
+  var sinCliente = "El presupuesto no tiene cliente";
   modal("Mandar a firmar " + numero,
     '<div class="aviso aviso--err" id="fm-err" hidden></div>' +
     '<p style="color:var(--muted);line-height:1.55">Le llega al cliente un enlace privado donde ' +
     "puede leer el presupuesto con sus condiciones y firmarlo desde el móvil. " +
     "Al firmar se guarda el PDF tal cual, con la fecha, la hora y su firma.</p>" +
+    '<div class="envios">' +
+      opcion("correo", ico.buzon, "Por correo", email, cli ? "El cliente no tiene correo en su ficha" : sinCliente) +
+      opcion("whatsapp", ico.whatsapp, "Por WhatsApp", tel ? cli.telefono : "",
+             cli ? (cli.telefono ? "El teléfono de la ficha no parece válido" : "El cliente no tiene teléfono en su ficha")
+                 : sinCliente) +
+    "</div>" +
     '<p style="color:var(--muted-2);font-size:.88rem;line-height:1.55">Mientras no lo firme puedes ' +
-    "seguir editándolo. Una vez firmado, el presupuesto queda bloqueado: si hay cambios, se cancela " +
-    "y se hace otro.</p>",
-    '<button class="btn btn--fant" id="fm-no">Cancelar</button>' +
-    '<button class="btn btn--amber" id="fm-si">Mandar al cliente</button>');
+    "seguir editándolo. Si lo editas después de firmado, la firma se archiva y hay que volver a mandárselo.</p>",
+    '<button class="btn btn--fant btn--sm" id="fm-enlace" style="margin-right:auto">Solo copiar el enlace</button>' +
+    '<button class="btn btn--fant" id="fm-no">Cancelar</button>');
   $("#fm-no").addEventListener("click", cerrarModal);
-  $("#fm-si").addEventListener("click", function () {
-    var btn = this;
-    btn.disabled = true; btn.textContent = "Mandando…";
-    api("/api/admin/documentos/presupuestos/" + d.id + "/enviar-firma", { metodo: "POST" })
-      .then(function (r) {
+
+  function fallo(e) {
+    var err = $("#fm-err");
+    if (!err) return avisar(e.message, "err");
+    err.textContent = e.message; err.hidden = false;
+    $$(".envios [data-canal]").forEach(function (b) { b.classList.remove("is-cargando"); });
+  }
+  function pedir(canal) {
+    return api("/api/admin/documentos/presupuestos/" + d.id + "/enviar-firma",
+               { metodo: "POST", datos: { canal: canal } });
+  }
+
+  $$(".envios [data-canal]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (b.disabled || b.classList.contains("is-cargando")) return;
+      b.classList.add("is-cargando");
+      if (b.dataset.canal === "correo") {
+        pedir("correo").then(function (r) {
+          cerrarModal();
+          if (r.enviado) { avisar("Enviado a " + r.email); ir(clave); return; }
+          // Si el correo falla, el enlace se enseña para pasarlo a mano.
+          enlaceParaCopiar(numero, r.enlace, r.motivo);
+          ir(clave);
+        }).catch(fallo);
+        return;
+      }
+      // WhatsApp se abre desde aquí, con el mensaje ya escrito, y sale del
+      // teléfono de quien lo manda. La ventana se abre antes de pedir el enlace:
+      // abierta después de esperar al servidor, el navegador la bloquea.
+      var ventana = window.open("", "_blank");
+      pedir("whatsapp").then(function (r) {
+        var nombre = String(r.nombre || "").split(" ")[0];
+        var texto = "Hola" + (nombre ? " " + nombre : "") + ", te paso el presupuesto " + numero +
+          " de Loureiro Soluciones. Puedes leerlo y, si estás de acuerdo, firmarlo desde el móvil aquí:\n" +
+          r.enlace + "\n\nEl enlace es personal, no lo compartas.";
+        var url = "https://wa.me/" + tel + "?text=" + encodeURIComponent(texto);
         cerrarModal();
-        if (r.enviado) { avisar("Enviado a " + r.email); ir(clave); return; }
-        // Sin correo, o si el envío falla, el enlace se enseña para pasarlo a mano.
-        enlaceParaCopiar(numero, r.enlace, r.motivo);
+        if (ventana) ventana.location.href = url;
+        else enlaceParaCopiar(numero, r.enlace, "El navegador no ha dejado abrir WhatsApp.");
         ir(clave);
-      })
-      .catch(function (e) {
-        var err = $("#fm-err");
-        err.textContent = e.message; err.hidden = false;
-        btn.disabled = false; btn.textContent = "Mandar al cliente";
-      });
+      }).catch(function (e) { if (ventana) ventana.close(); fallo(e); });
+    });
+  });
+
+  $("#fm-enlace").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    pedir("whatsapp").then(function (r) {
+      cerrarModal();
+      enlaceParaCopiar(numero, r.enlace, "");
+      ir(clave);
+    }).catch(function (e) { btn.disabled = false; fallo(e); });
   });
 }
 
