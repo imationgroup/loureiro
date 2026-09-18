@@ -484,13 +484,15 @@ var MODULOS = {
     titulo: "Gastos", sub: "Todo lo que sale de caja, por obra o de la empresa", icono: ico.euro,
     recurso: "costes", uno: "gasto",
     // Desplegable encima de la tabla para ver los gastos de una sola obra.
-    filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Gastos de empresa" },
+    filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Gastos de empresa",
+              cliente: "clientes" },
     suma: { c: "importe", t: "Base imponible" },
     columnas: [
       { c: "fecha", t: "Fecha", tipo: "fecha" },
       { c: "concepto", t: "Concepto" },
       { c: "categoria", t: "Categoría", tipo: "tag" },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", vacio: "Empresa" },
+      { c: "obra_id", t: "Cliente", tipo: "clienteObra" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales" },
       { c: "importe", t: "Base", tipo: "eur", num: true },
       { c: "pagado", t: "Pago", tipo: "bool", si: "Pagado", no: "Pendiente" }
@@ -760,31 +762,75 @@ function verTabla(clave) {
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nuevo</button>";
   $("#btn-nuevo").addEventListener("click", function () { abrirFormulario(clave, null); });
 
+  var fil = m.filtro;
+  if (fil && fil.cliente && refs.indexOf(fil.cliente) < 0) refs.push(fil.cliente);
+
   Promise.all([api("/api/admin/" + m.recurso)].concat(refs.map(cargarRef)))
     .then(function (res) {
-      var filas = res[0], fil = m.filtro;
-      var elegido = fil ? (FILTRO[clave] || "") : "";
+      var filas = res[0];
+      // Filtro por cliente y por obra. El cliente se escribe (va filtrando la
+      // lista según se teclea) y, con él puesto, el desplegable de obras solo
+      // ofrece las suyas.
+      var est = fil ? (FILTRO[clave] = FILTRO[clave] || { cliente: "", obra: "" }) : null;
       $("#vista").innerHTML =
         '<div class="herr">' +
-        (fil
-          ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"><option value="">' + esc(fil.todos) + "</option>" +
-            '<option value="ninguna"' + (elegido === "ninguna" ? " selected" : "") + ">" + esc(fil.vacio) + "</option>" +
-            (cache[fil.de] || []).map(function (o) {
-              return '<option value="' + o.id + '"' + (String(o.id) === elegido ? " selected" : "") + ">" +
-                     esc(o.titulo || o.nombre) + "</option>";
-            }).join("") + "</select>"
+        (fil && fil.cliente
+          ? '<input id="filtro-cliente" list="lista-filtro-cliente" autocomplete="off" class="herr__cliente"' +
+            ' placeholder="Cliente: escribe para filtrar…" value="' + esc(est.cliente) + '">' +
+            '<datalist id="lista-filtro-cliente">' + (cache[fil.cliente] || []).map(function (c) {
+              return '<option value="' + esc(c.nombre) + '"></option>';
+            }).join("") + "</datalist>"
           : "") +
+        (fil ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"></select>' : "") +
         '<input type="search" id="buscar" placeholder="Buscar…"></div>' +
         '<div class="tabla-caja"><div class="tabla-scroll" id="caja-tabla"></div>' +
         (m.suma ? '<div class="tabla-suma" id="tabla-suma"></div>' : "") + "</div>";
+
+      // Clientes que encajan con lo escrito. Si el nombre está entero, solo
+      // ese: «Carmen López» no tiene por qué traer también a «Carmen López Díaz».
+      function clientesEscritos() {
+        var q = llano(est && est.cliente);
+        if (!q) return null;
+        var lista = cache[fil.cliente] || [];
+        var exacto = lista.filter(function (c) { return llano(c.nombre) === q; });
+        var caben = exacto.length ? exacto : lista.filter(function (c) { return llano(c.nombre).indexOf(q) >= 0; });
+        return caben.map(function (c) { return String(c.id); });
+      }
+      function obraDe(id) {
+        return (cache[fil.de] || []).filter(function (o) { return String(o.id) === String(id); })[0];
+      }
+      function pintarObras() {
+        var clis = clientesEscritos();
+        var obras = (cache[fil.de] || []).filter(function (o) {
+          return !clis || clis.indexOf(String(o.cliente_id)) >= 0;
+        });
+        // La obra elegida se suelta si ya no es de los clientes que quedan.
+        if (est.obra && est.obra !== "ninguna" &&
+            !obras.some(function (o) { return String(o.id) === est.obra; })) est.obra = "";
+        if (clis && est.obra === "ninguna") est.obra = "";
+        $("#filtro").innerHTML =
+          '<option value="">' + esc(clis ? "Todas sus obras (" + obras.length + ")" : fil.todos) + "</option>" +
+          (clis ? "" : '<option value="ninguna"' + (est.obra === "ninguna" ? " selected" : "") + ">" +
+                       esc(fil.vacio) + "</option>") +
+          obras.map(function (o) {
+            return '<option value="' + o.id + '"' + (String(o.id) === est.obra ? " selected" : "") + ">" +
+                   esc(o.titulo || o.nombre) + "</option>";
+          }).join("");
+      }
+
       function repintar() {
-        var q = $("#buscar").value.toLowerCase().trim();
+        var q = llano($("#buscar").value);
+        var clis = fil && fil.cliente ? clientesEscritos() : null;
         var vistas = filas.filter(function (f) {
-          if (elegido === "ninguna" && f[fil.c]) return false;
-          if (elegido && elegido !== "ninguna" && String(f[fil.c]) !== elegido) return false;
-          return !q || Object.keys(f).some(function (k) {
-            return String(f[k] === null ? "" : f[k]).toLowerCase().indexOf(q) >= 0;
-          });
+          if (fil) {
+            if (est.obra === "ninguna" && f[fil.c]) return false;
+            if (est.obra && est.obra !== "ninguna" && String(f[fil.c]) !== est.obra) return false;
+            if (clis) {
+              var o = obraDe(f[fil.c]);
+              if (!o || clis.indexOf(String(o.cliente_id)) < 0) return false;
+            }
+          }
+          return !q || textoBusqueda(m, f).indexOf(q) >= 0;
         });
         pintarFilas(clave, vistas);
         if (m.suma) {
@@ -792,20 +838,45 @@ function verTabla(clave) {
             eur(vistas.reduce(function (a, f) { return a + (Number(f[m.suma.c]) || 0); }, 0)) + "</b>";
         }
       }
+      if (fil) pintarObras();
       repintar();
       $("#buscar").addEventListener("input", repintar);
       if (fil) $("#filtro").addEventListener("change", function () {
-        elegido = FILTRO[clave] = this.value;
+        est.obra = this.value;
+        repintar();
+      });
+      if ($("#filtro-cliente")) $("#filtro-cliente").addEventListener("input", function () {
+        est.cliente = this.value;
+        pintarObras();
         repintar();
       });
     })
     .catch(error);
 }
 
+// Lo que se busca en una fila: sus datos y además los nombres que enseña la
+// tabla (la obra, el cliente, el profesional), no los números que guarda.
+function textoBusqueda(m, f) {
+  var partes = Object.keys(f).map(function (k) { return f[k]; });
+  columnasDe(m).forEach(function (col) {
+    if (col.tipo === "ref") partes.push(nombreDe(col.de, f[col.c]) || col.vacio || "");
+    if (col.tipo === "clienteObra") partes.push(clienteDeObra(f[col.c]));
+    if (col.tipo === "fecha") partes.push(fecha(f[col.c]));
+  });
+  return llano(partes.join(" "));
+}
+
+// Cliente de la obra de una fila, para los gastos, que cuelgan de la obra.
+function clienteDeObra(obraId) {
+  var o = (cache.obras || []).filter(function (x) { return x.id === obraId; })[0];
+  return o && o.cliente_id ? nombreDe("clientes", o.cliente_id) : "";
+}
+
 function celda(col, fila) {
   var v = fila[col.c];
   if (col.tipo === "eur") return v ? eur(v) : "—";
   if (col.tipo === "fecha") return esc(fecha(v));
+  if (col.tipo === "clienteObra") return esc(clienteDeObra(v)) || "—";
   if (col.tipo === "ref") {
     return esc(nombreDe(col.de, v)) || (col.vacio ? '<span class="tag">' + esc(col.vacio) + "</span>" : "—");
   }
