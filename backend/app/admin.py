@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from . import db
 from .agenda import validar_cita
 from .documentos import totales
-from .gastos import completar_gasto, estado_pendiente
+from .listas import completar_gasto, completar_obra, estado_pendiente
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
                    limpiar_intentos, publico, puede, registrar_intento, sesion_actual,
@@ -166,7 +166,7 @@ TABLAS = {
         ["codigo", "titulo", "cliente_id", "presupuesto_id", "direccion", "cp",
          "ciudad", "provincia", "estado", "fecha_inicio", "fecha_fin_prevista",
          "fecha_fin_real", "importe_venta", "notas"],
-        obligatorios=("titulo",),
+        obligatorios=("titulo",), validar=completar_obra,
         modulo="obras", lectura=_LEE_OBRAS, responsable=True),
     "costes": Tabla("costes",
         ["obra_id", "profesional_id", "proveedor_id", "categoria", "concepto",
@@ -733,7 +733,7 @@ def dashboard(u: dict = Depends(sesion_actual)):
 
     return {
         "contadores": {
-            "obras_activas": db.escalar(f"SELECT COUNT(*) FROM obras WHERE estado IN ('en curso','pausada') AND {f}", p),
+            "obras_activas": db.escalar(f"SELECT COUNT(*) FROM obras WHERE estado IN (SELECT nombre FROM obra_estados WHERE activa = 1) AND {f}", p),
             "obras_total": db.escalar(f"SELECT COUNT(*) FROM obras WHERE {f}", p),
             "clientes": db.escalar(f"SELECT COUNT(*) FROM clientes WHERE {f}", p),
             "profesionales": db.escalar("SELECT COUNT(*) FROM profesionales WHERE activo=1"),
