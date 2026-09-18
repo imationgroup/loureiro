@@ -334,14 +334,15 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .lineas{display:grid;gap:8px}
 .linea{
   display:grid;
-  grid-template-columns:minmax(180px,1fr) 72px 58px 92px 60px 92px 32px;
+  grid-template-columns:minmax(180px,1fr) 72px 58px 92px 72px 92px 32px;
   gap:7px;align-items:center;
 }
-.linea input{
+.linea input,.linea select{
   background:var(--ink-3);border:1.5px solid transparent;border-radius:8px;
-  padding:8px 10px;font-size:.88rem;width:100%;
+  padding:8px 10px;font-size:.88rem;width:100%;color:var(--txt);font-family:inherit;
 }
-.linea input:focus{outline:none;border-color:var(--amber);background:var(--ink-4)}
+.linea select{padding:8px 4px;cursor:pointer}
+.linea input:focus,.linea select:focus{outline:none;border-color:var(--amber);background:var(--ink-4)}
 .linea .l-total{
   font-size:.87rem;text-align:right;color:var(--muted);
   font-variant-numeric:tabular-nums;white-space:nowrap;
@@ -368,7 +369,7 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 
 /* Cabecera de la rejilla de líneas, para saber qué es cada columna */
 .lineas-cab{
-  display:grid;grid-template-columns:minmax(180px,1fr) 72px 58px 92px 60px 92px 32px;
+  display:grid;grid-template-columns:minmax(180px,1fr) 72px 58px 92px 72px 92px 32px;
   gap:7px;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;
   color:var(--muted-2);margin-bottom:2px;padding:0 2px;
 }
@@ -394,7 +395,7 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 }
 
 @media (max-width:640px){
-  .linea,.lineas-cab{grid-template-columns:1fr 60px 50px 80px 54px}
+  .linea,.lineas-cab{grid-template-columns:1fr 60px 50px 80px 64px}
   .linea .l-total{grid-column:1/-1;text-align:right}
   .linea .l-borrar{position:absolute;right:0}
   .lineas-cab{display:none}
