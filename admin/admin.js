@@ -242,7 +242,6 @@ var CATEGORIAS_PRO = ["Electricista", "Albañil", "Fontanero", "Pintor", "Carpin
   "Climatización", "Instalador de pellets", "Limpieza", "Yesero", "Soldador",
   "Cristalero", "Cerrajero", "Jardinero", "Otro"];
 
-var ESTADOS_OBRA = ["presupuesto", "en curso", "pausada", "terminada", "cancelada"];
 var ESTADOS_SOL  = ["pendiente", "atendida", "descartada"];
 var TIPOS_CITA   = ["visita", "presupuesto", "obra", "revisión", "otro"];
 var ESTADOS_CITA = ["pendiente", "hecha", "cancelada"];
@@ -409,6 +408,7 @@ var MODULOS = {
 
   clientes: {
     titulo: "Clientes", sub: "Quién te contrata", icono: ico.gente, recurso: "clientes",
+    filtroPropio: "clientes",
     // Botón para ir a casa del cliente. Solo sale si hay calle: con solo la
     // ciudad o la provincia, el navegador llevaría al centro del pueblo.
     accion: {
@@ -469,7 +469,7 @@ var MODULOS = {
     campos: [
       { c: "titulo", t: "Título de la obra", req: true },
       { c: "codigo", t: "Código", mitad: true, ayuda: "Referencia interna, p. ej. OB-2026-014" },
-      { c: "estado", t: "Estado", tipo: "select", ops: ESTADOS_OBRA, mitad: true },
+      { c: "estado", t: "Estado", tipo: "lista", de: "listas/obra-estados", mitad: true },
       { c: "cliente_id", t: "Cliente", tipo: "ref", de: "clientes", mitad: true },
       { c: "presupuesto_id", t: "Presupuesto", tipo: "busca", de: "documentos/presupuestos",
         placeholder: "Escribe el número o el cliente",
@@ -515,7 +515,7 @@ var MODULOS = {
       });
       var cuantos = function (n) { return n + " gasto" + (n === 1 ? "" : "s"); };
       var h = '<div class="metricas">';
-      (cache["gastos/estados"] || []).forEach(function (e) {
+      (cache["listas/gasto-estados"] || []).forEach(function (e) {
         var x = por[e.nombre] || { n: 0, t: 0 };
         h += metrica(eur(x.t), e.nombre + " · " + cuantos(x.n), e.pagado ? "metrica--verde" : "");
         delete por[e.nombre];
@@ -541,7 +541,7 @@ var MODULOS = {
     ],
     campos: [
       { c: "concepto", t: "Concepto", req: true },
-      { c: "categoria", t: "Categoría", tipo: "lista", de: "gastos/categorias", mitad: true },
+      { c: "categoria", t: "Categoría", tipo: "lista", de: "listas/gasto-categorias", mitad: true },
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "importe", t: "Importe con IVA incluido (€)", tipo: "numero", mitad: true, req: true },
       { c: "iva", t: "IVA", tipo: "select", ops: IVAS, mitad: true, pordefecto: 21 },
@@ -553,7 +553,7 @@ var MODULOS = {
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true, pordefecto: "miProfesional" },
       { c: "proveedor_id", t: "Proveedor", tipo: "ref", de: "proveedores", mitad: true },
       { c: "factura_ref", t: "Nº de factura", mitad: true },
-      { c: "estado", t: "Estado", tipo: "lista", de: "gastos/estados" },
+      { c: "estado", t: "Estado", tipo: "lista", de: "listas/gasto-estados" },
       { c: "notas", t: "Notas", tipo: "area" }
     ]
   },
@@ -637,9 +637,11 @@ var MODULOS = {
 MODULOS.equipo = { titulo: "Equipo", sub: "Quién entra al panel y a qué", icono: ico.equipo, especial: "equipo" };
 // Submenús de Gastos: sus listas de categorías y estados.
 MODULOS.gastos_categorias = { titulo: "Categorías de gasto", menu: "Categorías", sub: "Para clasificar los gastos",
-  icono: ico.etiqueta, especial: "listaGasto", lista: "categorias", permiso: "costes" };
+  icono: ico.etiqueta, especial: "listaEditable", lista: "gasto-categorias", permiso: "costes" };
 MODULOS.gastos_estados = { titulo: "Estados de gasto", menu: "Estados", sub: "Pendiente, pagado… los que uséis",
-  icono: ico.ok, especial: "listaGasto", lista: "estados", permiso: "costes" };
+  icono: ico.ok, especial: "listaEditable", lista: "gasto-estados", permiso: "costes" };
+MODULOS.obras_estados = { titulo: "Estados de obra", menu: "Estados", sub: "Presupuesto, en curso… los que uséis",
+  icono: ico.ok, especial: "listaEditable", lista: "obra-estados", permiso: "obras" };
 MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", icono: ico.normas, especial: "estatutos" };
 
 // Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
@@ -655,7 +657,7 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 
 var ORDEN_MENU = [
   { sep: null, items: ["dashboard", "agenda", "solicitudes", "visitas"] },
-  { sep: "Gestión", items: ["obras", "notas", "clientes", "profesionales"] },
+  { sep: "Gestión", items: [{ k: "obras", hijos: ["obras_estados"] }, "notas", "clientes", "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas",
                              { k: "costes", hijos: ["gastos_categorias", "gastos_estados"] }, "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
@@ -795,7 +797,7 @@ function ir(k) {
   if (m.especial === "stock") return verStock();
   if (m.especial === "visitas") return verVisitas();
   if (m.especial === "notas") return verNotas();
-  if (m.especial === "listaGasto") return verListaGasto(k);
+  if (m.especial === "listaEditable") return verListaEditable(k);
   if (m.especial === "documento") return verDocumentos(k);
   return verTabla(k);
 }
@@ -831,6 +833,9 @@ function verTabla(clave) {
 
   var fil = m.filtro;
   if (fil && fil.cliente && refs.indexOf(fil.cliente) < 0) refs.push(fil.cliente);
+  // En Clientes el desplegable filtra la propia lista.
+  var propio = m.filtroPropio;
+  if (propio && refs.indexOf(propio) < 0) refs.push(propio);
 
   Promise.all([api("/api/admin/" + m.recurso)].concat(refs.map(cargarRef)))
     .then(function (res) {
@@ -838,13 +843,13 @@ function verTabla(clave) {
       // Filtro por cliente y por obra. El cliente se escribe (va filtrando la
       // lista según se teclea) y, con él puesto, el desplegable de obras solo
       // ofrece las suyas.
-      var est = fil ? (FILTRO[clave] = FILTRO[clave] || { cliente: "", obra: "" }) : null;
+      var est = (fil || propio) ? (FILTRO[clave] = FILTRO[clave] || { cliente: "", obra: "" }) : null;
       $("#vista").innerHTML =
         '<div class="herr">' +
-        (fil && fil.cliente
+        ((fil && fil.cliente) || propio
           ? '<input id="filtro-cliente" list="lista-filtro-cliente" autocomplete="off" class="herr__cliente"' +
             ' placeholder="Cliente: escribe para filtrar…" value="' + esc(est.cliente) + '">' +
-            '<datalist id="lista-filtro-cliente">' + (cache[fil.cliente] || []).map(function (c) {
+            '<datalist id="lista-filtro-cliente">' + (cache[fil ? fil.cliente : propio] || []).map(function (c) {
               return '<option value="' + esc(c.nombre) + '"></option>';
             }).join("") + "</datalist>"
           : "") +
@@ -889,6 +894,10 @@ function verTabla(clave) {
               if (!o || clis.indexOf(String(o.cliente_id)) < 0) return false;
             }
           }
+          if (propio) {
+            var cp = clientesQueEncajan(propio, est.cliente);
+            if (cp && cp.indexOf(String(f.id)) < 0) return false;
+          }
           return !q || textoBusqueda(m, f).indexOf(q) >= 0;
         });
         pintarFilas(clave, vistas);
@@ -904,7 +913,7 @@ function verTabla(clave) {
       });
       if ($("#filtro-cliente")) $("#filtro-cliente").addEventListener("input", function () {
         est.cliente = this.value;
-        pintarObras();
+        if (fil) pintarObras();
         repintar();
       });
     })
@@ -949,7 +958,7 @@ function celda(col, fila) {
   if (col.tipo === "eur") return v ? eur(v) : "—";
   if (col.tipo === "fecha") return esc(fecha(v));
   if (col.tipo === "estadoGasto") {
-    var est = (cache["gastos/estados"] || []).filter(function (e) { return e.nombre === v; })[0];
+    var est = (cache["listas/gasto-estados"] || []).filter(function (e) { return e.nombre === v; })[0];
     return v ? '<span class="tag ' + (est && est.pagado ? "tag--verde" : "tag--amber") + '">' + esc(v) + "</span>" : "—";
   }
   if (col.tipo === "conIva") return fila[col.c] ? eur(conIva(fila)) : "—";
@@ -1162,7 +1171,7 @@ function campoHTML(campo, valor, esNuevo) {
     var items = cache[campo.de] || [];
     if (v === "") {
       var pend = items.filter(function (x) { return !x.pagado; })[0];
-      v = ((campo.de === "gastos/estados" && pend) || items[0] || {}).nombre || "";
+      v = ((campo.de === "listas/gasto-estados" && pend) || items[0] || {}).nombre || "";
     }
     h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '">' +
          (v && !items.some(function (x) { return x.nombre === v; })
@@ -1739,6 +1748,13 @@ function metrica(valor, etiqueta, clase) {
 }
 
 /* ── Obras: tabla con rentabilidad y asignación ───────────────────────── */
+// Verde si el estado cuenta como obra activa; rojo si es una cancelada.
+function claseEstadoObra(nombre, estados) {
+  var e = (estados || []).filter(function (x) { return x.nombre === nombre; })[0];
+  if (e && e.activa) return "tag--verde";
+  return /cancel/i.test(nombre || "") ? "tag--rojo" : "tag--amber";
+}
+
 function verObras() {
   $("#vista-acciones").innerHTML =
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva obra</button>";
@@ -1746,7 +1762,8 @@ function verObras() {
 
   var conNotas = puedeVer("notas");
   Promise.all([api("/api/admin/informes/obras"), cargarRef("clientes"), cargarRef("obras")]
-              .concat([esAdmin() ? cargarRef("equipo") : null, conNotas ? api("/api/admin/notas") : []]))
+              .concat([esAdmin() ? cargarRef("equipo") : null, conNotas ? api("/api/admin/notas") : [],
+                       cargarRef("listas/obra-estados")]))
     .then(function (res) {
       var obras = res[0];
       var nNotas = {};
@@ -1766,8 +1783,9 @@ function verObras() {
             return '<option value="' + esc(c.nombre) + '"></option>';
           }).join("") + "</datalist>" +
           '<select id="filtro-estado" aria-label="Estado"><option value="">Todos los estados</option>' +
-          ESTADOS_OBRA.map(function (e) {
-            return '<option value="' + esc(e) + '"' + (e === est.estado ? " selected" : "") + ">" + esc(e) + "</option>";
+          res[5].map(function (e) {
+            return '<option value="' + esc(e.nombre) + '"' + (e.nombre === est.estado ? " selected" : "") + ">" +
+                   esc(e.nombre) + "</option>";
           }).join("") + "</select>" +
           '<input type="search" id="buscar" placeholder="Buscar obra…">' +
         "</div>" +
@@ -1781,7 +1799,7 @@ function verObras() {
              (o.codigo ? '<div style="font-size:.78rem;color:var(--muted-2)">' + esc(o.codigo) + "</div>" : "") +
              "</td><td>" + (esc(o.cliente) || "—") + "</td>" +
              (esAdmin() ? "<td>" + (esc(nombreDe("equipo", o.usuario_id)) || "—") + "</td>" : "") +
-             '<td><span class="tag ' + (o.estado === "en curso" ? "tag--verde" : o.estado === "cancelada" ? "tag--rojo" : "tag--amber") + '">' + esc(o.estado) + "</span></td>" +
+             '<td><span class="tag ' + claseEstadoObra(o.estado, res[5]) + '">' + esc(o.estado) + "</span></td>" +
              '<td><button class="btn btn--sm ' + (o.n_profesionales ? "btn--fant" : "btn--amber") +
              '" data-equipo="' + o.id + '" title="Asignar profesionales a esta obra">' +
              svg(ico.equipo) + (o.n_profesionales ? o.n_profesionales + " asignados" : "Asignar") + "</button></td>" +
@@ -1996,69 +2014,76 @@ function moverStock(art) {
   });
 }
 
-/* ── Gastos > Categorías y Estados ────────────────────────────────────── */
-// Las dos listas se gestionan igual: nombre, cuántos gastos la usan, editar y
-// borrar. Los estados dicen además si el gasto cuenta como pagado, que es lo
-// que suma contabilidad en lo pendiente de pago.
-var LISTA_GASTO = {
-  categorias: { una: "categoría", nueva: "Nueva categoría", ruta: "gastos/categorias" },
-  estados: { una: "estado", nueva: "Nuevo estado", ruta: "gastos/estados", pagado: true }
+/* ── Listas editables: Gastos > Categorías / Estados, Obras > Estados ──── */
+// Todas se gestionan igual: nombre, cuántos registros la usan, editar y
+// borrar. Algunas llevan además una marca por elemento: si el gasto cuenta
+// como pagado (lo que suma contabilidad en lo pendiente) o si la obra cuenta
+// como activa (el contador del panel).
+var LISTAS_EDIT = {
+  "gasto-categorias": { una: "categoría", nueva: "Nueva categoría", ruta: "listas/gasto-categorias",
+    cosas: "gastos", ayuda: "Si cambias el nombre de una categoría, cambia también en todos los gastos que la llevan." },
+  "gasto-estados": { una: "estado", nueva: "Nuevo estado", ruta: "listas/gasto-estados", cosas: "gastos",
+    marca: { c: "pagado", si: "Pagado", no: "Pendiente de pago", pregunta: "Un gasto en este estado cuenta como" },
+    ayuda: "El estado marcado como «Pagado» cuenta como pagado en contabilidad; el resto, como pendiente de pago. " +
+           "Los gastos nuevos empiezan en el primer estado pendiente de la lista." },
+  "obra-estados": { una: "estado", nueva: "Nuevo estado", ruta: "listas/obra-estados", cosas: "obras",
+    marca: { c: "activa", si: "Obra activa", no: "No activa", pregunta: "Una obra en este estado cuenta como" },
+    ayuda: "Las obras en un estado marcado como activo cuentan en «Obras activas» del panel. " +
+           "Las obras nuevas empiezan en el primer estado de la lista." }
 };
 
-function verListaGasto(clave) {
-  var L = LISTA_GASTO[MODULOS[clave].lista];
+function verListaEditable(clave) {
+  var L = LISTAS_EDIT[MODULOS[clave].lista];
   $("#vista-acciones").innerHTML =
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + esc(L.nueva) + "</button>";
-  $("#btn-nuevo").addEventListener("click", function () { formListaGasto(clave, null); });
+  $("#btn-nuevo").addEventListener("click", function () { formListaEditable(clave, null); });
 
   api("/api/admin/" + L.ruta).then(function (filas) {
     cache[L.ruta] = filas;
     var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr><th>Nombre</th>' +
-      (L.pagado ? "<th>Cuenta como</th>" : "") +
-      '<th class="num">Gastos</th><th class="num">Acciones</th></tr></thead><tbody>';
+      (L.marca ? "<th>Cuenta como</th>" : "") +
+      '<th class="num">' + esc(L.cosas.charAt(0).toUpperCase() + L.cosas.slice(1)) + '</th><th class="num">Acciones</th></tr></thead><tbody>';
     filas.forEach(function (f) {
+      var si = L.marca && f[L.marca.c];
       h += "<tr><td><b>" + esc(f.nombre) + "</b></td>" +
-        (L.pagado ? '<td><span class="tag ' + (f.pagado ? "tag--verde" : "tag--amber") + '">' +
-                    (f.pagado ? "Pagado" : "Pendiente de pago") + "</span></td>" : "") +
+        (L.marca ? '<td><span class="tag ' + (si ? "tag--verde" : "tag--amber") + '">' +
+                   esc(si ? L.marca.si : L.marca.no) + "</span></td>" : "") +
         '<td class="num">' + f.n + "</td>" +
         '<td class="acciones"><button data-editar="' + f.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
         '<button class="borrar" data-borrar="' + f.id + '" title="Borrar">' + svg(ico.papelera) + "</button></td></tr>";
     });
     $("#vista").innerHTML = h + "</tbody></table></div></div>" +
-      '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55;margin-top:14px">' +
-      (L.pagado
-        ? "El estado que marques como «Pagado» cuenta como pagado en contabilidad; el resto, como pendiente de pago. " +
-          "Los gastos nuevos empiezan en el primer estado pendiente de la lista."
-        : "Si cambias el nombre de una categoría, cambia también en todos los gastos que la llevan.") + "</p>";
+      '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55;margin-top:14px">' + esc(L.ayuda) + "</p>";
     function fila(id) { return filas.filter(function (x) { return String(x.id) === String(id); })[0]; }
     $$("[data-editar]").forEach(function (b) {
-      b.addEventListener("click", function () { formListaGasto(clave, fila(b.dataset.editar)); });
+      b.addEventListener("click", function () { formListaEditable(clave, fila(b.dataset.editar)); });
     });
     $$("[data-borrar]").forEach(function (b) {
-      b.addEventListener("click", function () { borrarListaGasto(clave, fila(b.dataset.borrar), filas); });
+      b.addEventListener("click", function () { borrarDeLista(clave, fila(b.dataset.borrar), filas); });
     });
   }).catch(error);
 }
 
-function formListaGasto(clave, f) {
-  var L = LISTA_GASTO[MODULOS[clave].lista];
+function formListaEditable(clave, f) {
+  var L = LISTAS_EDIT[MODULOS[clave].lista];
+  var si = f && L.marca && f[L.marca.c];
   modal(f ? "Editar " + L.una : L.nueva,
     '<div class="aviso aviso--err" id="lg-err" hidden></div>' +
     '<div class="campo"><label for="lg-nombre">Nombre *</label><input id="lg-nombre" maxlength="60" value="' +
       esc(f ? f.nombre : "") + '"></div>' +
-    (L.pagado
-      ? '<div class="campo"><label for="lg-pagado">Un gasto en este estado cuenta como</label><select id="lg-pagado">' +
-        '<option value="0"' + (f && f.pagado ? "" : " selected") + ">Pendiente de pago</option>" +
-        '<option value="1"' + (f && f.pagado ? " selected" : "") + ">Pagado</option></select></div>"
+    (L.marca
+      ? '<div class="campo"><label for="lg-marca">' + esc(L.marca.pregunta) + '</label><select id="lg-marca">' +
+        '<option value="0"' + (si ? "" : " selected") + ">" + esc(L.marca.no) + "</option>" +
+        '<option value="1"' + (si ? " selected" : "") + ">" + esc(L.marca.si) + "</option></select></div>"
       : "") +
-    (f && f.n ? '<p style="color:var(--muted-2);font-size:.85rem">Lo llevan ' + f.n +
-                " gastos: cambian con él.</p>" : ""),
+    (f && f.n ? '<p style="color:var(--muted-2);font-size:.85rem">Lo llevan ' + f.n + " " + L.cosas +
+                ": cambian con él.</p>" : ""),
     '<button class="btn btn--fant" id="lg-no">Cancelar</button><button class="btn btn--amber" id="lg-si">Guardar</button>');
   $("#lg-nombre").focus();
   $("#lg-no").addEventListener("click", cerrarModal);
   $("#lg-si").addEventListener("click", function () {
     var btn = this, datos = { nombre: $("#lg-nombre").value.trim() };
-    if (L.pagado) datos.pagado = $("#lg-pagado").value === "1";
+    if (L.marca) datos.marca = $("#lg-marca").value === "1";
     if (!datos.nombre) { var e = $("#lg-err"); e.textContent = "Pon un nombre."; e.hidden = false; return; }
     btn.disabled = true;
     api("/api/admin/" + L.ruta + (f ? "/" + f.id : ""), { metodo: f ? "PUT" : "POST", datos: datos })
@@ -2069,21 +2094,21 @@ function formListaGasto(clave, f) {
   });
 }
 
-// Borrar una que está en uso pide a cuál se pasan sus gastos: ninguno se puede
-// quedar con una categoría o un estado que ya no existe.
-function borrarListaGasto(clave, f, filas) {
-  var L = LISTA_GASTO[MODULOS[clave].lista];
+// Borrar uno que está en uso pide a cuál se pasan sus registros: ninguno se
+// puede quedar con una categoría o un estado que ya no existe.
+function borrarDeLista(clave, f, filas) {
+  var L = LISTAS_EDIT[MODULOS[clave].lista];
   var otras = filas.filter(function (x) { return x.id !== f.id; });
-  if (!otras.length) { avisar("Tiene que quedar al menos un" + (L.una === "categoría" ? "a " : " ") + L.una, "err"); return; }
+  if (!otras.length) { avisar("No se puede borrar: tiene que quedar al menos uno", "err"); return; }
   modal("Borrar " + L.una,
     '<div class="aviso aviso--err" id="lg-err" hidden></div>' +
     (f.n
-      ? '<p style="color:var(--muted);line-height:1.55">Hay <b>' + f.n + "</b> gastos con «" + esc(f.nombre) +
+      ? '<p style="color:var(--muted);line-height:1.55">Hay <b>' + f.n + "</b> " + L.cosas + " con «" + esc(f.nombre) +
         "». Antes de borrar, di a dónde se pasan.</p>" +
-        '<div class="campo"><label for="lg-mover">Pasar sus gastos a</label><select id="lg-mover">' +
+        '<div class="campo"><label for="lg-mover">Pasarlos a</label><select id="lg-mover">' +
         otras.map(function (o) { return '<option value="' + esc(o.nombre) + '">' + esc(o.nombre) + "</option>"; }).join("") +
         "</select></div>"
-      : "<p style='color:var(--muted)'>Se va a borrar «" + esc(f.nombre) + "». Ningún gasto lo usa.</p>"),
+      : "<p style='color:var(--muted)'>Se va a borrar «" + esc(f.nombre) + "». No lo usa nadie.</p>"),
     '<button class="btn btn--fant" id="lg-no">Cancelar</button><button class="btn btn--peligro" id="lg-si">Borrar</button>');
   $("#lg-no").addEventListener("click", cerrarModal);
   $("#lg-si").addEventListener("click", function () {
@@ -2092,7 +2117,7 @@ function borrarListaGasto(clave, f, filas) {
         { metodo: "DELETE" })
       .then(function (r) {
         invalidar(); cerrarModal();
-        avisar(r.movidos ? r.movidos + " gastos pasados a «" + destino + "»" : "Borrado");
+        avisar(r.movidos ? r.movidos + " " + L.cosas + " pasados a «" + destino + "»" : "Borrado");
         ir(clave);
       })
       .catch(function (err) { var e = $("#lg-err"); e.textContent = err.message; e.hidden = false; });
@@ -2545,6 +2570,11 @@ var NOMBRE_DOC = {
   facturas:     { uno: "factura",     nuevo: "Nueva factura" }
 };
 
+function claseEstadoDoc(e) {
+  return ["aceptado", "aceptada", "cobrada", "facturada", "firmado"].indexOf(e) >= 0 ? "tag--verde"
+       : (e === "cancelado" || e === "anulada") ? "tag--rojo" : "tag--amber";
+}
+
 function verDocumentos(clave) {
   var m = MODULOS[clave], tipo = m.tipo;
   $("#vista-acciones").innerHTML =
@@ -2567,150 +2597,222 @@ function verDocumentos(clave) {
           esc(m.titulo.toLowerCase()) + ". Pulsa el botón de arriba para crear el primero.</div></div>";
         return;
       }
-      var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr>' +
-        "<th>Número</th><th>Cliente</th><th>Obra</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
-        "<th>Fecha</th><th>Estado</th>" +
-        '<th class="num">Base</th><th class="num">IVA</th><th class="num">Total</th>' +
-        '<th class="num">Acciones</th></tr></thead><tbody>';
-      docs.forEach(function (d) {
-        var clase = ["aceptado", "aceptada", "cobrada", "facturada", "firmado"].indexOf(d.estado) >= 0 ? "tag--verde"
-                  : (d.estado === "cancelado" || d.estado === "anulada") ? "tag--rojo" : "tag--amber";
-        h += "<tr><td><b>" + (esc(d.numero) || "#" + d.id) + "</b>" +
-             '<div style="font-size:.78rem;color:var(--muted-2)">' + d.n_lineas +
-             " línea" + (d.n_lineas === 1 ? "" : "s") + "</div></td>" +
-             "<td>" + (esc(d.cliente) || "—") + "</td><td>" + (esc(d.obra) || "—") + "</td>" +
-             (esAdmin() ? "<td>" + (esc(nombreDe("equipo", d.usuario_id)) || "—") + "</td>" : "") +
-             "<td>" + esc(fecha(d.fecha)) + "</td>" +
-             '<td><span class="tag ' + clase + '">' + esc(d.estado) + "</span></td>" +
-             '<td class="num">' + eur(d.base) + '</td>' +
-             '<td class="num" style="color:var(--muted)">' + eur(d.iva) + "</td>" +
-             '<td class="num"><b>' + eur(d.total) + "</b></td>" +
-             '<td class="acciones">' +
-             (tipo === "presupuestos" && !d.firmado_el && d.estado !== "cancelado"
-               ? '<button data-firmar="' + d.id + '" title="Enviar al cliente para que lo firme">' +
-                 svg(ico.firma) + "</button>"
-               : "") +
-             (tipo === "presupuestos" && (d.firmado_el || d.firmas_previas)
-               ? '<button data-verfirma="' + d.id + '" title="' +
-                 (d.firmado_el ? "Ver la firma del cliente" : "Ver las firmas de antes de editarlo") +
-                 '">' + svg(ico.firma) + "</button>"
-               : "") +
-             (tipo === "presupuestos" && !d.firmado_el && d.estado !== "aceptado" && d.estado !== "cancelado"
-               ? '<button data-aceptar="' + d.id + '" title="Marcar como aceptado">' + svg(ico.ok) + "</button>"
-               : "") +
-             (tipo === "presupuestos" && d.estado !== "cancelado"
-               ? '<button data-cancelar="' + d.id + '" title="Cancelar el presupuesto">' + svg(ico.no) + "</button>"
-               : "") +
-             (d.visita_id && puedeVer("visitas")
-               ? '<button data-visita="' + d.visita_id + '" title="Ver la visita: notas y fotos">' +
-                 svg(ico.camara) + "</button>"
-               : "") +
-             '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
-               '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
-             (tipo === "presupuestos" && puedeVer("proformas")
-               ? '<button data-proforma="' + d.id + '" title="Crear proforma">' + svg(ico.proforma) + "</button>"
-               : "") +
-             (tipo !== "facturas" && puedeVer("facturas")
-               ? '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
-               : "") +
-             '<button data-editar="' + d.id + '" title="' +
-               (d.firmado_el ? "Editar: la firma se archiva y vuelve a borrador" : "Editar") +
-               '">' + svg(ico.lapiz) + "</button>" +
-             // Borrar un presupuesto firmado no: se llevaría por delante la
-             // prueba de lo que aceptó el cliente. Para eso está cancelarlo.
-             (d.firmado_el
-               ? ""
-               : '<button class="borrar" data-borrar="' + d.id + '" title="Borrar">' +
-                 svg(ico.papelera) + "</button>") +
-             "</td></tr>";
-      });
-      var totalGlobal = docs.reduce(function (a, d) { return a + (d.total || 0); }, 0);
-      $("#vista").innerHTML = h + "</tbody></table></div>" +
-        '<div style="padding:14px 16px;border-top:1px solid var(--line);text-align:right;font-size:.9rem">' +
-        "Total acumulado: <b>" + eur(totalGlobal) + "</b></div></div>";
+      // Filtros (cliente, obra de ese cliente, estado y búsqueda) y resumen por
+      // estado de lo que queda, como en Gastos. Se conservan al volver.
+      var est = FILTRO[clave] = FILTRO[clave] || { cliente: "", obra: "", estado: "" };
+      $("#vista").innerHTML =
+        '<div class="herr">' +
+          '<input id="filtro-cliente" list="lista-filtro-cliente" autocomplete="off" class="herr__cliente"' +
+          ' placeholder="Cliente: escribe para filtrar…" value="' + esc(est.cliente) + '">' +
+          '<datalist id="lista-filtro-cliente">' + (cache.clientes || []).map(function (c) {
+            return '<option value="' + esc(c.nombre) + '"></option>';
+          }).join("") + "</datalist>" +
+          '<select id="filtro-obra" aria-label="Obra"></select>' +
+          '<select id="filtro-estado" aria-label="Estado"><option value="">Todos los estados</option>' +
+          ESTADOS_DOC[tipo].map(function (e) {
+            return '<option value="' + esc(e) + '"' + (e === est.estado ? " selected" : "") + ">" + esc(e) + "</option>";
+          }).join("") + "</select>" +
+          '<input type="search" id="buscar" placeholder="Buscar…">' +
+        "</div>" +
+        '<div id="tabla-resumen"></div>' +
+        '<div class="tabla-caja"><div class="tabla-scroll" id="docs-tabla"></div>' +
+        '<div class="tabla-suma" id="tabla-suma"></div></div>';
 
-      $$("[data-pdf]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          descargarPdf(tipo, b.dataset.pdf, b.dataset.num);
+      function pintarObras() {
+        var clis = clientesQueEncajan("clientes", est.cliente);
+        var obras = (cache.obras || []).filter(function (o) {
+          return !clis || clis.indexOf(String(o.cliente_id)) >= 0;
         });
-      });
-      $$("[data-visita]").forEach(function (b) {
-        b.addEventListener("click", function () { abrirVisita(Number(b.dataset.visita)); });
-      });
-      $$("[data-aceptar]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          b.disabled = true;
-          api("/api/admin/documentos/" + tipo + "/" + b.dataset.aceptar + "/estado",
-              { metodo: "POST", datos: { estado: "aceptado" } })
-            .then(function () { avisar("Presupuesto aceptado"); ir(clave); })
-            .catch(function (e) { b.disabled = false; avisar(e.message, "err"); });
+        if (est.obra && est.obra !== "sin" && !obras.some(function (o) { return String(o.id) === est.obra; })) est.obra = "";
+        $("#filtro-obra").innerHTML =
+          '<option value="">' + (clis ? "Todas sus obras (" + obras.length + ")" : "Todas las obras") + "</option>" +
+          '<option value="sin"' + (est.obra === "sin" ? " selected" : "") + ">Sin obra</option>" +
+          obras.map(function (o) {
+            return '<option value="' + o.id + '"' + (String(o.id) === est.obra ? " selected" : "") + ">" + esc(o.titulo) + "</option>";
+          }).join("");
+      }
+
+      function repintar() {
+        var clis = clientesQueEncajan("clientes", est.cliente), q = llano($("#buscar").value);
+        var vistas = docs.filter(function (d) {
+          if (clis && clis.indexOf(String(d.cliente_id)) < 0) return false;
+          if (est.obra === "sin" && d.obra_id) return false;
+          if (est.obra && est.obra !== "sin" && String(d.obra_id) !== est.obra) return false;
+          if (est.estado && d.estado !== est.estado) return false;
+          return !q || llano([d.numero, d.cliente, d.obra, d.notas, d.estado, fecha(d.fecha)].join(" ")).indexOf(q) >= 0;
         });
-      });
-      $$("[data-cancelar]").forEach(function (b) {
-        b.addEventListener("click", function () { cancelarPresupuesto(tipo, b.dataset.cancelar, clave); });
-      });
-      $$("[data-firmar]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          var d = docs.filter(function (x) { return String(x.id) === b.dataset.firmar; })[0];
-          enviarAFirmar(d, clave);
+
+        var por = {}, total = 0, base = 0;
+        vistas.forEach(function (d) {
+          por[d.estado] = por[d.estado] || { n: 0, t: 0 };
+          por[d.estado].n++; por[d.estado].t += d.total || 0;
+          total += d.total || 0; base += d.base || 0;
         });
-      });
-      $$("[data-verfirma]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          var d = docs.filter(function (x) { return String(x.id) === b.dataset.verfirma; })[0];
-          verFirma(d);
+        var cuantos = function (n) { return n + " " + (n === 1 ? NOMBRE_DOC[tipo].uno : m.titulo.toLowerCase()); };
+        $("#tabla-resumen").innerHTML = '<div class="metricas">' +
+          ESTADOS_DOC[tipo].map(function (e) {
+            var x = por[e] || { n: 0, t: 0 };
+            return metrica(eur(x.t), e + " · " + cuantos(x.n), claseEstadoDoc(e).replace("tag--", "metrica--").replace("metrica--amber", ""));
+          }).join("") +
+          metrica(eur(total), "Total · " + cuantos(vistas.length), "metrica--azul") + "</div>";
+        $("#tabla-suma").innerHTML = "Total de lo que se ve: <b>" + eur(total) + "</b>" +
+          ' <span style="color:var(--muted)">· base ' + eur(base) + " · IVA " + eur(total - base) + "</span>";
+
+        if (!vistas.length) {
+          $("#docs-tabla").innerHTML = '<div class="vacia">Nada con estos filtros.</div>';
+          return;
+        }
+        var h = "<table><thead><tr>" +
+          "<th>Número</th><th>Cliente</th><th>Obra</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
+          "<th>Fecha</th><th>Estado</th>" +
+          '<th class="num">Base</th><th class="num">IVA</th><th class="num">Total</th>' +
+          '<th class="num">Acciones</th></tr></thead><tbody>';
+        vistas.forEach(function (d) {
+          var clase = claseEstadoDoc(d.estado);
+          h += "<tr><td><b>" + (esc(d.numero) || "#" + d.id) + "</b>" +
+               '<div style="font-size:.78rem;color:var(--muted-2)">' + d.n_lineas +
+               " línea" + (d.n_lineas === 1 ? "" : "s") + "</div></td>" +
+               "<td>" + (esc(d.cliente) || "—") + "</td><td>" + (esc(d.obra) || "—") + "</td>" +
+               (esAdmin() ? "<td>" + (esc(nombreDe("equipo", d.usuario_id)) || "—") + "</td>" : "") +
+               "<td>" + esc(fecha(d.fecha)) + "</td>" +
+               '<td><span class="tag ' + clase + '">' + esc(d.estado) + "</span></td>" +
+               '<td class="num">' + eur(d.base) + '</td>' +
+               '<td class="num" style="color:var(--muted)">' + eur(d.iva) + "</td>" +
+               '<td class="num"><b>' + eur(d.total) + "</b></td>" +
+               '<td class="acciones">' +
+               (tipo === "presupuestos" && !d.firmado_el && d.estado !== "cancelado"
+                 ? '<button data-firmar="' + d.id + '" title="Enviar al cliente para que lo firme">' +
+                   svg(ico.firma) + "</button>"
+                 : "") +
+               (tipo === "presupuestos" && (d.firmado_el || d.firmas_previas)
+                 ? '<button data-verfirma="' + d.id + '" title="' +
+                   (d.firmado_el ? "Ver la firma del cliente" : "Ver las firmas de antes de editarlo") +
+                   '">' + svg(ico.firma) + "</button>"
+                 : "") +
+               (tipo === "presupuestos" && !d.firmado_el && d.estado !== "aceptado" && d.estado !== "cancelado"
+                 ? '<button data-aceptar="' + d.id + '" title="Marcar como aceptado">' + svg(ico.ok) + "</button>"
+                 : "") +
+               (tipo === "presupuestos" && d.estado !== "cancelado"
+                 ? '<button data-cancelar="' + d.id + '" title="Cancelar el presupuesto">' + svg(ico.no) + "</button>"
+                 : "") +
+               (d.visita_id && puedeVer("visitas")
+                 ? '<button data-visita="' + d.visita_id + '" title="Ver la visita: notas y fotos">' +
+                   svg(ico.camara) + "</button>"
+                 : "") +
+               '<button data-pdf="' + d.id + '" data-num="' + esc(d.numero || "") +
+                 '" title="Descargar PDF">' + svg(ico.descarga) + "</button>" +
+               (tipo === "presupuestos" && puedeVer("proformas")
+                 ? '<button data-proforma="' + d.id + '" title="Crear proforma">' + svg(ico.proforma) + "</button>"
+                 : "") +
+               (tipo !== "facturas" && puedeVer("facturas")
+                 ? '<button data-facturar="' + d.id + '" title="Convertir en factura">' + svg(ico.recibo) + "</button>"
+                 : "") +
+               '<button data-editar="' + d.id + '" title="' +
+                 (d.firmado_el ? "Editar: la firma se archiva y vuelve a borrador" : "Editar") +
+                 '">' + svg(ico.lapiz) + "</button>" +
+               // Borrar un presupuesto firmado no: se llevaría por delante la
+               // prueba de lo que aceptó el cliente. Para eso está cancelarlo.
+               (d.firmado_el
+                 ? ""
+                 : '<button class="borrar" data-borrar="' + d.id + '" title="Borrar">' +
+                   svg(ico.papelera) + "</button>") +
+               "</td></tr>";
         });
-      });
-      $$("[data-editar]").forEach(function (b) {
-        b.addEventListener("click", function () { editarDocumento(tipo, b.dataset.editar); });
-      });
-      $$("[data-borrar]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          modal("Confirmar borrado",
-            "<p style='color:var(--muted)'>Se va a borrar este documento y todas sus líneas. No se puede deshacer.</p>",
-            '<button class="btn btn--fant" id="b-no">Cancelar</button>' +
-            '<button class="btn btn--peligro" id="b-si">Borrar</button>');
-          $("#b-no").addEventListener("click", cerrarModal);
-          $("#b-si").addEventListener("click", function () {
-            api("/api/admin/documentos/" + tipo + "/" + b.dataset.borrar, { metodo: "DELETE" })
-              .then(function () { cerrarModal(); ir(clave); }).catch(error);
+        $("#docs-tabla").innerHTML = h + "</tbody></table>";
+        enganchar();
+      }
+
+      function enganchar() {
+        $$("[data-pdf]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            descargarPdf(tipo, b.dataset.pdf, b.dataset.num);
           });
         });
-      });
-      $$("[data-facturar]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          modal("Convertir en factura",
-            "<p style='color:var(--muted)'>Se creará una factura con las mismas líneas y " +
-              (tipo === "presupuestos" ? "el presupuesto quedará como <b>aceptado</b>."
-                                       : "la proforma quedará como <b>facturada</b>.") + "</p>",
-            '<button class="btn btn--fant" id="fa-no">Cancelar</button>' +
-            '<button class="btn btn--amber" id="fa-si">Crear factura</button>');
-          $("#fa-no").addEventListener("click", cerrarModal);
-          $("#fa-si").addEventListener("click", function () {
-            api("/api/admin/documentos/" + tipo + "/" + b.dataset.facturar + "/facturar",
-                { metodo: "POST" })
-              .then(function () { cerrarModal(); ir("facturas"); })
-              .catch(function (e) { cerrarModal(); error(e); });
+        $$("[data-visita]").forEach(function (b) {
+          b.addEventListener("click", function () { abrirVisita(Number(b.dataset.visita)); });
+        });
+        $$("[data-aceptar]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            b.disabled = true;
+            api("/api/admin/documentos/" + tipo + "/" + b.dataset.aceptar + "/estado",
+                { metodo: "POST", datos: { estado: "aceptado" } })
+              .then(function () { avisar("Presupuesto aceptado"); ir(clave); })
+              .catch(function (e) { b.disabled = false; avisar(e.message, "err"); });
           });
         });
-      });
-      $$("[data-proforma]").forEach(function (b) {
-        b.addEventListener("click", function () {
-          modal("Crear proforma",
-            "<p style='color:var(--muted)'>Se creará una factura proforma con las mismas líneas, " +
-            "con su propia numeración, y el presupuesto quedará como <b>aceptado</b>. " +
-            "La proforma no cuenta en la contabilidad: no es una factura.</p>",
-            '<button class="btn btn--fant" id="pf-no">Cancelar</button>' +
-            '<button class="btn btn--amber" id="pf-si">Crear proforma</button>');
-          $("#pf-no").addEventListener("click", cerrarModal);
-          $("#pf-si").addEventListener("click", function () {
-            api("/api/admin/documentos/presupuestos/" + b.dataset.proforma + "/proforma",
-                { metodo: "POST" })
-              .then(function () { cerrarModal(); ir("proformas"); })
-              .catch(function (e) { cerrarModal(); error(e); });
+        $$("[data-cancelar]").forEach(function (b) {
+          b.addEventListener("click", function () { cancelarPresupuesto(tipo, b.dataset.cancelar, clave); });
+        });
+        $$("[data-firmar]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var d = docs.filter(function (x) { return String(x.id) === b.dataset.firmar; })[0];
+            enviarAFirmar(d, clave);
           });
         });
-      });
+        $$("[data-verfirma]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            var d = docs.filter(function (x) { return String(x.id) === b.dataset.verfirma; })[0];
+            verFirma(d);
+          });
+        });
+        $$("[data-editar]").forEach(function (b) {
+          b.addEventListener("click", function () { editarDocumento(tipo, b.dataset.editar); });
+        });
+        $$("[data-borrar]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            modal("Confirmar borrado",
+              "<p style='color:var(--muted)'>Se va a borrar este documento y todas sus líneas. No se puede deshacer.</p>",
+              '<button class="btn btn--fant" id="b-no">Cancelar</button>' +
+              '<button class="btn btn--peligro" id="b-si">Borrar</button>');
+            $("#b-no").addEventListener("click", cerrarModal);
+            $("#b-si").addEventListener("click", function () {
+              api("/api/admin/documentos/" + tipo + "/" + b.dataset.borrar, { metodo: "DELETE" })
+                .then(function () { cerrarModal(); ir(clave); }).catch(error);
+            });
+          });
+        });
+        $$("[data-facturar]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            modal("Convertir en factura",
+              "<p style='color:var(--muted)'>Se creará una factura con las mismas líneas y " +
+                (tipo === "presupuestos" ? "el presupuesto quedará como <b>aceptado</b>."
+                                         : "la proforma quedará como <b>facturada</b>.") + "</p>",
+              '<button class="btn btn--fant" id="fa-no">Cancelar</button>' +
+              '<button class="btn btn--amber" id="fa-si">Crear factura</button>');
+            $("#fa-no").addEventListener("click", cerrarModal);
+            $("#fa-si").addEventListener("click", function () {
+              api("/api/admin/documentos/" + tipo + "/" + b.dataset.facturar + "/facturar",
+                  { metodo: "POST" })
+                .then(function () { cerrarModal(); ir("facturas"); })
+                .catch(function (e) { cerrarModal(); error(e); });
+            });
+          });
+        });
+        $$("[data-proforma]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            modal("Crear proforma",
+              "<p style='color:var(--muted)'>Se creará una factura proforma con las mismas líneas, " +
+              "con su propia numeración, y el presupuesto quedará como <b>aceptado</b>. " +
+              "La proforma no cuenta en la contabilidad: no es una factura.</p>",
+              '<button class="btn btn--fant" id="pf-no">Cancelar</button>' +
+              '<button class="btn btn--amber" id="pf-si">Crear proforma</button>');
+            $("#pf-no").addEventListener("click", cerrarModal);
+            $("#pf-si").addEventListener("click", function () {
+              api("/api/admin/documentos/presupuestos/" + b.dataset.proforma + "/proforma",
+                  { metodo: "POST" })
+                .then(function () { cerrarModal(); ir("proformas"); })
+                .catch(function (e) { cerrarModal(); error(e); });
+            });
+          });
+        });
+      }
+
+      pintarObras();
+      repintar();
+      $("#filtro-cliente").addEventListener("input", function () { est.cliente = this.value; pintarObras(); repintar(); });
+      $("#filtro-obra").addEventListener("change", function () { est.obra = this.value; repintar(); });
+      $("#filtro-estado").addEventListener("change", function () { est.estado = this.value; repintar(); });
+      $("#buscar").addEventListener("input", repintar);
     }).catch(error);
 }
 

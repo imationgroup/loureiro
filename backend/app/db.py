@@ -361,6 +361,15 @@ CREATE TABLE IF NOT EXISTS gasto_estados (
   orden   INTEGER NOT NULL DEFAULT 0
 );
 
+-- Estados de las obras, también editables (Obras > Estados). `activa` dice si
+-- una obra en ese estado cuenta como activa en el panel.
+CREATE TABLE IF NOT EXISTS obra_estados (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre  TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  activa  INTEGER NOT NULL DEFAULT 0,
+  orden   INTEGER NOT NULL DEFAULT 0
+);
+
 -- ── Notas ────────────────────────────────────────────────────────────
 -- Apuntes sueltos. Pueden ir colgados de una obra (lo que se habló con el
 -- cliente, lo que falta por pedir) o de ninguna.
@@ -497,6 +506,8 @@ MIGRACIONES = [
 CATEGORIAS_GASTO = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata",
                     "desplazamiento", "otros"]
 ESTADOS_GASTO = [("pendiente", 0), ("pagado", 1)]
+ESTADOS_OBRA = [("presupuesto", 0), ("en curso", 1), ("pausada", 1), ("terminada", 0),
+                ("cancelada", 0)]
 
 # Tablas donde cada fila tiene responsable (usuario_id). Lo que ya existía
 # antes del equipo queda con el responsable vacío, que es lo del
@@ -553,6 +564,13 @@ def migrar():
         for i, (nombre, pagado) in enumerate(ESTADOS_GASTO, 1):
             con.execute("INSERT INTO gasto_estados (nombre, pagado, orden) VALUES (?,?,?)",
                         (nombre, pagado, i))
+    if not con.execute("SELECT COUNT(*) FROM obra_estados").fetchone()[0]:
+        for i, (nombre, activa) in enumerate(ESTADOS_OBRA, 1):
+            con.execute("INSERT INTO obra_estados (nombre, activa, orden) VALUES (?,?,?)",
+                        (nombre, activa, i))
+    con.execute("""INSERT OR IGNORE INTO obra_estados (nombre, orden)
+                   SELECT DISTINCT estado, 100 FROM obras
+                   WHERE estado IS NOT NULL AND trim(estado) != ''""")
     # Gastos sin estado (los de antes, o uno que se colara sin él): el primer
     # estado que diga lo mismo que su casilla de pagado.
     con.execute("""UPDATE costes SET estado = (
