@@ -63,6 +63,7 @@ var ico = {
   firma:'<path d="M3 17c3 0 4-9 7-9s3 9 6 9c2 0 3-2 5-3"/><path d="M3 21h18"/>',
   whatsapp:'<path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2z"/>',
   nota:'<path d="M5 3h14v12l-6 6H5z"/><path d="M13 21v-6h6"/><path d="M8 8h8M8 12h5"/>',
+  etiqueta:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
   camara:'<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
   no:'<path d="M18 6L6 18M6 6l12 12"/>',
@@ -82,6 +83,7 @@ var YO = null;
 function esAdmin() { return !!YO && YO.rol === "admin"; }
 function puedeVer(k) {
   if (!YO) return false;
+  if (MODULOS[k] && MODULOS[k].permiso) k = MODULOS[k].permiso;
   if (k === "dashboard") return true;
   if (k === "equipo") return esAdmin();
   // Los estatutos los lee todo el mundo: de nada sirve escribir cómo
@@ -257,7 +259,6 @@ function opcionesIva(v) {
     return '<option value="' + o.v + '"' + (Number(o.v) === Number(v) ? " selected" : "") + ">" + esc(o.t) + "</option>";
   }).join("");
 }
-var CAT_COSTE    = ["material", "mano de obra", "maquinaria", "residuos", "subcontrata", "desplazamiento", "otros"];
 
 /* ── Provincias y municipios ──────────────────────────────────────────────
    Ourense va con sus 92 concellos completos porque es la zona de trabajo.
@@ -346,7 +347,7 @@ var MODULOS = {
       { c: "estado", t: "Estado", tipo: "select", ops: ESTADOS_CITA, mitad: true },
       { c: "inicio", t: "Empieza", tipo: "fechahora", req: true, mitad: true },
       { c: "fin", t: "Termina", tipo: "fechahora", mitad: true, ayuda: "Se pone sola una hora después. Cámbiala si dura más, aunque sean varios días" },
-      { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true },
+      { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true, pordefecto: "miProfesional" },
       // Se escribe el cliente y el desplegable de obras se queda con las suyas.
       { c: "cliente_id", t: "Cliente", tipo: "busca", de: "clientes", mitad: true, filtraObras: "obra_id",
         placeholder: "Escribe para buscar el cliente", etiqueta: function (c) { return c.nombre; } },
@@ -504,6 +505,24 @@ var MODULOS = {
     // El importe se escribe con el IVA incluido, que es lo que pone el tique.
     // Se guarda la base (lo que cuenta la contabilidad) y se enseña el total.
     conIva: true,
+    // Totales por estado de lo que se ve (con los filtros y la búsqueda).
+    resumen: function (filas) {
+      var por = {}, total = 0;
+      filas.forEach(function (f) {
+        var k = f.estado || "sin estado";
+        por[k] = por[k] || { n: 0, t: 0 };
+        por[k].n++; por[k].t += conIva(f); total += conIva(f);
+      });
+      var cuantos = function (n) { return n + " gasto" + (n === 1 ? "" : "s"); };
+      var h = '<div class="metricas">';
+      (cache["gastos/estados"] || []).forEach(function (e) {
+        var x = por[e.nombre] || { n: 0, t: 0 };
+        h += metrica(eur(x.t), e.nombre + " · " + cuantos(x.n), e.pagado ? "metrica--verde" : "");
+        delete por[e.nombre];
+      });
+      Object.keys(por).forEach(function (k) { h += metrica(eur(por[k].t), k + " · " + cuantos(por[k].n), "metrica--rojo"); });
+      return h + metrica(eur(total), "Total · " + cuantos(filas.length), "metrica--azul") + "</div>";
+    },
     suma: function (filas) {
       var base = filas.reduce(function (a, f) { return a + (Number(f.importe) || 0); }, 0);
       var total = filas.reduce(function (a, f) { return a + conIva(f); }, 0);
@@ -518,11 +537,11 @@ var MODULOS = {
       { c: "obra_id", t: "Cliente", tipo: "clienteObra" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales" },
       { c: "importe", t: "Total (IVA incl.)", tipo: "conIva", num: true },
-      { c: "pagado", t: "Pago", tipo: "bool", si: "Pagado", no: "Pendiente" }
+      { c: "estado", t: "Estado", tipo: "estadoGasto" }
     ],
     campos: [
       { c: "concepto", t: "Concepto", req: true },
-      { c: "categoria", t: "Categoría", tipo: "select", ops: CAT_COSTE, mitad: true },
+      { c: "categoria", t: "Categoría", tipo: "lista", de: "gastos/categorias", mitad: true },
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "importe", t: "Importe con IVA incluido (€)", tipo: "numero", mitad: true, req: true },
       { c: "iva", t: "IVA", tipo: "select", ops: IVAS, mitad: true, pordefecto: 21 },
@@ -531,10 +550,10 @@ var MODULOS = {
       // Obligatorio: o una obra o, a propósito, gastos de la empresa (seguros,
       // gestoría, la furgoneta). Sin elegir no se guarda.
       { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "obras", req: true, sinObra: "Gastos de empresa (no es de una obra)" },
-      { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true },
+      { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true, pordefecto: "miProfesional" },
       { c: "proveedor_id", t: "Proveedor", tipo: "ref", de: "proveedores", mitad: true },
       { c: "factura_ref", t: "Nº de factura", mitad: true },
-      { c: "pagado", t: "Estado", tipo: "select", ops: [{ v: 0, t: "Pendiente de pago" }, { v: 1, t: "Pagado" }] },
+      { c: "estado", t: "Estado", tipo: "lista", de: "gastos/estados" },
       { c: "notas", t: "Notas", tipo: "area" }
     ]
   },
@@ -616,6 +635,11 @@ var MODULOS = {
 };
 
 MODULOS.equipo = { titulo: "Equipo", sub: "Quién entra al panel y a qué", icono: ico.equipo, especial: "equipo" };
+// Submenús de Gastos: sus listas de categorías y estados.
+MODULOS.gastos_categorias = { titulo: "Categorías de gasto", menu: "Categorías", sub: "Para clasificar los gastos",
+  icono: ico.etiqueta, especial: "listaGasto", lista: "categorias", permiso: "costes" };
+MODULOS.gastos_estados = { titulo: "Estados de gasto", menu: "Estados", sub: "Pendiente, pagado… los que uséis",
+  icono: ico.ok, especial: "listaGasto", lista: "estados", permiso: "costes" };
 MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", icono: ico.normas, especial: "estatutos" };
 
 // Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
@@ -632,7 +656,8 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 var ORDEN_MENU = [
   { sep: null, items: ["dashboard", "agenda", "solicitudes", "visitas"] },
   { sep: "Gestión", items: ["obras", "notas", "clientes", "profesionales"] },
-  { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "costes", "contabilidad"] },
+  { sep: "Economía", items: ["presupuestos", "proformas", "facturas",
+                             { k: "costes", hijos: ["gastos_categorias", "gastos_estados"] }, "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
   { sep: "Empresa", items: ["estatutos", "equipo"] }
 ];
@@ -654,7 +679,7 @@ function invalidar() { cache = {}; }
 // un "ref" y también el del nombre con fichero de clientes detrás.
 function listaDe(c) {
   return (c.tipo === "ref" || c.tipo === "cliente" || c.tipo === "busca" ||
-          c.tipo === "filtraObras") ? c.de : null;
+          c.tipo === "filtraObras" || c.tipo === "lista") ? c.de : null;
 }
 
 // Un desplegable con buscador no guarda lo que se escribe, sino el registro al
@@ -721,13 +746,20 @@ var vistaActual = "dashboard";
 function pintarMenu() {
   var h = "";
   ORDEN_MENU.forEach(function (grupo) {
-    var items = grupo.items.filter(puedeVer);
+    var items = grupo.items.map(function (x) { return typeof x === "string" ? { k: x, hijos: [] } : x; })
+      .filter(function (x) { return puedeVer(x.k); });
     if (!items.length) return;
     if (grupo.sep) h += '<div class="sep">' + esc(grupo.sep) + "</div>";
-    items.forEach(function (k) {
-      var m = MODULOS[k];
-      h += '<button data-vista="' + k + '"' + (k === vistaActual ? ' class="is-on"' : "") + ">" +
-           svg(m.icono) + "<span>" + esc(m.titulo) + "</span></button>";
+    items.forEach(function (x) {
+      var m = MODULOS[x.k], hijos = x.hijos.filter(puedeVer);
+      var abierto = x.k === vistaActual || hijos.indexOf(vistaActual) >= 0;
+      h += '<button data-vista="' + x.k + '"' + (x.k === vistaActual ? ' class="is-on"' : "") + ">" +
+           svg(m.icono) + "<span>" + esc(m.titulo) + "</span>" +
+           (hijos.length ? svg(abierto ? ico.arriba : ico.abajo, "lat__flecha") : "") + "</button>";
+      if (abierto) hijos.forEach(function (k) {
+        h += '<button class="lat__sub' + (k === vistaActual ? " is-on" : "") + '" data-vista="' + k + '">' +
+             "<span>" + esc(MODULOS[k].menu || MODULOS[k].titulo) + "</span></button>";
+      });
     });
   });
   $("#menu").innerHTML = h;
@@ -763,6 +795,7 @@ function ir(k) {
   if (m.especial === "stock") return verStock();
   if (m.especial === "visitas") return verVisitas();
   if (m.especial === "notas") return verNotas();
+  if (m.especial === "listaGasto") return verListaGasto(k);
   if (m.especial === "documento") return verDocumentos(k);
   return verTabla(k);
 }
@@ -817,6 +850,7 @@ function verTabla(clave) {
           : "") +
         (fil ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"></select>' : "") +
         '<input type="search" id="buscar" placeholder="Buscar…"></div>' +
+        (m.resumen ? '<div id="tabla-resumen"></div>' : "") +
         '<div class="tabla-caja"><div class="tabla-scroll" id="caja-tabla"></div>' +
         (m.suma ? '<div class="tabla-suma" id="tabla-suma"></div>' : "") + "</div>";
 
@@ -859,6 +893,7 @@ function verTabla(clave) {
         });
         pintarFilas(clave, vistas);
         if (m.suma) $("#tabla-suma").innerHTML = m.suma(vistas);
+        if (m.resumen) $("#tabla-resumen").innerHTML = m.resumen(vistas);
       }
       if (fil) pintarObras();
       repintar();
@@ -913,6 +948,10 @@ function celda(col, fila) {
   var v = fila[col.c];
   if (col.tipo === "eur") return v ? eur(v) : "—";
   if (col.tipo === "fecha") return esc(fecha(v));
+  if (col.tipo === "estadoGasto") {
+    var est = (cache["gastos/estados"] || []).filter(function (e) { return e.nombre === v; })[0];
+    return v ? '<span class="tag ' + (est && est.pagado ? "tag--verde" : "tag--amber") + '">' + esc(v) + "</span>" : "—";
+  }
   if (col.tipo === "conIva") return fila[col.c] ? eur(conIva(fila)) : "—";
   if (col.tipo === "clienteObra") return esc(clienteDeObra(v)) || "—";
   if (col.tipo === "ref") {
@@ -1031,9 +1070,14 @@ function cerrarModal() {
 function campoHTML(campo, valor, esNuevo) {
   var v = valor === null || valor === undefined ? "" : valor;
   if (campo.tipo === "fechahora" && v) v = String(v).slice(0, 16);
-  if (esNuevo && v === "" && campo.pordefecto !== undefined) {
+  // El responsable y el profesional se ponen en quien ha entrado siempre que
+  // estén vacíos, también al editar algo que no tenía a nadie. El resto de
+  // valores por defecto, solo en lo nuevo.
+  var deSesion = campo.pordefecto === "yo" || campo.pordefecto === "miProfesional";
+  if ((esNuevo || deSesion) && v === "" && campo.pordefecto !== undefined) {
     v = campo.pordefecto === "hoy" ? new Date().toISOString().slice(0, 10)
       : campo.pordefecto === "yo" ? ((YO && YO.id) || "")
+      : campo.pordefecto === "miProfesional" ? ((YO && YO.profesional_id) || "")
       : campo.pordefecto;
   }
   var h = '<div class="campo"' +
@@ -1111,6 +1155,21 @@ function campoHTML(campo, valor, esNuevo) {
          (cache[campo.de] || []).map(function (o) {
            return '<option value="' + esc(o.nombre) + '"></option>';
          }).join("") + "</datalist>";
+  } else if (campo.tipo === "lista") {
+    // Desplegable con una lista que se edita en el panel (categorías y estados
+    // de los gastos). Se guarda el nombre. Vacío: el primero, o el primer
+    // estado pendiente. Un valor que ya no está en la lista se conserva.
+    var items = cache[campo.de] || [];
+    if (v === "") {
+      var pend = items.filter(function (x) { return !x.pagado; })[0];
+      v = ((campo.de === "gastos/estados" && pend) || items[0] || {}).nombre || "";
+    }
+    h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '">' +
+         (v && !items.some(function (x) { return x.nombre === v; })
+           ? '<option value="' + esc(v) + '" selected>' + esc(v) + "</option>" : "") +
+         items.map(function (x) {
+           return '<option value="' + esc(x.nombre) + '"' + (x.nombre === v ? " selected" : "") + ">" + esc(x.nombre) + "</option>";
+         }).join("") + "</select>";
   } else if (campo.tipo === "filtraObras") {
     // No se guarda (no lleva data-c): solo sirve para encontrar la obra. Se
     // escribe y el desplegable de obras se queda con las de ese cliente.
@@ -1765,7 +1824,8 @@ function verEquipo(obraId) {
       if (libres.length) {
         cuerpo += '<div class="rejilla-2"><div class="campo"><label for="eq-pro">Añadir profesional</label>' +
           '<select id="eq-pro">' + libres.map(function (p) {
-            return '<option value="' + p.id + '">' + esc(p.nombre) + " — " + esc(p.categoria) + "</option>";
+            return '<option value="' + p.id + '"' + (YO && p.id === YO.profesional_id ? " selected" : "") + ">" +
+                   esc(p.nombre) + " — " + esc(p.categoria) + "</option>";
           }).join("") + "</select></div>" +
           '<div class="campo"><label for="eq-rol">Rol en la obra</label><input id="eq-rol" placeholder="Opcional"></div></div>';
       } else {
@@ -1885,6 +1945,109 @@ function moverStock(art) {
       }
     }).then(function () { invalidar(); cerrarModal(); ir("stock"); })
       .catch(function (err) { var e = $("#mv-err"); e.textContent = err.message; e.hidden = false; });
+  });
+}
+
+/* ── Gastos > Categorías y Estados ────────────────────────────────────── */
+// Las dos listas se gestionan igual: nombre, cuántos gastos la usan, editar y
+// borrar. Los estados dicen además si el gasto cuenta como pagado, que es lo
+// que suma contabilidad en lo pendiente de pago.
+var LISTA_GASTO = {
+  categorias: { una: "categoría", nueva: "Nueva categoría", ruta: "gastos/categorias" },
+  estados: { una: "estado", nueva: "Nuevo estado", ruta: "gastos/estados", pagado: true }
+};
+
+function verListaGasto(clave) {
+  var L = LISTA_GASTO[MODULOS[clave].lista];
+  $("#vista-acciones").innerHTML =
+    '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + esc(L.nueva) + "</button>";
+  $("#btn-nuevo").addEventListener("click", function () { formListaGasto(clave, null); });
+
+  api("/api/admin/" + L.ruta).then(function (filas) {
+    cache[L.ruta] = filas;
+    var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr><th>Nombre</th>' +
+      (L.pagado ? "<th>Cuenta como</th>" : "") +
+      '<th class="num">Gastos</th><th class="num">Acciones</th></tr></thead><tbody>';
+    filas.forEach(function (f) {
+      h += "<tr><td><b>" + esc(f.nombre) + "</b></td>" +
+        (L.pagado ? '<td><span class="tag ' + (f.pagado ? "tag--verde" : "tag--amber") + '">' +
+                    (f.pagado ? "Pagado" : "Pendiente de pago") + "</span></td>" : "") +
+        '<td class="num">' + f.n + "</td>" +
+        '<td class="acciones"><button data-editar="' + f.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
+        '<button class="borrar" data-borrar="' + f.id + '" title="Borrar">' + svg(ico.papelera) + "</button></td></tr>";
+    });
+    $("#vista").innerHTML = h + "</tbody></table></div></div>" +
+      '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55;margin-top:14px">' +
+      (L.pagado
+        ? "El estado que marques como «Pagado» cuenta como pagado en contabilidad; el resto, como pendiente de pago. " +
+          "Los gastos nuevos empiezan en el primer estado pendiente de la lista."
+        : "Si cambias el nombre de una categoría, cambia también en todos los gastos que la llevan.") + "</p>";
+    function fila(id) { return filas.filter(function (x) { return String(x.id) === String(id); })[0]; }
+    $$("[data-editar]").forEach(function (b) {
+      b.addEventListener("click", function () { formListaGasto(clave, fila(b.dataset.editar)); });
+    });
+    $$("[data-borrar]").forEach(function (b) {
+      b.addEventListener("click", function () { borrarListaGasto(clave, fila(b.dataset.borrar), filas); });
+    });
+  }).catch(error);
+}
+
+function formListaGasto(clave, f) {
+  var L = LISTA_GASTO[MODULOS[clave].lista];
+  modal(f ? "Editar " + L.una : L.nueva,
+    '<div class="aviso aviso--err" id="lg-err" hidden></div>' +
+    '<div class="campo"><label for="lg-nombre">Nombre *</label><input id="lg-nombre" maxlength="60" value="' +
+      esc(f ? f.nombre : "") + '"></div>' +
+    (L.pagado
+      ? '<div class="campo"><label for="lg-pagado">Un gasto en este estado cuenta como</label><select id="lg-pagado">' +
+        '<option value="0"' + (f && f.pagado ? "" : " selected") + ">Pendiente de pago</option>" +
+        '<option value="1"' + (f && f.pagado ? " selected" : "") + ">Pagado</option></select></div>"
+      : "") +
+    (f && f.n ? '<p style="color:var(--muted-2);font-size:.85rem">Lo llevan ' + f.n +
+                " gastos: cambian con él.</p>" : ""),
+    '<button class="btn btn--fant" id="lg-no">Cancelar</button><button class="btn btn--amber" id="lg-si">Guardar</button>');
+  $("#lg-nombre").focus();
+  $("#lg-no").addEventListener("click", cerrarModal);
+  $("#lg-si").addEventListener("click", function () {
+    var btn = this, datos = { nombre: $("#lg-nombre").value.trim() };
+    if (L.pagado) datos.pagado = $("#lg-pagado").value === "1";
+    if (!datos.nombre) { var e = $("#lg-err"); e.textContent = "Pon un nombre."; e.hidden = false; return; }
+    btn.disabled = true;
+    api("/api/admin/" + L.ruta + (f ? "/" + f.id : ""), { metodo: f ? "PUT" : "POST", datos: datos })
+      .then(function () { invalidar(); cerrarModal(); ir(clave); })
+      .catch(function (err) {
+        var e = $("#lg-err"); e.textContent = err.message; e.hidden = false; btn.disabled = false;
+      });
+  });
+}
+
+// Borrar una que está en uso pide a cuál se pasan sus gastos: ninguno se puede
+// quedar con una categoría o un estado que ya no existe.
+function borrarListaGasto(clave, f, filas) {
+  var L = LISTA_GASTO[MODULOS[clave].lista];
+  var otras = filas.filter(function (x) { return x.id !== f.id; });
+  if (!otras.length) { avisar("Tiene que quedar al menos un" + (L.una === "categoría" ? "a " : " ") + L.una, "err"); return; }
+  modal("Borrar " + L.una,
+    '<div class="aviso aviso--err" id="lg-err" hidden></div>' +
+    (f.n
+      ? '<p style="color:var(--muted);line-height:1.55">Hay <b>' + f.n + "</b> gastos con «" + esc(f.nombre) +
+        "». Antes de borrar, di a dónde se pasan.</p>" +
+        '<div class="campo"><label for="lg-mover">Pasar sus gastos a</label><select id="lg-mover">' +
+        otras.map(function (o) { return '<option value="' + esc(o.nombre) + '">' + esc(o.nombre) + "</option>"; }).join("") +
+        "</select></div>"
+      : "<p style='color:var(--muted)'>Se va a borrar «" + esc(f.nombre) + "». Ningún gasto lo usa.</p>"),
+    '<button class="btn btn--fant" id="lg-no">Cancelar</button><button class="btn btn--peligro" id="lg-si">Borrar</button>');
+  $("#lg-no").addEventListener("click", cerrarModal);
+  $("#lg-si").addEventListener("click", function () {
+    var destino = $("#lg-mover") ? $("#lg-mover").value : "";
+    api("/api/admin/" + L.ruta + "/" + f.id + (destino ? "?mover_a=" + encodeURIComponent(destino) : ""),
+        { metodo: "DELETE" })
+      .then(function (r) {
+        invalidar(); cerrarModal();
+        avisar(r.movidos ? r.movidos + " gastos pasados a «" + destino + "»" : "Borrado");
+        ir(clave);
+      })
+      .catch(function (err) { var e = $("#lg-err"); e.textContent = err.message; e.hidden = false; });
   });
 }
 
@@ -2161,7 +2324,7 @@ function abrirVisita(id, inicial) {
         ? '<div class="campo"><label for="v-resp">Responsable</label><select id="v-resp">' +
           '<option value="">— nadie: solo el administrador —</option>' +
           (cache.equipo || []).map(function (o) {
-            return '<option value="' + o.id + '"' + (String(o.id) === String(v.usuario_id) ? " selected" : "") + ">" +
+            return '<option value="' + o.id + '"' + (String(o.id) === String(v.usuario_id || (YO && YO.id)) ? " selected" : "") + ">" +
                    esc(o.nombre || o.email) + "</option>";
           }).join("") + "</select>" +
           '<small style="color:var(--muted-2);font-size:.79rem">Solo lo ven esa persona y el administrador.</small></div>'
@@ -2875,7 +3038,7 @@ function editarDocumento(tipo, id, inicial) {
         : "") +
       (esAdmin()
         ? '<div class="campo"><label for="d-resp">Responsable</label><select id="d-resp">' +
-          opciones("equipo", doc.usuario_id) + "</select>" +
+          opciones("equipo", doc.usuario_id || (YO && YO.id)) + "</select>" +
           '<small style="color:var(--muted-2);font-size:.79rem">Solo lo ven esa persona y el administrador.</small></div>'
         : "") +
       '<label style="font-size:.83rem;color:var(--muted);display:block;margin:18px 0 8px">Líneas</label>' +
