@@ -237,6 +237,9 @@ def _importe_de_obra(d: dict):
     Quitar el presupuesto no pone la obra a cero: se queda con el importe que
     tuviera. Las obras de antes de esto llevan el suyo escrito a mano y
     borrarlo por un descuido sería perder el dato.
+
+    Es la base imponible, sin IVA: los gastos se suman sin IVA y el margen
+    solo cuadra si los dos lados van igual. El IVA no es de la empresa.
     """
     if "presupuesto_id" not in d:
         return
@@ -245,7 +248,7 @@ def _importe_de_obra(d: dict):
         return
     lineas = db.filas("SELECT * FROM presupuesto_lineas WHERE presupuesto_id = ?",
                       (d["presupuesto_id"],))
-    d["importe_venta"] = totales(lineas)["total"]
+    d["importe_venta"] = totales(lineas)["base"]
 
 
 def _tabla(recurso: str) -> Tabla:
