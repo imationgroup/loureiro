@@ -28,7 +28,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
-from . import auth, db, empresa
+from . import auth, db, documentos, empresa
 from .admin import router as router_admin, router_crud as router_admin_crud
 from .equipo import router as router_equipo
 from .estatutos import router as router_estatutos
@@ -118,6 +118,7 @@ async def _datos_no_validos(request: Request, exc: RequestValidationError):
 @app.on_event("startup")
 def _arranque():
     db.inicializar()
+    documentos.corregir_precios_con_iva()
     auth.sembrar_admin()
     log.info("base de datos lista en %s", db.RUTA_DB)
 
