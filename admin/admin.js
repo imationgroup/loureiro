@@ -478,13 +478,19 @@ var MODULOS = {
     ]
   },
 
+  // Por dentro sigue siendo "costes" (tabla, API y permisos de cada miembro);
+  // lo que cambia es el nombre que se ve.
   costes: {
-    titulo: "Costes", sub: "Todo lo que sale de caja", icono: ico.euro, recurso: "costes",
+    titulo: "Gastos", sub: "Todo lo que sale de caja, por obra o de la empresa", icono: ico.euro,
+    recurso: "costes", uno: "gasto",
+    // Desplegable encima de la tabla para ver los gastos de una sola obra.
+    filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Gastos de empresa" },
+    suma: { c: "importe", t: "Base imponible" },
     columnas: [
       { c: "fecha", t: "Fecha", tipo: "fecha" },
       { c: "concepto", t: "Concepto" },
       { c: "categoria", t: "Categoría", tipo: "tag" },
-      { c: "obra_id", t: "Obra", tipo: "ref", de: "obras" },
+      { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", vacio: "Empresa" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales" },
       { c: "importe", t: "Base", tipo: "eur", num: true },
       { c: "pagado", t: "Pago", tipo: "bool", si: "Pagado", no: "Pendiente" }
@@ -495,7 +501,9 @@ var MODULOS = {
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "importe", t: "Base imponible (€)", tipo: "numero", mitad: true },
       { c: "iva", t: "IVA (%)", tipo: "numero", mitad: true, pordefecto: 21 },
-      { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", mitad: true },
+      // Obligatorio: o una obra o, a propósito, gastos de la empresa (seguros,
+      // gestoría, la furgoneta). Sin elegir no se guarda.
+      { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "obras", req: true, sinObra: "Gastos de empresa (no es de una obra)" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true },
       { c: "proveedor_id", t: "Proveedor", tipo: "ref", de: "proveedores", mitad: true },
       { c: "factura_ref", t: "Nº de factura", mitad: true },
@@ -737,6 +745,9 @@ window.addEventListener("hashchange", function () {
 });
 
 /* ── Vista genérica de tabla ──────────────────────────────────────────── */
+// Filtro elegido en cada tabla que lo tiene. Se conserva al volver de guardar.
+var FILTRO = {};
+
 function verTabla(clave) {
   var m = MODULOS[clave];
   var refs = [];
@@ -751,18 +762,41 @@ function verTabla(clave) {
 
   Promise.all([api("/api/admin/" + m.recurso)].concat(refs.map(cargarRef)))
     .then(function (res) {
-      var filas = res[0];
+      var filas = res[0], fil = m.filtro;
+      var elegido = fil ? (FILTRO[clave] || "") : "";
       $("#vista").innerHTML =
-        '<div class="herr"><input type="search" id="buscar" placeholder="Buscar…"></div>' +
-        '<div class="tabla-caja"><div class="tabla-scroll" id="caja-tabla"></div></div>';
-      pintarFilas(clave, filas);
-      $("#buscar").addEventListener("input", function () {
-        var q = this.value.toLowerCase().trim();
-        pintarFilas(clave, !q ? filas : filas.filter(function (f) {
-          return Object.keys(f).some(function (k) {
+        '<div class="herr">' +
+        (fil
+          ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"><option value="">' + esc(fil.todos) + "</option>" +
+            '<option value="ninguna"' + (elegido === "ninguna" ? " selected" : "") + ">" + esc(fil.vacio) + "</option>" +
+            (cache[fil.de] || []).map(function (o) {
+              return '<option value="' + o.id + '"' + (String(o.id) === elegido ? " selected" : "") + ">" +
+                     esc(o.titulo || o.nombre) + "</option>";
+            }).join("") + "</select>"
+          : "") +
+        '<input type="search" id="buscar" placeholder="Buscar…"></div>' +
+        '<div class="tabla-caja"><div class="tabla-scroll" id="caja-tabla"></div>' +
+        (m.suma ? '<div class="tabla-suma" id="tabla-suma"></div>' : "") + "</div>";
+      function repintar() {
+        var q = $("#buscar").value.toLowerCase().trim();
+        var vistas = filas.filter(function (f) {
+          if (elegido === "ninguna" && f[fil.c]) return false;
+          if (elegido && elegido !== "ninguna" && String(f[fil.c]) !== elegido) return false;
+          return !q || Object.keys(f).some(function (k) {
             return String(f[k] === null ? "" : f[k]).toLowerCase().indexOf(q) >= 0;
           });
-        }));
+        });
+        pintarFilas(clave, vistas);
+        if (m.suma) {
+          $("#tabla-suma").innerHTML = esc(m.suma.t) + " de lo que se ve: <b>" +
+            eur(vistas.reduce(function (a, f) { return a + (Number(f[m.suma.c]) || 0); }, 0)) + "</b>";
+        }
+      }
+      repintar();
+      $("#buscar").addEventListener("input", repintar);
+      if (fil) $("#filtro").addEventListener("change", function () {
+        elegido = FILTRO[clave] = this.value;
+        repintar();
       });
     })
     .catch(error);
@@ -772,7 +806,9 @@ function celda(col, fila) {
   var v = fila[col.c];
   if (col.tipo === "eur") return v ? eur(v) : "—";
   if (col.tipo === "fecha") return esc(fecha(v));
-  if (col.tipo === "ref") return esc(nombreDe(col.de, v)) || "—";
+  if (col.tipo === "ref") {
+    return esc(nombreDe(col.de, v)) || (col.vacio ? '<span class="tag">' + esc(col.vacio) + "</span>" : "—");
+  }
   if (col.tipo === "cantidad") {
     var bajo = fila.minimo > 0 && fila.cantidad <= fila.minimo;
     return '<span class="' + (bajo ? "tag tag--rojo" : "") + '">' +
@@ -960,6 +996,22 @@ function campoHTML(campo, valor, esNuevo) {
          (cache[campo.de] || []).map(function (o) {
            return '<option value="' + esc(o.nombre) + '"></option>';
          }).join("") + "</datalist>";
+  } else if (campo.tipo === "ref" && campo.sinObra) {
+    // Aquí vacío no significa «sin rellenar» sino una elección: ninguna obra.
+    // Por eso va aparte del vacío de verdad, que no deja guardar. Un registro
+    // que ya existe sin obra se abre con esa opción elegida.
+    var ninguna = !esNuevo && v === "";
+    h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '">' +
+         '<option value=""' + (!ninguna && v === "" ? " selected" : "") + ">— elige a qué va —</option>" +
+         '<option value="ninguna"' + (ninguna ? " selected" : "") + ">" + esc(campo.sinObra) + "</option>";
+    if (v !== "" && !(cache[campo.de] || []).some(function (o) { return String(o.id) === String(v); })) {
+      h += '<option value="' + esc(v) + '" selected>(lo lleva otra persona)</option>';
+    }
+    (cache[campo.de] || []).forEach(function (o) {
+      h += '<option value="' + o.id + '"' + (String(o.id) === String(v) ? " selected" : "") + ">" +
+           esc(o.titulo || o.nombre) + "</option>";
+    });
+    h += "</select>";
   } else if (campo.tipo === "ref") {
     h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '"><option value="">' +
          (campo.de === "equipo" ? "— nadie: solo el administrador —" : "— sin asignar —") + "</option>";
@@ -1223,6 +1275,7 @@ function abrirFormulario(clave, registro, inicial) {
           // mandar null rompería el NOT NULL de iva, importe, etc.
           if (val !== "") datos[el.dataset.c] = Number(val);
         }
+        else if (campo.tipo === "ref" && campo.sinObra && val === "ninguna") datos[el.dataset.c] = null;
         else if (campo.tipo === "ref") datos[el.dataset.c] = val === "" ? null : Number(val);
         else if (campo.tipo === "select" && campo.ops.length && typeof campo.ops[0] === "object")
           datos[el.dataset.c] = Number(val);
@@ -1482,7 +1535,7 @@ function verObras() {
       var h = '<div class="tabla-caja"><div class="tabla-scroll"><table><thead><tr>' +
         "<th>Obra</th><th>Cliente</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
         "<th>Estado</th><th>Profesionales</th>" + (conNotas ? "<th>Notas</th>" : "") +
-        '<th class="num">Presupuestado</th><th class="num">Costes</th><th class="num">Facturado</th>' +
+        '<th class="num">Presupuestado</th><th class="num">Gastos</th><th class="num">Facturado</th>' +
         '<th class="num">Margen</th><th class="num">Acciones</th></tr></thead><tbody>';
       obras.forEach(function (o) {
         var margen = (o.importe_venta || 0) - (o.costes || 0);
@@ -1648,7 +1701,7 @@ function moverStock(art) {
     '<div class="campo"><label for="mv-obra">Obra (si es salida a obra)</label><select id="mv-obra">' +
       '<option value="">— sin obra —</option>' +
       obras.map(function (o) { return '<option value="' + o.id + '">' + esc(o.titulo) + "</option>"; }).join("") +
-    "</select><small style='color:var(--muted-2);font-size:.79rem'>Una salida a obra genera automáticamente su coste de material.</small></div>" +
+    "</select><small style='color:var(--muted-2);font-size:.79rem'>Una salida a obra genera automáticamente su gasto de material.</small></div>" +
     '<div class="campo"><label for="mv-nota">Nota</label><input id="mv-nota" placeholder="Opcional"></div>',
     '<button class="btn btn--fant" id="mv-cancelar">Cancelar</button>' +
     '<button class="btn btn--amber" id="mv-ok">Registrar</button>');
@@ -3424,7 +3477,7 @@ function verMiembros() {
     $("#vista").innerHTML = h + "</tbody></table></div></div>" +
       '<p style="color:var(--muted-2);font-size:.84rem;line-height:1.55;margin-top:14px">Cada miembro entra solo en las ' +
       "pestañas que le marques y en ellas ve solo lo que lleva él: sus citas, clientes, obras, presupuestos, facturas, " +
-      "costes y las solicitudes que le repartas. Almacén, proveedores y profesionales son de la empresa: quien los " +
+      "gastos y las solicitudes que le repartas. Almacén, proveedores y profesionales son de la empresa: quien los " +
       "tenga los ve enteros. Tú, como administrador, lo ves todo.</p>";
 
     var buscar = function (id) { return gente.filter(function (x) { return String(x.id) === String(id); })[0]; };
