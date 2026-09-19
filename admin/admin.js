@@ -1806,7 +1806,7 @@ function verDashboard() {
     // Obras y solicitudes recientes
     h += '<div class="paneles" style="margin-top:16px">';
     h += '<div class="tarjeta"><h3>Últimas obras <span>margen sin IVA</span></h3>' + (d.obras_recientes.length
-      ? '<div class="tabla-scroll"><table><tbody>' + d.obras_recientes.map(function (o) {
+      ? '<div class="tabla-scroll"><table class="tabla-corta"><tbody>' + d.obras_recientes.map(function (o) {
           var m2 = (o.importe_venta || 0) - (o.costes || 0);
           return "<tr><td><b>" + esc(o.titulo) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
                  esc(o.cliente || "sin cliente") + (o.ciudad ? " · " + esc(o.ciudad) : "") + "</div></td>" +
@@ -1816,7 +1816,7 @@ function verDashboard() {
       : '<div class="vacia">Sin obras todavía.</div>') + "</div>";
 
     if (puedeVer("solicitudes")) h += '<div class="tarjeta"><h3>Últimas solicitudes</h3>' + (d.solicitudes_recientes.length
-      ? '<div class="tabla-scroll"><table><tbody>' + d.solicitudes_recientes.map(function (s) {
+      ? '<div class="tabla-scroll"><table class="tabla-corta"><tbody>' + d.solicitudes_recientes.map(function (s) {
           return "<tr><td><b>" + esc(s.nombre) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
                  esc(s.servicio || "") + "</div></td>" +
                  '<td><span class="tag ' + (s.estado === "pendiente" ? "tag--amber" : "") + '">' + esc(s.estado) + "</span></td>" +
@@ -1827,7 +1827,7 @@ function verDashboard() {
 
     if (d.avisos_stock.length) {
       h += '<div class="tarjeta" style="margin-top:16px"><h3>Material bajo mínimo</h3>' +
-        '<div class="tabla-scroll"><table><tbody>' + d.avisos_stock.map(function (a) {
+        '<div class="tabla-scroll"><table class="tabla-corta"><tbody>' + d.avisos_stock.map(function (a) {
           return "<tr><td>" + esc(a.nombre) + '</td><td class="num"><span class="tag tag--rojo">' +
                  num(a.cantidad) + " " + esc(a.unidad || "") + '</span></td><td class="num" style="color:var(--muted);font-size:.83rem">mín. ' +
                  num(a.minimo) + "</td></tr>";

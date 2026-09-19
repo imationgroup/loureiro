@@ -273,7 +273,7 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .grafico{display:flex;align-items:stretch;gap:12px;height:170px;padding-top:10px}
 .barra-col{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
 .barra-par{flex:1;min-height:0;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px}
-.barra{flex:1;max-width:20px;border-radius:4px 4px 0 0;min-height:3px;transition:height .4s var(--ease)}
+.barra{flex:1;max-width:20px;border-radius:4px 4px 0 0;transition:height .4s var(--ease)}
 .barra--in{background:var(--verde)}
 .barra--out{background:var(--rojo)}
 .barra-col small{font-size:.72rem;color:var(--muted-2);white-space:nowrap}
@@ -669,9 +669,15 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .nota{ display:grid; gap:8px; width:100%; text-align:left; cursor:pointer; font:inherit; color:var(--txt);
   background:var(--ink-2); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; }
 .nota:hover{ border-color:var(--line-2); }
-.nota__cab{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.nota__cab small{ font-size:.76rem; color:var(--muted-2); white-space:nowrap; }
-.nota__txt{ font-size:.88rem; color:var(--muted); line-height:1.5; max-height:9.5em; overflow:hidden;
+/* La tarjeta es un <button>: sin min-width:0 y una columna que pueda
+   encoger, una cabecera larga (obra + fecha + autor) la desbordaba. */
+.nota{ grid-template-columns:minmax(0, 1fr); min-width:0; overflow:hidden; }
+.nota > *{ min-width:0; }
+.nota > b{ overflow-wrap:anywhere; }
+.nota__cab{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; }
+.nota__cab .tag{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nota__cab small{ font-size:.76rem; color:var(--muted-2); }
+.nota__txt{ overflow-wrap:anywhere; font-size:.88rem; color:var(--muted); line-height:1.5; max-height:9.5em; overflow:hidden;
   -webkit-mask-image:linear-gradient(#000 75%, transparent); mask-image:linear-gradient(#000 75%, transparent); }
 .nota__txt p, .nota__txt ul{ margin:0 0 6px; }
 .nota__txt ul{ padding-left:18px; }
@@ -726,3 +732,25 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .nota__fotos{ display:flex; gap:6px; align-items:center; }
 .nota__fotos img{ width:56px; height:56px; object-fit:cover; border-radius:7px; background:var(--ink-3); }
 .nota__fotos em{ font-style:normal; font-size:.8rem; color:var(--muted); }
+
+/* En el móvil el panel se salía de la pantalla: un hijo de rejilla no encoge
+   por debajo de su contenido sin min-width:0, y las tablas del sitio piden
+   560 px. Las del panel son de tres columnas y caben en cualquier ancho. */
+.paneles > *{ min-width:0; }
+table.tabla-corta{ min-width:0; }
+@media (max-width:640px){
+  .grafico{ gap:3px; }
+  .barra-col{ gap:4px; }
+  .barra-col small{ font-size:.58rem; }
+  .barra-par{ gap:2px; }
+  .periodo__nav b{ min-width:0; }
+  table.tabla-corta td{ padding:10px 6px; }
+  table.tabla-corta td:first-child{ padding-left:0; }
+  table.tabla-corta td:last-child{ padding-right:0; }
+  table.tabla-corta .tag{ font-size:.68rem; padding:3px 7px; }
+  /* Dos métricas por fila: de una en una ocupaban la pantalla entera. */
+  .metricas{ grid-template-columns:1fr 1fr; gap:10px; }
+  .metrica{ padding:14px 14px; }
+  .metrica b{ font-size:1.3rem; }
+  .metrica span{ font-size:.76rem; }
+}
