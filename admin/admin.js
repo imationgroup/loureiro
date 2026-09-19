@@ -64,6 +64,7 @@ var ico = {
   whatsapp:'<path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2z"/>',
   nota:'<path d="M5 3h14v12l-6 6H5z"/><path d="M13 21v-6h6"/><path d="M8 8h8M8 12h5"/>',
   etiqueta:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+  clip:'<path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/>',
   camara:'<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
   no:'<path d="M18 6L6 18M6 6l12 12"/>',
@@ -1291,7 +1292,13 @@ function abrirFormulario(clave, registro, inicial) {
           '<input type="file" accept="image/*" capture="environment" class="f-imagen" hidden></label>' +
         '<label class="btn btn--fant btn--sm">' + svg(ico.mas) + "Subir imagen" +
           '<input type="file" accept="image/*" multiple class="f-imagen" hidden></label></span></div>' +
-        '<div class="fotos" id="f-fotos"></div>';
+        '<div class="fotos" id="f-fotos"></div>' +
+        '<div class="vis-cab" style="margin-top:16px"><span class="vis-cab__t">Archivos</span><span class="vis-cab__btns">' +
+        '<label class="btn btn--fant btn--sm">' + svg(ico.clip) + "Adjuntar archivo" +
+          '<input type="file" multiple class="f-archivo" hidden accept="' +
+          EXT_ARCHIVO.map(function (e) { return "." + e; }).join(",") + '"></label></span></div>' +
+        '<div class="adjuntos" id="f-archivos"></div>' +
+        '<small style="color:var(--muted-2);font-size:.79rem">PDF, Word, Excel, PowerPoint, OpenDocument, TXT o CSV, hasta 20 MB cada uno.</small>';
     }
 
     modal(m.uno ? (editando ? "Editar " + m.uno : m.nuevo || "Nueva " + m.uno)
@@ -1305,6 +1312,11 @@ function abrirFormulario(clave, registro, inicial) {
     var galeria = m.fotos ? galeriaFotos({
       caja: "#f-fotos", entradas: "#modal .f-imagen", guardar: "#f-guardar",
       existentes: registro && registro.fotos,
+      padre: function () { return m.recurso + "/" + (registro && registro.id); }
+    }) : null;
+    var adjuntos = m.fotos ? listaArchivos({
+      caja: "#f-archivos", entradas: "#modal .f-archivo", guardar: "#f-guardar",
+      existentes: registro && registro.archivos,
       padre: function () { return m.recurso + "/" + (registro && registro.id); }
     }) : null;
 
@@ -1570,13 +1582,14 @@ function abrirFormulario(clave, registro, inicial) {
           // A partir de aquí ya existe: si falla una imagen, el siguiente
           // Guardar edita en vez de crear otra.
           registro = Object.assign({}, registro || {}, r); editando = true;
-          return galeria ? galeria.subir() : null;
+          return Promise.resolve(galeria ? galeria.subir() : null)
+            .then(function () { return adjuntos ? adjuntos.subir() : null; });
         })
         .then(function () { invalidar(); cerrarModal(); ir(VOLVER || clave); })
         .catch(function (err) {
           var e = $("#f-err");
-          e.textContent = err.message + (galeria && galeria.pendientes()
-            ? ". Faltan imágenes por subir: pulsa Guardar otra vez." : "");
+          var faltan = (galeria && galeria.pendientes()) || (adjuntos && adjuntos.pendientes());
+          e.textContent = err.message + (faltan ? ". Falta algo por subir: pulsa Guardar otra vez." : "");
           e.hidden = false;
           btn.disabled = false; btn.textContent = "Guardar";
         });
@@ -2336,7 +2349,7 @@ function verFichaCliente() {
               (n.obra ? '<span class="tag tag--azul">' + esc(n.obra) + "</span>" : '<span class="tag">Del cliente</span>') +
               "<small>" + esc(fecha(n.actualizado || n.creado)) + "</small></span>" +
               (n.titulo ? "<b>" + esc(n.titulo) + "</b>" : "") +
-              '<span class="nota__txt">' + textoRico(n.contenido) + "</span>" + miniaturasNota(n) + "</button>";
+              '<span class="nota__txt">' + textoRico(n.contenido) + "</span>" + miniaturasNota(n) + archivosNota(n) + "</button>";
           }).join("") + "</div>" : '<div class="vacia">Sin notas. Pulsa «Nota» arriba para añadir una.</div>') + "</div>";
       }
       $("#vista").innerHTML = h;
@@ -2466,7 +2479,7 @@ function verNotas() {
             "</span>" +
             (n.titulo ? "<b>" + esc(n.titulo) + "</b>" : "") +
             '<span class="nota__txt">' + textoRico(n.contenido) + "</span>" +
-            miniaturasNota(n) + "</button>";
+            miniaturasNota(n) + archivosNota(n) + "</button>";
         }).join("");
         pintarFotos(caja);
         $$("[data-nota]", caja).forEach(function (b) {
@@ -2580,6 +2593,12 @@ function miniaturasNota(n) {
     return '<img alt="" data-foto="notas/' + n.id + "/" + f + '/m">';
   }).join("") + (fotos.length > 3 ? "<em>+" + (fotos.length - 3) + "</em>" : "") + "</span>";
 }
+function archivosNota(n) {
+  var a = n.archivos || [];
+  if (!a.length) return "";
+  return '<span class="nota__archivos">' + svg(ico.clip) +
+    esc(a.length === 1 ? a[0].nombre : a.length + " archivos") + "</span>";
+}
 
 // Galería de un formulario: las fotos que ya tiene y las nuevas, que se
 // preparan (reducidas) al elegirlas y se suben al guardar, cuando ya se sabe
@@ -2645,6 +2664,112 @@ function galeriaFotos(o) {
           if (btn) btn.textContent = "Subiendo imagen " + n + " de " + total + "…";
           return api("/api/admin/" + o.padre() + "/fotos", { metodo: "POST", datos: f })
             .then(function (r) { nuevas.splice(nuevas.indexOf(f), 1); existentes.push(r.id); });
+        });
+      }, Promise.resolve());
+    }
+  };
+}
+
+// Archivos adjuntos (PDF, Word, Excel…). Van por trozos porque el servidor no
+// deja pasar más de un mega por petición: se abre la subida, se manda cada
+// trozo y se cierra, y el servidor comprueba que ha llegado entero.
+var EXT_ARCHIVO = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv"];
+var MAX_ARCHIVO = 20 * 1024 * 1024;
+
+function tamanoLegible(b) {
+  return b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + " KB" : (b / 1024 / 1024).toFixed(1).replace(".", ",") + " MB";
+}
+function trozoBase64(blob) {
+  return new Promise(function (ok, ko) {
+    var r = new FileReader();
+    r.onload = function () { ok(String(r.result).split(",")[1] || ""); };
+    r.onerror = function () { ko(new Error("No se ha podido leer el archivo")); };
+    r.readAsDataURL(blob);
+  });
+}
+// Se baja con la sesión (un enlace normal no la lleva) y se guarda con su nombre.
+function descargarAdjunto(ruta, nombre) {
+  fetch(API + "/api/admin/" + ruta, { headers: { Authorization: "Bearer " + token } })
+    .then(function (r) { if (!r.ok) throw new Error("No se ha podido descargar"); return r.blob(); })
+    .then(function (b) {
+      var u = URL.createObjectURL(b), a = document.createElement("a");
+      a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+    })
+    .catch(function (e) { avisar(e.message, "err"); });
+}
+
+function listaArchivos(o) {
+  var existentes = (o.existentes || []).slice(), nuevos = [];
+  function pintar() {
+    var caja = $(o.caja);
+    if (!caja) return;
+    caja.innerHTML = existentes.map(function (a) {
+      return '<div class="adjunto"><button type="button" class="adjunto__nombre" data-bajar="' + a.id + '" title="Descargar">' +
+        svg(ico.clip) + "<span>" + esc(a.nombre) + "</span><small>" + tamanoLegible(a.tamano) + "</small></button>" +
+        '<button type="button" class="adjunto__x" data-quitar="' + a.id + '" title="Borrar el archivo">&times;</button></div>';
+    }).join("") + nuevos.map(function (f, i) {
+      return '<div class="adjunto adjunto--nuevo"><span class="adjunto__nombre">' + svg(ico.clip) +
+        "<span>" + esc(f.name) + "</span><small>" + tamanoLegible(f.size) + " · sin subir</small></span>" +
+        '<button type="button" class="adjunto__x" data-descartar="' + i + '" title="Quitar">&times;</button></div>';
+    }).join("");
+    $$("[data-bajar]", caja).forEach(function (b) {
+      b.addEventListener("click", function () {
+        var a = existentes.filter(function (x) { return String(x.id) === b.dataset.bajar; })[0];
+        descargarAdjunto(o.padre() + "/archivos/" + a.id, a.nombre);
+      });
+    });
+    $$("[data-descartar]", caja).forEach(function (b) {
+      b.addEventListener("click", function () { nuevos.splice(Number(b.dataset.descartar), 1); pintar(); });
+    });
+    $$("[data-quitar]", caja).forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (!confirm("¿Borrar este archivo? No se puede deshacer.")) return;
+        b.disabled = true;
+        api("/api/admin/" + o.padre() + "/archivos/" + b.dataset.quitar, { metodo: "DELETE" })
+          .then(function () {
+            existentes = existentes.filter(function (a) { return String(a.id) !== b.dataset.quitar; });
+            pintar();
+          })
+          .catch(function (e) { b.disabled = false; avisar(e.message, "err"); });
+      });
+    });
+  }
+  $$(o.entradas).forEach(function (inp) {
+    inp.addEventListener("change", function () {
+      Array.prototype.slice.call(inp.files || []).forEach(function (f) {
+        var ext = String(f.name.split(".").pop()).toLowerCase();
+        if (EXT_ARCHIVO.indexOf(ext) < 0) return avisar("«" + f.name + "»: solo PDF, Word, Excel, PowerPoint, OpenDocument, TXT o CSV", "err");
+        if (f.size > MAX_ARCHIVO) return avisar("«" + f.name + "» pasa de 20 MB", "err");
+        if (!f.size) return avisar("«" + f.name + "» está vacío", "err");
+        nuevos.push(f);
+      });
+      inp.value = "";
+      pintar();
+    });
+  });
+  pintar();
+
+  function subirUno(f) {
+    var btn = $(o.guardar), base = "/api/admin/" + o.padre() + "/archivos";
+    return api(base, { metodo: "POST", datos: { nombre: f.name, tamano: f.size } }).then(function (a) {
+      var trozos = Math.ceil(f.size / a.trozo), i = 0;
+      function siguiente() {
+        if (i >= trozos) return api(base + "/" + a.id + "/fin", { metodo: "POST" });
+        if (btn) btn.textContent = "Subiendo «" + f.name + "» " + Math.round(i / trozos * 100) + " %…";
+        return trozoBase64(f.slice(i * a.trozo, (i + 1) * a.trozo)).then(function (b64) {
+          return api(base + "/" + a.id + "/trozos/" + i, { metodo: "PUT", datos: { datos: b64 } });
+        }).then(function () { i++; return siguiente(); });
+      }
+      return siguiente();
+    });
+  }
+  return {
+    pendientes: function () { return nuevos.length; },
+    subir: function () {
+      return nuevos.slice().reduce(function (cadena, f) {
+        return cadena.then(function () {
+          return subirUno(f).then(function (r) { nuevos.splice(nuevos.indexOf(f), 1); existentes.push(r); });
         });
       }, Promise.resolve());
     }

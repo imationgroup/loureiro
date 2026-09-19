@@ -24,7 +24,7 @@ from . import db
 from .agenda import validar_cita
 from .documentos import totales
 from .listas import completar_gasto, completar_obra, estado_pendiente
-from .notas import fotos_de
+from .notas import adjuntos_de
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
                    limpiar_intentos, publico, puede, registrar_intento, sesion_actual,
@@ -434,7 +434,7 @@ def ficha_cliente(id_: int, u: dict = Depends(sesion_actual)):
         (id_, *p)) if puede(u, "visitas") else None
 
     # Las notas del cliente y las de sus obras.
-    res["notas"] = fotos_de(db.filas(f"""
+    res["notas"] = adjuntos_de(db.filas(f"""
         SELECT x.*, o.titulo AS obra FROM notas x LEFT JOIN obras o ON o.id = x.obra_id
         WHERE (x.cliente_id = ? OR o.cliente_id = ?) AND {f}
         ORDER BY COALESCE(x.actualizado, x.creado) DESC, x.id DESC""", (id_, id_, *p))) \
