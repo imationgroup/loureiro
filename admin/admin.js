@@ -396,7 +396,7 @@ var MODULOS = {
 
   notas: {
     titulo: "Notas", sub: "Apuntes sueltos y de cada obra", icono: ico.nota,
-    recurso: "notas", especial: "notas", uno: "nota", borrarDesdeFicha: true,
+    recurso: "notas", especial: "notas", uno: "nota", borrarDesdeFicha: true, fotos: true,
     campos: [
       { c: "titulo", t: "Título", ayuda: "Opcional. Por ejemplo: pedido de azulejo" },
       { c: "cliente_id", t: "Cliente", tipo: "busca", de: "clientes", mitad: true, filtraObras: "obra_id",
@@ -1285,6 +1285,14 @@ function abrirFormulario(clave, registro, inicial) {
     });
     if (buffer.length) cuerpo += campoHTML(buffer[0], vals && vals[buffer[0].c], !editando);
     cuerpo += "</form>";
+    if (m.fotos) {
+      cuerpo += '<div class="vis-cab"><span class="vis-cab__t">Imágenes</span><span class="vis-cab__btns">' +
+        '<label class="btn btn--amber btn--sm">' + svg(ico.camara) + "Hacer foto" +
+          '<input type="file" accept="image/*" capture="environment" class="f-imagen" hidden></label>' +
+        '<label class="btn btn--fant btn--sm">' + svg(ico.mas) + "Subir imagen" +
+          '<input type="file" accept="image/*" multiple class="f-imagen" hidden></label></span></div>' +
+        '<div class="fotos" id="f-fotos"></div>';
+    }
 
     modal(m.uno ? (editando ? "Editar " + m.uno : m.nuevo || "Nueva " + m.uno)
                : (editando ? "Editar " : "Nuevo en ") + m.titulo.toLowerCase(), cuerpo,
@@ -1293,6 +1301,12 @@ function abrirFormulario(clave, registro, inicial) {
         : "") +
       '<button class="btn btn--fant" id="f-cancelar">Cancelar</button>' +
       '<button class="btn btn--amber" id="f-guardar">Guardar</button>');
+
+    var galeria = m.fotos ? galeriaFotos({
+      caja: "#f-fotos", entradas: "#modal .f-imagen", guardar: "#f-guardar",
+      existentes: registro && registro.fotos,
+      padre: function () { return m.recurso + "/" + (registro && registro.id); }
+    }) : null;
 
     // La lista de ciudades depende de la provincia elegida y se rehace
     // cada vez que esta cambia.
@@ -1552,9 +1566,18 @@ function abrirFormulario(clave, registro, inicial) {
       var btn = $("#f-guardar"); btn.disabled = true; btn.textContent = "Guardando…";
       api("/api/admin/" + m.recurso + (editando ? "/" + registro.id : ""),
           { metodo: editando ? "PUT" : "POST", datos: datos })
+        .then(function (r) {
+          // A partir de aquí ya existe: si falla una imagen, el siguiente
+          // Guardar edita en vez de crear otra.
+          registro = Object.assign({}, registro || {}, r); editando = true;
+          return galeria ? galeria.subir() : null;
+        })
         .then(function () { invalidar(); cerrarModal(); ir(VOLVER || clave); })
         .catch(function (err) {
-          var e = $("#f-err"); e.textContent = err.message; e.hidden = false;
+          var e = $("#f-err");
+          e.textContent = err.message + (galeria && galeria.pendientes()
+            ? ". Faltan imágenes por subir: pulsa Guardar otra vez." : "");
+          e.hidden = false;
           btn.disabled = false; btn.textContent = "Guardar";
         });
     });
@@ -2299,7 +2322,7 @@ function verFichaCliente() {
           (d.visitas.length ? '<div class="vis-lista">' + d.visitas.map(function (v) {
             return '<button type="button" class="vis-item" data-visita="' + v.id + '">' +
               '<span class="vis-item__foto">' +
-                (v.portada ? '<img alt="" data-foto="' + v.id + "/" + v.portada + '/m">' : svg(ico.camara)) +
+                (v.portada ? '<img alt="" data-foto="visitas/' + v.id + "/" + v.portada + '/m">' : svg(ico.camara)) +
                 (v.n_fotos > 1 ? "<em>" + v.n_fotos + "</em>" : "") + "</span>" +
               '<span class="vis-item__txt"><b>' + esc(v.titulo || "Visita") + "</b><small>" + esc(fecha(v.fecha)) +
               (v.n_fotos ? " · " + v.n_fotos + " foto" + (v.n_fotos === 1 ? "" : "s") : "") + "</small></span></button>";
@@ -2313,7 +2336,7 @@ function verFichaCliente() {
               (n.obra ? '<span class="tag tag--azul">' + esc(n.obra) + "</span>" : '<span class="tag">Del cliente</span>') +
               "<small>" + esc(fecha(n.actualizado || n.creado)) + "</small></span>" +
               (n.titulo ? "<b>" + esc(n.titulo) + "</b>" : "") +
-              '<span class="nota__txt">' + textoRico(n.contenido) + "</span></button>";
+              '<span class="nota__txt">' + textoRico(n.contenido) + "</span>" + miniaturasNota(n) + "</button>";
           }).join("") + "</div>" : '<div class="vacia">Sin notas. Pulsa «Nota» arriba para añadir una.</div>') + "</div>";
       }
       $("#vista").innerHTML = h;
@@ -2443,8 +2466,9 @@ function verNotas() {
             "</span>" +
             (n.titulo ? "<b>" + esc(n.titulo) + "</b>" : "") +
             '<span class="nota__txt">' + textoRico(n.contenido) + "</span>" +
-            "</button>";
+            miniaturasNota(n) + "</button>";
         }).join("");
+        pintarFotos(caja);
         $$("[data-nota]", caja).forEach(function (b) {
           b.addEventListener("click", function () {
             abrirFormulario("notas", notas.filter(function (x) { return String(x.id) === b.dataset.nota; })[0]);
@@ -2462,10 +2486,11 @@ function verNotas() {
 // el token y se enseñan desde un blob. Se guardan las URL ya hechas para no
 // bajar dos veces la misma miniatura al repintar la lista.
 var FOTOS = {};
-function urlFoto(visita, foto, mini) {
-  var clave = visita + "/" + foto + (mini ? "/m" : "");
+// `padre` es de quién es la foto: "visitas/5" o "notas/3".
+function urlFoto(padre, foto, mini) {
+  var clave = padre + "/" + foto + (mini ? "/m" : "");
   if (FOTOS[clave]) return FOTOS[clave];
-  FOTOS[clave] = fetch(API + "/api/admin/visitas/" + visita + "/fotos/" + foto + (mini ? "?mini=1" : ""),
+  FOTOS[clave] = fetch(API + "/api/admin/" + padre + "/fotos/" + foto + (mini ? "?mini=1" : ""),
                        { headers: { Authorization: "Bearer " + token } })
     .then(function (r) {
       if (!r.ok) throw new Error("No se ha podido cargar la foto");
@@ -2475,11 +2500,13 @@ function urlFoto(visita, foto, mini) {
     .catch(function (e) { delete FOTOS[clave]; throw e; });
   return FOTOS[clave];
 }
-// Rellena los <img data-foto="visita/foto[/m]"> que haya dentro de `caja`.
+// Rellena los <img data-foto="visitas/5/12[/m]"> que haya dentro de `caja`.
 function pintarFotos(caja) {
   $$("img[data-foto]", caja).forEach(function (img) {
-    var p = img.dataset.foto.split("/");
-    urlFoto(p[0], p[1], p[2] === "m").then(function (u) { img.src = u; })
+    var p = img.dataset.foto.split("/"), mini = p[p.length - 1] === "m";
+    if (mini) p.pop();
+    var foto = p.pop();
+    urlFoto(p.join("/"), foto, mini).then(function (u) { img.src = u; })
       .catch(function () { img.alt = "No se ha podido cargar"; img.classList.add("is-rota"); });
   });
 }
@@ -2531,7 +2558,7 @@ function reducirFoto(file) {
 }
 
 // Visor a pantalla completa. Escape lo cierra a él y no a la ficha de debajo.
-function verFotoGrande(visita, foto) {
+function verFotoGrande(padre, foto) {
   var capa = document.createElement("div");
   capa.className = "visor";
   capa.innerHTML = '<button class="visor__x" aria-label="Cerrar">&times;</button>' +
@@ -2541,9 +2568,87 @@ function verFotoGrande(visita, foto) {
   function tecla(e) { if (e.key === "Escape") { e.stopPropagation(); cerrar(); } }
   window.addEventListener("keydown", tecla, true);
   capa.addEventListener("click", cerrar);
-  urlFoto(visita, foto, false).then(function (u) {
+  urlFoto(padre, foto, false).then(function (u) {
     capa.innerHTML = '<button class="visor__x" aria-label="Cerrar">&times;</button><img alt="" src="' + u + '">';
   }).catch(function (e) { cerrar(); avisar(e.message, "err"); });
+}
+
+function miniaturasNota(n) {
+  var fotos = n.fotos || [];
+  if (!fotos.length) return "";
+  return '<span class="nota__fotos">' + fotos.slice(0, 3).map(function (f) {
+    return '<img alt="" data-foto="notas/' + n.id + "/" + f + '/m">';
+  }).join("") + (fotos.length > 3 ? "<em>+" + (fotos.length - 3) + "</em>" : "") + "</span>";
+}
+
+// Galería de un formulario: las fotos que ya tiene y las nuevas, que se
+// preparan (reducidas) al elegirlas y se suben al guardar, cuando ya se sabe
+// el id de lo que se está guardando. Las que ya estaban se borran al momento.
+function galeriaFotos(o) {
+  var existentes = (o.existentes || []).slice(), nuevas = [];
+  function pintar() {
+    var caja = $(o.caja);
+    if (!caja) return;
+    caja.innerHTML = existentes.map(function (f) {
+      return '<div class="foto"><button type="button" class="foto__ver" data-ver="' + f + '" title="Ver en grande">' +
+        '<img alt="" data-foto="' + o.padre() + "/" + f + '/m"></button>' +
+        '<button type="button" class="foto__x" data-quitar="' + f + '" title="Borrar la imagen">&times;</button></div>';
+    }).join("") + nuevas.map(function (f, i) {
+      return '<div class="foto foto--nueva"><img alt="" src="' + f.miniatura + '">' +
+        '<span class="foto__marca">Sin subir</span>' +
+        '<button type="button" class="foto__x" data-descartar="' + i + '" title="Quitar">&times;</button></div>';
+    }).join("") || '<div class="fotos__vacia">Sin imágenes.</div>';
+    pintarFotos(caja);
+    $$("[data-ver]", caja).forEach(function (b) {
+      b.addEventListener("click", function () { verFotoGrande(o.padre(), b.dataset.ver); });
+    });
+    $$("[data-descartar]", caja).forEach(function (b) {
+      b.addEventListener("click", function () { nuevas.splice(Number(b.dataset.descartar), 1); pintar(); });
+    });
+    $$("[data-quitar]", caja).forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (!confirm("¿Borrar esta imagen? No se puede deshacer.")) return;
+        b.disabled = true;
+        api("/api/admin/" + o.padre() + "/fotos/" + b.dataset.quitar, { metodo: "DELETE" })
+          .then(function () {
+            existentes = existentes.filter(function (f) { return String(f) !== b.dataset.quitar; });
+            pintar();
+          })
+          .catch(function (e) { b.disabled = false; avisar(e.message, "err"); });
+      });
+    });
+  }
+  function elegidas(input) {
+    var files = Array.prototype.slice.call(input.files || []);
+    input.value = "";
+    if (!files.length) return;
+    var btn = $(o.guardar);
+    btn.disabled = true; btn.textContent = "Preparando imágenes…";
+    files.reduce(function (cadena, file) {
+      return cadena.then(function () {
+        return reducirFoto(file).then(function (f) { nuevas.push(f); pintar(); })
+          .catch(function (e) { avisar(e.message, "err"); });
+      });
+    }, Promise.resolve()).then(function () { btn.disabled = false; btn.textContent = "Guardar"; });
+  }
+  $$(o.entradas).forEach(function (inp) { inp.addEventListener("change", function () { elegidas(this); }); });
+  pintar();
+  return {
+    pendientes: function () { return nuevas.length; },
+    // Sube las nuevas de una en una; si una falla, las que quedan siguen ahí
+    // para volver a intentarlo.
+    subir: function () {
+      var btn = $(o.guardar), total = nuevas.length, n = 0;
+      return nuevas.slice().reduce(function (cadena, f) {
+        return cadena.then(function () {
+          n++;
+          if (btn) btn.textContent = "Subiendo imagen " + n + " de " + total + "…";
+          return api("/api/admin/" + o.padre() + "/fotos", { metodo: "POST", datos: f })
+            .then(function (r) { nuevas.splice(nuevas.indexOf(f), 1); existentes.push(r.id); });
+        });
+      }, Promise.resolve());
+    }
+  };
 }
 
 function tituloVisita(v) { return v.titulo || "Visita"; }
@@ -2580,7 +2685,7 @@ function verVisitas() {
       caja.innerHTML = filas.map(function (v) {
         return '<button type="button" class="vis-item" data-visita="' + v.id + '">' +
           '<span class="vis-item__foto">' +
-            (v.portada ? '<img alt="" data-foto="' + v.id + "/" + v.portada + '/m">' : svg(ico.camara)) +
+            (v.portada ? '<img alt="" data-foto="visitas/' + v.id + "/" + v.portada + '/m">' : svg(ico.camara)) +
             (v.n_fotos > 1 ? "<em>" + v.n_fotos + "</em>" : "") + "</span>" +
           '<span class="vis-item__txt"><b>' + esc(tituloVisita(v)) + "</b>" +
             "<small>" + esc(fecha(v.fecha)) + " · " + esc(v.cliente || "sin cliente") + "</small>" +
@@ -2675,7 +2780,7 @@ function abrirVisita(id, inicial) {
     function pintarGaleria() {
       var h = (v.fotos || []).map(function (f) {
         return '<div class="foto"><button type="button" class="foto__ver" data-ver="' + f.id + '" title="Ver en grande">' +
-          '<img alt="" data-foto="' + id + "/" + f.id + '/m"></button>' +
+          '<img alt="" data-foto="visitas/' + id + "/" + f.id + '/m"></button>' +
           (puedeEditar ? '<button type="button" class="foto__x" data-quitar="' + f.id + '" title="Borrar la foto">&times;</button>' : "") +
           "</div>";
       }).join("") + nuevas.map(function (f, i) {
@@ -2687,7 +2792,7 @@ function abrirVisita(id, inicial) {
         (puedeEditar ? "Sin fotos. Hazlas desde aquí mismo con el móvil." : "Sin fotos.") + "</div>";
       pintarFotos($("#v-fotos"));
       $$("[data-ver]", $("#v-fotos")).forEach(function (b) {
-        b.addEventListener("click", function () { verFotoGrande(id, b.dataset.ver); });
+        b.addEventListener("click", function () { verFotoGrande("visitas/" + id, b.dataset.ver); });
       });
       $$("[data-descartar]", $("#v-fotos")).forEach(function (b) {
         b.addEventListener("click", function () { nuevas.splice(Number(b.dataset.descartar), 1); pintarGaleria(); });

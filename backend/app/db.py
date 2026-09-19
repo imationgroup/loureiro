@@ -383,6 +383,16 @@ CREATE TABLE IF NOT EXISTS notas (
   creado      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Imágenes de las notas, igual que las fotos de las visitas.
+CREATE TABLE IF NOT EXISTS nota_fotos (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  nota_id     INTEGER NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+  tipo        TEXT NOT NULL,
+  datos       BLOB NOT NULL,
+  miniatura   BLOB,
+  creado      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Ajustes sueltos del panel (clave -> valor). Hoy solo el token secreto del
 -- enlace de la agenda para Google Calendar.
 CREATE TABLE IF NOT EXISTS ajustes (
@@ -455,6 +465,7 @@ CREATE INDEX IF NOT EXISTS idx_solicitudes_estado ON solicitudes(estado);
 CREATE INDEX IF NOT EXISTS idx_firmas_presupuesto ON firmas(presupuesto_id);
 CREATE INDEX IF NOT EXISTS idx_visita_fotos       ON visita_fotos(visita_id);
 CREATE INDEX IF NOT EXISTS idx_notas_obra         ON notas(obra_id);
+CREATE INDEX IF NOT EXISTS idx_nota_fotos         ON nota_fotos(nota_id);
 """
 
 

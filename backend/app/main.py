@@ -36,6 +36,7 @@ from .firma import router as router_firma, publico as router_firma_publico
 from .documentos import router as router_documentos
 from .agenda import router as router_agenda, publico as router_agenda_publico
 from .visitas import router as router_visitas
+from .notas import router as router_notas
 from .listas import router as router_listas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -136,6 +137,7 @@ app.include_router(router_documentos)
 app.include_router(router_agenda)
 app.include_router(router_agenda_publico)
 app.include_router(router_visitas)
+app.include_router(router_notas)
 app.include_router(router_listas)
 app.include_router(router_admin_crud)
 
