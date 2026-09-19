@@ -723,3 +723,6 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .periodo__nav button:hover{ border-color:var(--amber); }
 .periodo__nav button[disabled]{ opacity:.35; cursor:default; }
 .barra-col small.is-on{ color:var(--amber); font-weight:700; }
+.nota__fotos{ display:flex; gap:6px; align-items:center; }
+.nota__fotos img{ width:56px; height:56px; object-fit:cover; border-radius:7px; background:var(--ink-3); }
+.nota__fotos em{ font-style:normal; font-size:.8rem; color:var(--muted); }
