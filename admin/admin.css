@@ -754,3 +754,21 @@ table.tabla-corta{ min-width:0; }
   .metrica b{ font-size:1.3rem; }
   .metrica span{ font-size:.76rem; }
 }
+
+/* ── Archivos adjuntos de las notas ─────────────────────────────────── */
+.adjuntos{ display:grid; gap:6px; margin-bottom:6px; }
+.adjunto{ display:flex; align-items:center; gap:6px; background:var(--ink-3); border-radius:9px; padding:4px 6px 4px 10px; }
+.adjunto--nuevo{ outline:1px dashed var(--amber); }
+.adjunto__nombre{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; background:none; border:0;
+  color:var(--txt); font:inherit; font-size:.88rem; text-align:left; padding:6px 0; cursor:pointer; }
+span.adjunto__nombre{ cursor:default; }
+.adjunto__nombre svg, .nota__archivos svg{ flex:none; width:16px; height:16px; fill:none; stroke:currentColor;
+  stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.adjunto__nombre span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.adjunto__nombre small{ flex:none; color:var(--muted-2); font-size:.76rem; }
+button.adjunto__nombre:hover span{ color:var(--amber); text-decoration:underline; }
+.adjunto__x{ flex:none; width:26px; height:26px; border-radius:50%; border:0; background:none; color:var(--muted);
+  font-size:1.05rem; cursor:pointer; }
+.adjunto__x:hover{ background:var(--rojo-soft); color:var(--rojo); }
+.nota__archivos{ display:flex; align-items:center; gap:6px; font-size:.8rem; color:var(--muted); min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

@@ -393,6 +393,27 @@ CREATE TABLE IF NOT EXISTS nota_fotos (
   creado      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Archivos adjuntos a las notas (PDF, Word, Excel…). Llegan por trozos: Nginx
+-- no deja pasar más de 1 MB por petición y un PDF pesa varios. Cada trozo se
+-- guarda tal cual y al descargarlo se juntan en orden. Un archivo no cuenta
+-- hasta que está `completo`.
+CREATE TABLE IF NOT EXISTS nota_archivos (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  nota_id   INTEGER NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+  nombre    TEXT NOT NULL,
+  tipo      TEXT NOT NULL,
+  tamano    INTEGER NOT NULL,
+  completo  INTEGER NOT NULL DEFAULT 0,
+  creado    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS nota_archivo_trozos (
+  archivo_id INTEGER NOT NULL REFERENCES nota_archivos(id) ON DELETE CASCADE,
+  indice     INTEGER NOT NULL,
+  datos      BLOB NOT NULL,
+  PRIMARY KEY (archivo_id, indice)
+);
+
 -- Ajustes sueltos del panel (clave -> valor). Hoy solo el token secreto del
 -- enlace de la agenda para Google Calendar.
 CREATE TABLE IF NOT EXISTS ajustes (
@@ -466,6 +487,7 @@ CREATE INDEX IF NOT EXISTS idx_firmas_presupuesto ON firmas(presupuesto_id);
 CREATE INDEX IF NOT EXISTS idx_visita_fotos       ON visita_fotos(visita_id);
 CREATE INDEX IF NOT EXISTS idx_notas_obra         ON notas(obra_id);
 CREATE INDEX IF NOT EXISTS idx_nota_fotos         ON nota_fotos(nota_id);
+CREATE INDEX IF NOT EXISTS idx_nota_archivos      ON nota_archivos(nota_id);
 """
 
 
