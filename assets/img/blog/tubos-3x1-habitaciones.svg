@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" width="800" height="430" role="img" aria-label="Planta de tres habitaciones contiguas con un 3x1: arriba, los tubos van por el techo cruzando los tabiques hasta la fachada; abajo, van por el rodapié bordeando las habitaciones hasta el mismo punto de salida">
+  <defs>
+    <linearGradient id="t3-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="430" fill="url(#t3-bg)"/>
+
+  <!-- ── Opción A: por el techo ─────────────────────────── -->
+  <text x="40" y="38" font-family="Archivo, Inter, sans-serif" font-size="16" font-weight="700" fill="#3A3E46">A · Por arriba, junto al techo</text>
+
+  <g>
+    <rect x="40" y="52" width="600" height="112" rx="10" fill="#FFFFFF"/>
+    <rect x="40" y="52" width="600" height="112" rx="10" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+    <path d="M240 52v112M440 52v112" stroke="#E0DBD2" stroke-width="3"/>
+    <text x="60" y="76" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Dormitorio 1</text>
+    <text x="260" y="76" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Dormitorio 2</text>
+    <text x="460" y="76" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Salón</text>
+
+    <!-- Splits -->
+    <g fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3">
+      <rect x="96" y="120" width="86" height="22" rx="7"/>
+      <rect x="296" y="120" width="86" height="22" rx="7"/>
+      <rect x="496" y="120" width="86" height="22" rx="7"/>
+    </g>
+
+    <!-- Recorrido por el techo -->
+    <path d="M139 120V96h406" stroke="#F97316" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M339 120V96M539 120V96" stroke="#F97316" stroke-width="5" stroke-linecap="round"/>
+    <path d="M545 96h60" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="616" cy="96" r="11" fill="none" stroke="#F97316" stroke-width="3"/>
+
+    <!-- Pasos de tabique -->
+    <circle cx="240" cy="96" r="7" fill="#FFFFFF" stroke="#8A8E96" stroke-width="2"/>
+    <circle cx="440" cy="96" r="7" fill="#FFFFFF" stroke="#8A8E96" stroke-width="2"/>
+  </g>
+
+  <text x="660" y="86" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46" font-weight="600">Ventajas</text>
+  <text x="660" y="106" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Camino corto</text>
+  <text x="660" y="124" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Sale por detrás</text>
+  <text x="660" y="142" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">del split</text>
+  <text x="660" y="160" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Dos taladros</text>
+  <text x="660" y="178" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">de tabique</text>
+
+  <!-- ── Opción B: por el rodapié ───────────────────────── -->
+  <text x="40" y="238" font-family="Archivo, Inter, sans-serif" font-size="16" font-weight="700" fill="#3A3E46">B · Por abajo, sobre el rodapié</text>
+
+  <g>
+    <rect x="40" y="252" width="600" height="112" rx="10" fill="#FFFFFF"/>
+    <rect x="40" y="252" width="600" height="112" rx="10" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+    <path d="M240 252v112M440 252v112" stroke="#E0DBD2" stroke-width="3"/>
+    <text x="60" y="276" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Dormitorio 1</text>
+    <text x="260" y="276" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Dormitorio 2</text>
+    <text x="460" y="276" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Salón</text>
+
+    <g fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3">
+      <rect x="96" y="290" width="86" height="22" rx="7"/>
+      <rect x="296" y="290" width="86" height="22" rx="7"/>
+      <rect x="496" y="290" width="86" height="22" rx="7"/>
+    </g>
+
+    <!-- Bajada por la esquina y recorrido por rodapié -->
+    <path d="M139 312v34h406" stroke="#F97316" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M339 312v34M539 312v34" stroke="#F97316" stroke-width="5" stroke-linecap="round"/>
+    <path d="M545 346h60" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="616" cy="346" r="11" fill="none" stroke="#F97316" stroke-width="3"/>
+    <circle cx="240" cy="346" r="7" fill="#FFFFFF" stroke="#8A8E96" stroke-width="2"/>
+    <circle cx="440" cy="346" r="7" fill="#FFFFFF" stroke="#8A8E96" stroke-width="2"/>
+  </g>
+
+  <text x="660" y="286" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46" font-weight="600">A tener en cuenta</text>
+  <text x="660" y="306" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Se ve menos</text>
+  <text x="660" y="324" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Baja y sube:</text>
+  <text x="660" y="342" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">más metros</text>
+  <text x="660" y="360" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Ojo al desagüe:</text>
+  <text x="660" y="378" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">necesita caída</text>
+
+  <!-- Leyenda -->
+  <path d="M40 400h26" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+  <text x="74" y="405" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Tubos de cada split</text>
+  <circle cx="250" cy="400" r="7" fill="#FFFFFF" stroke="#8A8E96" stroke-width="2"/>
+  <text x="268" y="405" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Paso de tabique</text>
+  <circle cx="420" cy="400" r="11" fill="none" stroke="#F97316" stroke-width="3"/>
+  <text x="440" y="405" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Salida a fachada, a la unidad exterior</text>
+</svg>
