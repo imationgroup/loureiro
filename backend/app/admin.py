@@ -43,6 +43,8 @@ router_crud = APIRouter(prefix="/api/admin", tags=["panel"])
 class Credenciales(BaseModel):
     email: str
     password: str
+    # «Mantener la sesión iniciada»: la sesión dura días en vez de horas.
+    recordar: bool = False
 
 
 def _ip(request: Request) -> str:
@@ -82,7 +84,7 @@ def login(cred: Credenciales, request: Request):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email o contraseña incorrectos")
 
     limpiar_intentos(ip)
-    token, expira = crear_sesion(u)
+    token, expira = crear_sesion(u, cred.recordar)
     return {"token": token, "expira": expira, "email": u["email"], "usuario": publico(u)}
 
 

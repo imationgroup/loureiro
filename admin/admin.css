@@ -772,3 +772,9 @@ button.adjunto__nombre:hover span{ color:var(--amber); text-decoration:underline
 .adjunto__x:hover{ background:var(--rojo-soft); color:var(--rojo); }
 .nota__archivos{ display:flex; align-items:center; gap:6px; font-size:.8rem; color:var(--muted); min-width:0;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Casilla de «mantener la sesión iniciada» */
+.check{ display:flex; align-items:center; gap:10px; margin:2px 0 16px; cursor:pointer;
+  font-size:.88rem; color:var(--muted); }
+.check input{ width:18px; height:18px; accent-color:var(--amber); cursor:pointer; flex:none; }
+.check:hover{ color:var(--txt); }
