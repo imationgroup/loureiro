@@ -230,65 +230,71 @@ Cada `git push` a `main` lanza el workflow automáticamente.
 
 ## Novedades automáticas en el Perfil de Empresa de Google
 
-Al final de cada despliegue, `scripts/novedades-google.py --nuevos` publica como
-**novedad** del perfil los posts del blog que todavía no se hayan publicado.
-Si falla o falta configuración, avisa y el despliegue sigue igual.
+Google **denegó** el acceso a las Business Profile APIs (septiembre de 2026), así
+que la publicación no se hace desde aquí, sino con un conector que sí tiene ese
+acceso aprobado. La cadena queda así:
 
-Lo que se publica: el título del post, su descripción, la imagen de compartir y
-un botón «Más información» al artículo.
+```
+post nuevo  →  despliegue  →  feed.xml  →  Make  →  novedad en Google
+```
 
-### Alta, una sola vez
+### Lo que hace este repo
 
-1. **Proyecto en Google Cloud** con la cuenta que gestiona el perfil
-   (console.cloud.google.com). Activa estas APIs:
-   *My Business Account Management API*, *My Business Business Information API*
-   y *Google My Business API* (esta última es la de las novedades).
-2. **Pide acceso** a las Business Profile APIs con el formulario de Google
-   («Request access to the Business Profile APIs»). Sin esa aprobación, la API
-   de novedades responde 403 aunque todo lo demás esté bien. Tarda días.
-3. **Credenciales OAuth** de tipo *App de escritorio*. Anota el id y el secreto.
-4. En el ordenador de casa, con el repo delante:
+`scripts/generar-feed.py` regenera **`/feed.xml`** en cada despliegue, con los
+posts del blog ordenados por fecha: título, descripción, enlace, categoría,
+imagen de compartir (`enclosure`) y la fecha del primer commit de cada post.
+Nadie tiene que acordarse de nada.
 
-   ```bash
-   GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... python scripts/novedades-google.py --autorizar
-   ```
+### Lo que hay que montar una vez, en Make
 
-   Se abre el navegador, das permiso con la cuenta que gestiona el perfil y el
-   script imprime el `GOOGLE_REFRESH_TOKEN`.
+1. Cuenta en **make.com** (la capa gratuita sobra: son unas pocas operaciones al
+   mes).
+2. Escenario nuevo con dos módulos:
+   - **RSS › Watch RSS feed items**, con la URL `https://loureirosoluciones.es/feed.xml`.
+     Frecuencia: cada 15 minutos o cada hora, da igual.
+   - **Google My Business › Create a Post**, conectando la cuenta de Google que
+     gestiona el perfil y eligiendo la ubicación de Loureiro Soluciones.
+3. Mapeo de campos en el segundo módulo:
 
-5. **Qué ubicación es**, con las tres variables ya puestas:
+   | Campo en Make | Qué se pone |
+   | --- | --- |
+   | Summary (texto) | `Title` + salto de línea + `Description` |
+   | Media / Photo URL | el `enclosure` del item |
+   | Call to action | *Learn more* |
+   | CTA URL | `Link` del item |
 
-   ```bash
-   python scripts/novedades-google.py --ubicaciones
-   ```
+4. Dale a **Run once** con un post ya publicado para ver cómo queda, borra esa
+   novedad de prueba desde la app de Google y activa el escenario.
 
-6. **Al `.env` del VPS** (recuerda que ese fichero no se actualiza solo):
+Al activarlo, Make marca como vistos los items que ya hay, así que **no
+republica el blog entero**.
 
-   ```env
-   GOOGLE_CLIENT_ID=...
-   GOOGLE_CLIENT_SECRET=...
-   GOOGLE_REFRESH_TOKEN=...
-   GOOGLE_UBICACION=accounts/123456789/locations/987654321
-   ```
+### Republicar los posts viejos
 
-7. **Siembra**, para que el primer despliegue no publique el blog entero de
-   golpe:
+Las novedades de Google envejecen y dejan de verse. En el mismo Make se puede
+añadir un segundo escenario programado (por ejemplo, semanal) que coja un item
+al azar del feed y publique otra novedad. Es opcional, pero mantiene el perfil
+con movimiento.
 
-   ```bash
-   ssh deploy@76.13.56.232 'cd ~/apps/loureiro && python3 scripts/novedades-google.py --sembrar'
-   ```
+### Si algún día Google aprueba el acceso
 
-### Día a día
+`scripts/novedades-google.py` está listo y el despliegue ya lo llama **solo si**
+hay `GOOGLE_REFRESH_TOKEN` en el `.env`. Entonces:
 
-| Qué quieres | Comando |
-| --- | --- |
-| Ver qué publicaría, sin publicar | `python3 scripts/novedades-google.py --nuevos --probar` |
-| Republicar el post más antiguo (las novedades envejecen) | `python3 scripts/novedades-google.py --reciclar` |
-| Apagarlo sin tocar código | `GOOGLE_NOVEDADES=0` en el `.env` |
+1. Credenciales OAuth de «app de escritorio» en Google Cloud, con las APIs
+   *My Business Account Management*, *Business Information* y *Google My Business*
+   activadas.
+2. `python scripts/novedades-google.py --autorizar` desde el ordenador de casa,
+   que imprime el `GOOGLE_REFRESH_TOKEN`.
+3. `python scripts/novedades-google.py --ubicaciones` para saber qué poner en
+   `GOOGLE_UBICACION`.
+4. Al `.env` del VPS: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+   `GOOGLE_REFRESH_TOKEN` y `GOOGLE_UBICACION`.
+5. `python3 scripts/novedades-google.py --sembrar` una vez, y desactivar el
+   escenario de Make para no publicar dos veces lo mismo.
 
-Lo ya publicado se apunta en `~/.local/share/loureiro/novedades-google.json`.
-Si se borra ese fichero, el siguiente despliegue vuelve a publicarlo todo: haz
-`--sembrar` antes.
+Órdenes útiles: `--nuevos --probar` (ver qué publicaría), `--reciclar`
+(republicar la más antigua) y `GOOGLE_NOVEDADES=0` en el `.env` para apagarlo.
 
 ## Rollback
 
