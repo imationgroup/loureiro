@@ -54,6 +54,10 @@ log = logging.getLogger("loureiro-admin")
 ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL") or "").strip().lower()
 ADMIN_PASSWORD_HASH = (os.getenv("ADMIN_PASSWORD_HASH") or "").strip()
 HORAS_SESION = int(os.getenv("SESSION_HOURS", "12"))
+# Con «mantener la sesión iniciada», la sesión dura días en vez de horas. Es
+# para el móvil de quien anda en obra: si no, hay que escribir la contraseña
+# varias veces al día.
+DIAS_SESION_RECORDADA = int(os.getenv("SESSION_DAYS_REMEMBER", "30"))
 
 # ── Hash de contraseña ───────────────────────────────────────────────────
 
@@ -303,10 +307,11 @@ def configurado() -> bool:
 
 # ── Sesiones ─────────────────────────────────────────────────────────────
 
-def crear_sesion(u: dict) -> tuple[str, str]:
+def crear_sesion(u: dict, recordar: bool = False) -> tuple[str, str]:
     token = secrets.token_urlsafe(32)
     ahora = datetime.now(timezone.utc)
-    expira = ahora + timedelta(hours=HORAS_SESION)
+    expira = ahora + (timedelta(days=DIAS_SESION_RECORDADA) if recordar
+                      else timedelta(hours=HORAS_SESION))
     with db.tx() as con:
         con.execute(
             "INSERT INTO sesiones (token, email, usuario_id, creada, expira) VALUES (?,?,?,?,?)",

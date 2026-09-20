@@ -75,7 +75,25 @@ function svg(d, cls) {
 }
 
 /* ── Cliente de API ───────────────────────────────────────────────────── */
-var token = localStorage.getItem("loureiro_token") || "";
+// La sesión se guarda en el navegador. Con «mantener la sesión iniciada» va a
+// localStorage, que sobrevive a cerrar el navegador; sin marcar, a
+// sessionStorage, que se borra al cerrar la pestaña. El servidor hace lo mismo
+// por su lado: la sesión recordada dura días y la otra, horas.
+function guardado(clave) {
+  try { return sessionStorage.getItem(clave) || localStorage.getItem(clave) || ""; }
+  catch (e) { return ""; }
+}
+function guardar(clave, valor, recordar) {
+  try {
+    (recordar ? localStorage : sessionStorage).setItem(clave, valor);
+    (recordar ? sessionStorage : localStorage).removeItem(clave);
+  } catch (e) {}
+}
+function olvidar(clave) {
+  try { localStorage.removeItem(clave); sessionStorage.removeItem(clave); } catch (e) {}
+}
+
+var token = guardado("loureiro_token");
 
 // Usuario de la sesión, con su rol y sus módulos. Lo da el servidor al entrar
 // (/login) o al recargar (/yo). Con esto se pinta el menú, pero quien decide
@@ -118,16 +136,19 @@ function api(ruta, opciones) {
 
 /* ── Login ────────────────────────────────────────────────────────────── */
 var loginForm = $("#login-form");
+try { $("#li-recordar").checked = localStorage.getItem("loureiro_recordar") !== "0"; } catch (e) {}
 loginForm.addEventListener("submit", function (e) {
   e.preventDefault();
   var aviso = $("#login-aviso"), btn = $("#li-btn");
   aviso.hidden = true;
   btn.disabled = true; btn.textContent = "Entrando…";
 
+  var recordar = $("#li-recordar").checked;
   api("/api/admin/login", {
     metodo: "POST",
-    datos: { email: $("#li-email").value.trim(), password: $("#li-pass").value }
-  }).then(entrarCon).catch(function (err) {
+    datos: { email: $("#li-email").value.trim(), password: $("#li-pass").value,
+             recordar: recordar }
+  }).then(function (r) { entrarCon(r, recordar); }).catch(function (err) {
     aviso.textContent = err.message;
     aviso.hidden = false;
   }).finally(function () {
@@ -136,11 +157,13 @@ loginForm.addEventListener("submit", function (e) {
   });
 });
 
-function entrarCon(r) {
+function entrarCon(r, recordar) {
   token = r.token;
   YO = r.usuario;
-  localStorage.setItem("loureiro_token", token);
-  localStorage.setItem("loureiro_email", r.email);
+  guardar("loureiro_token", token, recordar);
+  guardar("loureiro_email", r.email, recordar);
+  // La casilla se queda como la dejaste para la próxima vez.
+  try { localStorage.setItem("loureiro_recordar", recordar ? "1" : "0"); } catch (e) {}
   arrancar(true);
 }
 
@@ -148,8 +171,8 @@ function salir(silencioso) {
   var t = token;
   token = "";
   YO = null;
-  localStorage.removeItem("loureiro_token");
-  localStorage.removeItem("loureiro_email");
+  olvidar("loureiro_token");
+  olvidar("loureiro_email");
   if (!silencioso && t) {
     fetch(API + "/api/admin/logout", { method: "POST", headers: { Authorization: "Bearer " + t } }).catch(function(){});
   }
@@ -232,7 +255,7 @@ $("#clave-form").addEventListener("submit", function (e) {
     .then(function (r) {
       claveToken = "";
       $("#cl-pass").value = ""; $("#cl-pass2").value = "";
-      entrarCon(r);
+      entrarCon(r, true);
     })
     .catch(function (err) { avisoAcceso(err.message); })
     .finally(function () { btn.disabled = false; btn.textContent = "Guardar y entrar"; });
@@ -4684,7 +4707,7 @@ function arrancar(desdeLogin) {
   $("#app").hidden = false;
   $("#sesion-email").textContent = YO
     ? (YO.nombre || YO.email) + (esAdmin() ? " · administrador" : "")
-    : (localStorage.getItem("loureiro_email") || "");
+    : guardado("loureiro_email");
   invalidar();
   // Al entrar con la contraseña se abre siempre el Panel, aunque la URL traiga
   // la vista de la sesión anterior. Al recargar con la sesión viva sí se
