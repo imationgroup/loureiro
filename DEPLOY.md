@@ -228,6 +228,68 @@ respaldo en vez de enviar correo.
 
 Cada `git push` a `main` lanza el workflow automáticamente.
 
+## Novedades automáticas en el Perfil de Empresa de Google
+
+Al final de cada despliegue, `scripts/novedades-google.py --nuevos` publica como
+**novedad** del perfil los posts del blog que todavía no se hayan publicado.
+Si falla o falta configuración, avisa y el despliegue sigue igual.
+
+Lo que se publica: el título del post, su descripción, la imagen de compartir y
+un botón «Más información» al artículo.
+
+### Alta, una sola vez
+
+1. **Proyecto en Google Cloud** con la cuenta que gestiona el perfil
+   (console.cloud.google.com). Activa estas APIs:
+   *My Business Account Management API*, *My Business Business Information API*
+   y *Google My Business API* (esta última es la de las novedades).
+2. **Pide acceso** a las Business Profile APIs con el formulario de Google
+   («Request access to the Business Profile APIs»). Sin esa aprobación, la API
+   de novedades responde 403 aunque todo lo demás esté bien. Tarda días.
+3. **Credenciales OAuth** de tipo *App de escritorio*. Anota el id y el secreto.
+4. En el ordenador de casa, con el repo delante:
+
+   ```bash
+   GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... python scripts/novedades-google.py --autorizar
+   ```
+
+   Se abre el navegador, das permiso con la cuenta que gestiona el perfil y el
+   script imprime el `GOOGLE_REFRESH_TOKEN`.
+
+5. **Qué ubicación es**, con las tres variables ya puestas:
+
+   ```bash
+   python scripts/novedades-google.py --ubicaciones
+   ```
+
+6. **Al `.env` del VPS** (recuerda que ese fichero no se actualiza solo):
+
+   ```env
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   GOOGLE_REFRESH_TOKEN=...
+   GOOGLE_UBICACION=accounts/123456789/locations/987654321
+   ```
+
+7. **Siembra**, para que el primer despliegue no publique el blog entero de
+   golpe:
+
+   ```bash
+   ssh deploy@76.13.56.232 'cd ~/apps/loureiro && python3 scripts/novedades-google.py --sembrar'
+   ```
+
+### Día a día
+
+| Qué quieres | Comando |
+| --- | --- |
+| Ver qué publicaría, sin publicar | `python3 scripts/novedades-google.py --nuevos --probar` |
+| Republicar el post más antiguo (las novedades envejecen) | `python3 scripts/novedades-google.py --reciclar` |
+| Apagarlo sin tocar código | `GOOGLE_NOVEDADES=0` en el `.env` |
+
+Lo ya publicado se apunta en `~/.local/share/loureiro/novedades-google.json`.
+Si se borra ese fichero, el siguiente despliegue vuelve a publicarlo todo: haz
+`--sembrar` antes.
+
 ## Rollback
 
 ```bash

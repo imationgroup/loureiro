@@ -34,4 +34,10 @@ docker image prune -f
 echo "▶ Estado del backend:"
 docker compose -f "$COMPOSE_FILE" ps
 
+# Novedades del Perfil de Empresa de Google: publica los posts del blog que
+# aún no estén publicados. Nunca tumba el despliegue: si Google falla o falta
+# configuración, se avisa y se sigue. Ver DEPLOY.md.
+echo "▶ Novedades de Google"
+python3 scripts/novedades-google.py --nuevos || echo "⚠ Novedades de Google: se salta"
+
 echo "✅ Deploy OK: $(date -u +%FT%TZ)"
