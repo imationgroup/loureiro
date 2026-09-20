@@ -24,6 +24,8 @@ RAIZ = Path(__file__).resolve().parent.parent
 WEB = "https://loureirosoluciones.es"
 SALIDA = RAIZ / "feed.xml"
 TITULO = "Blog de Loureiro Soluciones"
+# Foto de reserva: un item sin imagen no lo puede publicar un conector.
+IMAGEN_POR_DEFECTO = WEB + "/assets/img/og-image.jpg"
 DESCRIPCION = ("Reformas, electricidad, albañilería, aire acondicionado y mantenimiento "
                "en Ourense y provincia.")
 
@@ -31,6 +33,28 @@ DESCRIPCION = ("Reformas, electricidad, albañilería, aire acondicionado y mant
 def _meta(texto: str, atributo: str, valor: str) -> str:
     m = re.search(rf'<meta\s+{atributo}="{re.escape(valor)}"\s+content="([^"]*)"', texto)
     return html.unescape(m.group(1)).strip() if m else ""
+
+
+def es_redireccion(texto: str) -> bool:
+    """Las páginas que solo redirigen a otra no son posts.
+
+    Quedaron de cuando los artículos se movieron a carpetas por categoría: no
+    tienen texto ni foto, y un conector no puede publicar con ellas.
+    """
+    redirige = re.search(r'<meta\s+http-equiv="refresh"', texto, re.I)
+    oculta = re.search(r'<meta\s+name="robots"\s+content="[^"]*noindex', texto, re.I)
+    return bool(redirige or oculta)
+
+
+def primer_parrafo(texto: str) -> str:
+    """El primer párrafo del artículo, por si el post no trae descripción."""
+    cuerpo = re.search(r"<article[^>]*>(.*?)</article>", texto, re.S)
+    for p in re.findall(r"<p[^>]*>(.*?)</p>", (cuerpo.group(1) if cuerpo else texto), re.S):
+        limpio = html.unescape(re.sub(r"<[^>]+>", "", p)).strip()
+        limpio = re.sub(r"\s+", " ", limpio)
+        if len(limpio) > 40:
+            return limpio[:297] + "…" if len(limpio) > 300 else limpio
+    return ""
 
 
 def _fecha(ruta: Path) -> datetime:
@@ -53,6 +77,8 @@ def posts() -> list[dict]:
         if ruta.name == "index.html":
             continue
         texto = ruta.read_text(encoding="utf-8")
+        if es_redireccion(texto):
+            continue
         url = _meta(texto, "property", "og:url") or WEB + "/" + ruta.relative_to(RAIZ).as_posix()
         titulo = _meta(texto, "property", "og:title")
         if not titulo:
@@ -62,9 +88,13 @@ def posts() -> list[dict]:
         encontrados.append({
             "url": url,
             "titulo": titulo,
+            # Descripción e imagen nunca vacías: un item a medias hace fallar
+            # al conector que publica la novedad.
             "descripcion": (_meta(texto, "property", "og:description")
-                            or _meta(texto, "name", "description")),
-            "imagen": _meta(texto, "property", "og:image"),
+                            or _meta(texto, "name", "description")
+                            or primer_parrafo(texto)
+                            or titulo),
+            "imagen": _meta(texto, "property", "og:image") or IMAGEN_POR_DEFECTO,
             "categoria": categoria.capitalize(),
             "fecha": _fecha(ruta),
         })
@@ -99,9 +129,9 @@ def main():
         ]
         if p["categoria"]:
             piezas.append(f"      <category>{xml(p['categoria'])}</category>")
-        if p["imagen"]:
-            # enclosure es lo que leen los conectores para coger la foto.
-            piezas.append(f'      <enclosure url="{xml(p["imagen"])}" type="image/jpeg" length="0"/>')
+        # enclosure es lo que leen los conectores para coger la foto.
+        tipo = "image/png" if p["imagen"].lower().endswith(".png") else "image/jpeg"
+        piezas.append(f'      <enclosure url="{xml(p["imagen"])}" type="{tipo}" length="0"/>')
         piezas.append("    </item>")
     piezas += ["  </channel>", "</rss>", ""]
     SALIDA.write_text("\n".join(piezas), encoding="utf-8")
