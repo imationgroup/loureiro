@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" width="800" height="470" role="img" aria-label="Sección de una vivienda: el split interior atraviesa la pared, la línea baja por la fachada dentro de una canaleta pintada del color del muro y llega a la unidad exterior, que va sobre soportes con antivibratorios y con una visera encima">
+  <defs>
+    <linearGradient id="tf-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="470" fill="url(#tf-bg)"/>
+
+  <!-- Interior -->
+  <rect x="40" y="52" width="330" height="330" rx="12" fill="#FFFFFF"/>
+  <rect x="40" y="52" width="330" height="330" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+  <text x="62" y="80" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96">Interior · salón</text>
+
+  <!-- Split interior -->
+  <rect x="150" y="104" width="170" height="38" rx="10" fill="#FFFFFF"/>
+  <rect x="150" y="104" width="170" height="38" rx="10" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M166 134h138" stroke="#C8C3BA" stroke-width="3"/>
+  <circle cx="302" cy="116" r="3" fill="#4ADE80"/>
+  <text x="150" y="98" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">Unidad interior</text>
+
+  <!-- Muro de fachada -->
+  <rect x="370" y="52" width="34" height="330" fill="#E7E1D8"/>
+  <rect x="370" y="52" width="34" height="330" fill="none" stroke="#D6D0C6" stroke-width="2"/>
+  <text x="387" y="372" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96" text-anchor="middle" transform="rotate(-90 387 372)">Fachada</text>
+
+  <!-- Taladro y paso a fachada -->
+  <path d="M320 123h84" stroke="#F97316" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="404" cy="123" r="11" fill="none" stroke="#F97316" stroke-width="3"/>
+  <text x="150" y="196" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Taladro de 65 mm con</text>
+  <text x="150" y="214" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">pendiente hacia fuera</text>
+  <path d="M286 190q54 -6 104 -50" stroke="#C8C3BA" stroke-width="2" fill="none" stroke-dasharray="4 4"/>
+
+  <!-- Canaleta por fachada -->
+  <rect x="418" y="108" width="34" height="212" rx="8" fill="#FFFFFF"/>
+  <rect x="418" y="108" width="34" height="212" rx="8" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M435 123v190" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+  <text x="470" y="150" font-family="Inter, sans-serif" font-size="14" fill="#3A3E46" font-weight="600">Canaleta</text>
+  <text x="470" y="170" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Tapa las dos líneas, el cable</text>
+  <text x="470" y="188" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">y el desagüe. Se pinta del</text>
+  <text x="470" y="206" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">color del muro.</text>
+
+  <!-- Visera / tejadito -->
+  <path d="M470 316h190l-16 22H486z" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3" stroke-linejoin="round"/>
+  <text x="674" y="326" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Visera</text>
+
+  <!-- Unidad exterior -->
+  <rect x="496" y="352" width="150" height="76" rx="10" fill="#FFFFFF"/>
+  <rect x="496" y="352" width="150" height="76" rx="10" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+  <circle cx="571" cy="390" r="24" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M571 366v48M547 390h48" stroke="#E0DBD2" stroke-width="3"/>
+  <text x="496" y="346" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">Unidad exterior</text>
+
+  <!-- Línea hasta la unidad -->
+  <path d="M435 313q0 20 20 20h41" stroke="#F97316" stroke-width="6" fill="none" stroke-linecap="round"/>
+
+  <!-- Soportes y antivibratorios -->
+  <path d="M452 428h216" stroke="#D6D0C6" stroke-width="4"/>
+  <path d="M510 428v-6M630 428v-6" stroke="#C8C3BA" stroke-width="10" stroke-linecap="round"/>
+  <text x="452" y="452" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Soportes con antivibratorios</text>
+
+  <!-- Desagüe -->
+  <path d="M646 414h28q10 0 10 10v22" stroke="#60A5FA" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <text x="694" y="452" font-family="Inter, sans-serif" font-size="13" fill="#60A5FA">Desagüe</text>
+
+  <!-- Leyenda -->
+  <g>
+    <path d="M62 418h26" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+    <text x="96" y="423" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Tubos de cobre aislados + cable</text>
+    <path d="M62 444h26" stroke="#60A5FA" stroke-width="4" stroke-linecap="round"/>
+    <text x="96" y="449" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Agua de condensación</text>
+  </g>
+</svg>

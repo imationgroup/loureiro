@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" width="800" height="470" role="img" aria-label="Dos formas de llevar los tubos por dentro de casa en canaleta vista: a la izquierda un equipo 1x1, con la canaleta pegada al techo desde el split hasta el agujero de la pared; a la derecha un 3x1, con los tres ramales bajando a un distribuidor y saliendo juntos a la unidad exterior">
+  <defs>
+    <linearGradient id="ti-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="470" fill="url(#ti-bg)"/>
+
+  <!-- ── 1x1 ─────────────────────────────────────────────── -->
+  <text x="40" y="44" font-family="Archivo, Inter, sans-serif" font-size="16" font-weight="700" fill="#3A3E46">1 split</text>
+  <text x="40" y="66" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">El tramo más corto hasta la fachada</text>
+
+  <rect x="40" y="84" width="320" height="250" rx="12" fill="#FFFFFF"/>
+  <rect x="40" y="84" width="320" height="250" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+
+  <!-- Canaleta por techo -->
+  <rect x="120" y="106" width="226" height="18" rx="6" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M132 115h202" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Split -->
+  <rect x="62" y="134" width="132" height="34" rx="9" fill="#FFFFFF"/>
+  <rect x="62" y="134" width="132" height="34" rx="9" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M76 160h104" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M128 134v-10q0-9 9-9h0" stroke="#F97316" stroke-width="6" fill="none" stroke-linecap="round"/>
+
+  <!-- Salida a fachada -->
+  <path d="M334 115h26" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="360" cy="115" r="10" fill="none" stroke="#F97316" stroke-width="3"/>
+  <text x="196" y="194" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Canaleta vista, pegada</text>
+  <text x="196" y="212" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">al techo y pintada</text>
+  <text x="196" y="230" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">del color de la pared</text>
+
+  <text x="62" y="300" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Lo ideal: el split en la pared</text>
+  <text x="62" y="318" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">de fachada y la salida detrás.</text>
+
+  <!-- ── 3x1 ─────────────────────────────────────────────── -->
+  <text x="420" y="44" font-family="Archivo, Inter, sans-serif" font-size="16" font-weight="700" fill="#3A3E46">3 splits con una unidad exterior</text>
+  <text x="420" y="66" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Tres pares de tubos independientes</text>
+
+  <rect x="420" y="84" width="340" height="250" rx="12" fill="#FFFFFF"/>
+  <rect x="420" y="84" width="340" height="250" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+
+  <!-- Tres splits -->
+  <g stroke="#C8C3BA" stroke-width="3" fill="#FFFFFF">
+    <rect x="440" y="104" width="104" height="28" rx="8"/>
+    <rect x="440" y="174" width="104" height="28" rx="8"/>
+    <rect x="440" y="244" width="104" height="28" rx="8"/>
+  </g>
+  <text x="440" y="98" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Dormitorio 1</text>
+  <text x="440" y="168" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Dormitorio 2</text>
+  <text x="440" y="238" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Salón</text>
+
+  <!-- Tres ramales al colector -->
+  <path d="M544 118h120M544 188h120M544 258h120" stroke="#F97316" stroke-width="5" stroke-linecap="round"/>
+  <path d="M664 118v140" stroke="#F97316" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Canaleta vertical -->
+  <rect x="652" y="100" width="24" height="176" rx="7" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+
+  <!-- Salida única -->
+  <path d="M664 276v18q0 10 10 10h46" stroke="#F97316" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <circle cx="726" cy="304" r="10" fill="none" stroke="#F97316" stroke-width="3"/>
+
+  <text x="420" y="360" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46" font-weight="600">Los tres pares van juntos, pero no se unen</text>
+  <text x="420" y="380" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Cada split lleva su ida y su retorno hasta la máquina de fuera.</text>
+  <text x="420" y="398" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Por la canaleta común pasan seis tubos, tres desagües</text>
+  <text x="420" y="416" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">y tres cables: por eso pide una canaleta más ancha.</text>
+
+  <!-- Leyenda -->
+  <path d="M62 380h26" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+  <text x="96" y="385" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Par de tubos aislados</text>
+  <rect x="62" y="404" width="26" height="14" rx="5" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
+  <text x="96" y="416" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Canaleta vista</text>
+  <circle cx="75" cy="440" r="9" fill="none" stroke="#F97316" stroke-width="3"/>
+  <text x="96" y="445" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Paso a fachada</text>
+</svg>
