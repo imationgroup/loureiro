@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" width="800" height="430" role="img" aria-label="Esquema: un electrodoméstico averiado en el piso del vecino deriva corriente, que vuelve por el neutro común de la centralización de contadores y llega al circuito de luces del piso de al lado, donde el LED apagado brilla un poco">
+  <defs>
+    <linearGradient id="lf-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="430" fill="url(#lf-bg)"/>
+
+  <!-- Piso del vecino -->
+  <rect x="36" y="64" width="250" height="210" rx="12" fill="#FFFFFF"/>
+  <rect x="36" y="64" width="250" height="210" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+  <text x="58" y="92" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96">Piso del vecino</text>
+
+  <!-- Electrodoméstico averiado -->
+  <rect x="80" y="126" width="110" height="110" rx="10" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3"/>
+  <circle cx="135" cy="182" r="30" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+  <circle cx="135" cy="182" r="14" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+  <text x="80" y="118" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">Electrodoméstico</text>
+  <text x="80" y="260" font-family="Inter, sans-serif" font-size="13" fill="#F87171" font-weight="600">Avería: deriva corriente</text>
+
+  <!-- Camino de la corriente hasta el cuadro -->
+  <path d="M190 182h120" stroke="#F97316" stroke-width="5" stroke-dasharray="10 8" fill="none" stroke-linecap="round"/>
+
+  <!-- Centralización / neutro común -->
+  <rect x="318" y="64" width="150" height="300" rx="12" fill="#FFFFFF"/>
+  <rect x="318" y="64" width="150" height="300" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+  <text x="340" y="92" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96">Contadores</text>
+  <rect x="348" y="110" width="90" height="220" rx="9" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M393 120v200" stroke="#60A5FA" stroke-width="7" stroke-linecap="round"/>
+  <text x="393" y="352" font-family="Inter, sans-serif" font-size="13" fill="#60A5FA" text-anchor="middle">Neutro común</text>
+
+  <!-- Camino hasta el piso de al lado -->
+  <path d="M393 182q0 60 60 60h60" stroke="#F97316" stroke-width="5" stroke-dasharray="10 8" fill="none" stroke-linecap="round"/>
+
+  <!-- Tu piso -->
+  <rect x="500" y="64" width="264" height="210" rx="12" fill="#FFFFFF"/>
+  <rect x="500" y="64" width="264" height="210" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+  <text x="522" y="92" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96">Tu dormitorio</text>
+
+  <!-- Interruptor apagado -->
+  <rect x="522" y="200" width="54" height="54" rx="9" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M536 236h26" stroke="#C8C3BA" stroke-width="4" stroke-linecap="round"/>
+  <text x="522" y="278" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Interruptor apagado</text>
+
+  <!-- Bombilla LED con brillo débil -->
+  <circle cx="676" cy="152" r="34" fill="#FEF3C7" opacity="0.55"/>
+  <circle cx="676" cy="152" r="22" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M666 176h20M669 186h14" stroke="#C8C3BA" stroke-width="3" stroke-linecap="round"/>
+  <path d="M676 118v-14M710 152h14M642 152h-14" stroke="#F5C451" stroke-width="3" stroke-linecap="round"/>
+  <text x="516" y="140" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46" font-weight="600">LED que sigue</text>
+  <text x="516" y="158" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46" font-weight="600">alumbrando flojo</text>
+
+  <path d="M576 226h52" stroke="#F97316" stroke-width="5" stroke-dasharray="10 8" fill="none" stroke-linecap="round"/>
+  <path d="M628 226q22 0 22-22v-16" stroke="#F97316" stroke-width="5" stroke-dasharray="10 8" fill="none" stroke-linecap="round"/>
+
+  <!-- Leyenda -->
+  <path d="M36 394h34" stroke="#F97316" stroke-width="5" stroke-dasharray="10 8" stroke-linecap="round"/>
+  <text x="82" y="399" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Corriente de fuga: unos pocos miliamperios</text>
+  <text x="500" y="399" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Al LED le sobra con eso para alumbrar</text>
+</svg>
