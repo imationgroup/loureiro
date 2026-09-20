@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Las luces LED siguen encendidas con el interruptor apagado | Loureiro</title>
-<meta name="description" content="Un vecino no podía dormir: sus bombillas LED alumbraban flojo con el interruptor apagado. La avería estaba en el piso de al lado. Por qué pasa, cómo se localiza y qué hacer esta misma noche.">
+<meta name="description" content="Un vecino no podía dormir: sus bombillas LED alumbraban flojo con el interruptor apagado. La avería estaba en otra vivienda. Por qué pasa (también entre casas separadas), cómo se localiza y qué hacer esta misma noche.">
 <meta name="theme-color" content="#14161A">
 <link rel="canonical" href="https://loureirosoluciones.es/blog/electricidad/bombillas-led-encendidas-con-interruptor-apagado.html">
 <meta property="og:type" content="article">
@@ -46,6 +46,8 @@
       "acceptedAnswer": { "@type": "Answer", "text": "Se mide. Primero se comprueba si el brillo sigue con el interruptor general de la vivienda bajado: si sigue, el origen es de fuera. Luego se mide la tensión entre neutro y tierra y la corriente con pinza amperimétrica, y se distingue la tensión fantasma (que desaparece con un medidor de baja impedancia) de una fuga real, que se mantiene." } },
     { "@type": "Question", "name": "¿Cómo se sabe de qué vecino viene?",
       "acceptedAnswer": { "@type": "Answer", "text": "En la centralización de contadores se mide con pinza cada derivación individual buscando el desequilibrio entre fase y neutro. Si no se llega ahí, se hace a la antigua: con la comunidad avisada, los vecinos van bajando su interruptor general uno a uno mientras se vigila la bombilla. Cuando se apaga, ya está localizado el piso." } },
+    { "@type": "Question", "name": "¿Puede pasar entre casas separadas, sin neutro común?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Sí. Entre casas independientes lo que las une es el terreno: la corriente que una vierte a su pica llega a la pica de la vecina y deja unos voltios entre tierra y neutro. También puede venir del neutro de la línea de la compañía si va flojo o partido, de un pastor eléctrico cuyos pulsos hacen parpadear los LED con un ritmo fijo, de una tubería o valla metálica común, de cables que van paralelos o de un inversor de placas solares, que se delata porque el brillo aparece de día." } },
     { "@type": "Question", "name": "¿Qué puedo hacer esta noche para dormir a oscuras?",
       "acceptedAnswer": { "@type": "Answer", "text": "Cambiar esas bombillas LED por bombillas tradicionales mientras se revisa la causa: con ellas esa corriente tan pequeña no da luz. Es la solución que damos por teléfono, sin coste, para que se pueda dormir esa misma noche." } }
   ]
@@ -149,6 +151,53 @@
       </table>
     </div>
 
+    <h2>¿Y si son casas separadas y no comparten nada?</h2>
+
+    <p>Pasa también. En un edificio el camino fácil es el neutro común, pero entre dos
+    casas independientes, cada una con su cuadro y su toma de tierra, sigue habiendo cosas
+    que las unen. Lo que las une casi siempre es <strong>el suelo</strong>.</p>
+
+    <figure>
+      <img src="/assets/img/blog/led-fantasma-tierra.svg" alt="Dos casas separadas con su propia pica de tierra. La avería de la casa vecina vierte corriente al terreno, que llega a la pica de la casa de al lado y deja unos voltios entre su tierra y su neutro." width="800" height="400" loading="lazy">
+      <figcaption>La tierra no es un aislante: la corriente que una casa vierte al terreno llega a la pica de la de al lado.</figcaption>
+    </figure>
+
+    <ul>
+      <li><strong>Por el terreno, de una pica a otra.</strong> Una avería que deriva a
+      tierra en la casa del vecino vierte corriente a su pica. Esa corriente se abre paso
+      por el suelo y una parte llega a tu pica, que está a unos metros. El resultado es que
+      <strong>tu tierra queda a unos voltios</strong> respecto a tu neutro, y con eso un LED
+      ya alumbra. Con terreno húmedo, típico aquí, el efecto es mayor.</li>
+
+      <li><strong>Por el neutro de la compañía.</strong> Aunque dentro de casa no compartas
+      nada con el vecino, las dos viviendas cuelgan de la misma línea y del mismo
+      transformador. Si ese neutro de la red va flojo o está partido, aparece tensión entre
+      neutro y tierra en <strong>todas las casas de ese tramo</strong>. Es de las causas
+      más frecuentes en el rural, y no la arregla ningún electricista: la arregla la
+      distribuidora.</li>
+
+      <li><strong>Por un pastor eléctrico.</strong> Muy de nuestra zona. Un cercado
+      eléctrico manda pulsos al terreno cada segundo más o menos. Si su toma de tierra está
+      cerca de la tuya o mal hecha, esos pulsos se cuelan y las bombillas LED dan
+      <strong>destellos rítmicos</strong>: un parpadeo cada segundo, siempre igual. En
+      cuanto ves ese ritmo, ya sabes por dónde ir.</li>
+
+      <li><strong>Por algo metálico que compartís.</strong> Una tubería de agua enterrada,
+      una valla metálica larga, un poste común o la armadura de un muro. Todo eso conduce y
+      hace de puente entre las dos instalaciones.</li>
+
+      <li><strong>Por cables que van juntos.</strong> Si tu línea corre paralela a otra
+      unos cuantos metros, un cable le contagia tensión al de al lado sin que haya ninguna
+      avería. Es la tensión fantasma de siempre, pero de origen externo.</li>
+
+      <li><strong>Por un inversor de placas solares.</strong> Un inversor que fuga algo de
+      corriente por la tierra puede hacer lo mismo, y aquí hay una pista buenísima: el
+      brillo aparece <strong>de día</strong> y desaparece de noche.</li>
+    </ul>
+
+    <p>En todos esos casos el síntoma es el mismo y la prueba también: baja tu interruptor
+    general. Si la bombilla sigue, lo tuyo está bien.</p>
+
     <h2>¿Cómo se detecta la causa?</h2>
 
     <p>No se adivina, se mide, y en este orden:</p>
@@ -189,6 +238,13 @@
       se repite lo mismo con los magnetotérmicos y desenchufando aparatos hasta dar con el
       que falla.</li>
     </ul>
+
+    <p>Y si son <strong>casas separadas</strong>, el orden cambia un poco: primero se
+    pregunta a los vecinos de alrededor si a ellos también les pasa. Si le pasa a varias
+    casas, apunta al neutro de la línea y hay que avisar a la distribuidora. Si le pasa
+    solo a una, se mira lo que tenga cerca: la pica del vecino, un pastor eléctrico, un
+    inversor de placas o una tubería enterrada común. El <strong>ritmo del parpadeo</strong>
+    y la <strong>hora a la que ocurre</strong> son las dos mejores pistas que hay.</p>
 
     <div class="callout">
       <strong>Esto conviene mirarlo aunque puedas dormir.</strong>
