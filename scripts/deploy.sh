@@ -34,10 +34,16 @@ docker image prune -f
 echo "▶ Estado del backend:"
 docker compose -f "$COMPOSE_FILE" ps
 
-# Novedades del Perfil de Empresa de Google: publica los posts del blog que
-# aún no estén publicados. Nunca tumba el despliegue: si Google falla o falta
-# configuración, se avisa y se sigue. Ver DEPLOY.md.
-echo "▶ Novedades de Google"
-python3 scripts/novedades-google.py --nuevos || echo "⚠ Novedades de Google: se salta"
+# El RSS del blog. De aquí se entera Make (u otro conector) de que hay post
+# nuevo para publicarlo como novedad en el Perfil de Empresa de Google.
+echo "▶ Feed del blog"
+python3 scripts/generar-feed.py || echo "⚠ No se pudo generar feed.xml"
+
+# Publicación directa en Google, solo si algún día aprueban el acceso a su API
+# y se configuran las credenciales en el .env (ver DEPLOY.md).
+if grep -q "^GOOGLE_REFRESH_TOKEN=" .env 2>/dev/null; then
+  echo "▶ Novedades de Google"
+  python3 scripts/novedades-google.py --nuevos || echo "⚠ Novedades de Google: se salta"
+fi
 
 echo "✅ Deploy OK: $(date -u +%FT%TZ)"
