@@ -378,6 +378,26 @@ CREATE TABLE IF NOT EXISTS cliente_origenes (
   orden   INTEGER NOT NULL DEFAULT 0
 );
 
+-- ── Partes de tiempo ──────────────────────────────────
+-- Las horas que se le echan a una obra. Se pueden escribir a mano o contarlas
+-- con el cronómetro, que admite pausas: `segundos` guarda lo acumulado de los
+-- tramos ya cerrados y `arrancado` dice desde cuándo corre el tramo abierto
+-- (UTC), o va vacío si está parado. El estado vive aquí y no en el navegador
+-- a propósito: así el cronómetro sigue contando aunque se cierre el panel y
+-- se ve igual desde el móvil que desde el ordenador.
+CREATE TABLE IF NOT EXISTS tiempos (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  obra_id        INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  profesional_id INTEGER REFERENCES profesionales(id) ON DELETE SET NULL,
+  usuario_id     INTEGER,
+  fecha          TEXT NOT NULL DEFAULT (date('now')),
+  concepto       TEXT,
+  segundos       INTEGER NOT NULL DEFAULT 0,
+  arrancado      TEXT,
+  notas          TEXT,
+  creado         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ── Notas ────────────────────────────────────────────────────────────
 -- Apuntes sueltos. Pueden ir colgados de una obra (lo que se habló con el
 -- cliente, lo que falta por pedir) o de ninguna.
@@ -496,6 +516,8 @@ CREATE INDEX IF NOT EXISTS idx_visita_fotos       ON visita_fotos(visita_id);
 CREATE INDEX IF NOT EXISTS idx_notas_obra         ON notas(obra_id);
 CREATE INDEX IF NOT EXISTS idx_nota_fotos         ON nota_fotos(nota_id);
 CREATE INDEX IF NOT EXISTS idx_nota_archivos      ON nota_archivos(nota_id);
+CREATE INDEX IF NOT EXISTS idx_tiempos_obra       ON tiempos(obra_id);
+CREATE INDEX IF NOT EXISTS idx_tiempos_fecha      ON tiempos(fecha);
 """
 
 
@@ -568,7 +590,7 @@ ORIGENES_CLIENTE = ["Google", "Recomendación", "Ya era cliente", "Redes sociale
 # administrador: nadie más lo ve hasta que él lo reparta.
 TABLAS_CON_RESPONSABLE = ("clientes", "obras", "citas", "presupuestos", "proformas",
                           "facturas", "costes", "ingresos", "solicitudes", "visitas",
-                          "notas")
+                          "notas", "tiempos")
 MIGRACIONES += [(t, "usuario_id", "INTEGER") for t in TABLAS_CON_RESPONSABLE]
 
 

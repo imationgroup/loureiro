@@ -63,6 +63,9 @@ var ico = {
   firma:'<path d="M3 17c3 0 4-9 7-9s3 9 6 9c2 0 3-2 5-3"/><path d="M3 21h18"/>',
   whatsapp:'<path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2z"/>',
   nota:'<path d="M5 3h14v12l-6 6H5z"/><path d="M13 21v-6h6"/><path d="M8 8h8M8 12h5"/>',
+  reloj:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  play:'<path d="M8 5l11 7-11 7z"/>',
+  pausa:'<path d="M9 5h3v14H9zM15 5h3v14h-3z"/>',
   grafico:'<path d="M4 20V11M10 20V4M16 20v-6M3 20h18"/>',
   etiqueta:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
   estrella:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
@@ -437,6 +440,66 @@ var MODULOS = {
     ]
   },
 
+  tiempos: {
+    titulo: "Partes de horas", sub: "El tiempo que se le echa a cada obra", icono: ico.reloj,
+    recurso: "tiempos", uno: "parte", nuevo: "Nuevo parte",
+    // Desplegable de obras encima de la tabla, con el cliente delante.
+    filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Sin obra",
+              cliente: "clientes" },
+    // El cronómetro va encima de la tabla, en la misma pestaña.
+    encima: cronometro,
+    acciones: [
+      { ico: "play", titulo: "Seguir contando en este parte",
+        oculta: function (f) { return !!f.arrancado; },
+        fn: function (f) {
+          api("/api/admin/tiempos/" + f.id + "/arrancar", { metodo: "POST" })
+            .then(function () { recordarParte(f.id); ir("tiempos"); }).catch(error);
+        } },
+      { ico: "pausa", titulo: "Pausar",
+        oculta: function (f) { return !f.arrancado; },
+        fn: function (f) {
+          api("/api/admin/tiempos/" + f.id + "/pausar", { metodo: "POST" })
+            .then(function () { ir("tiempos"); }).catch(error);
+        } }
+    ],
+    // Total de lo que se ve y repártelo por profesional: quién ha echado qué.
+    resumen: function (filas) {
+      var total = 0, por = {};
+      filas.forEach(function (f) {
+        var seg = Number(f.segundos) || 0;
+        total += seg;
+        var k = nombreDe("profesionales", f.profesional_id) || "sin asignar";
+        por[k] = (por[k] || 0) + seg;
+      });
+      var h = '<div class="metricas">' +
+        metrica(duracion(total), "Total · " + filas.length + " parte" + (filas.length === 1 ? "" : "s"),
+                "metrica--azul");
+      Object.keys(por).sort(function (a, b) { return por[b] - por[a]; }).slice(0, 5)
+        .forEach(function (k) { h += metrica(duracion(por[k]), k, ""); });
+      return h + "</div>";
+    },
+    columnas: [
+      { c: "fecha", t: "Fecha", tipo: "fecha" },
+      { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", vacio: "Sin obra" },
+      { c: "obra_id", t: "Cliente", tipo: "clienteObra" },
+      { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales" },
+      { c: "concepto", t: "Qué se hizo" },
+      { c: "segundos", t: "Tiempo", tipo: "duracion", num: true }
+    ],
+    campos: [
+      { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
+      { c: "segundos", t: "Tiempo trabajado", tipo: "duracion", mitad: true,
+        ayuda: "Escríbelo a mano, o usa el cronómetro de la pestaña y se rellena solo" },
+      { c: "_cliente", t: "Cliente", tipo: "filtraObras", de: "clientes", para: "obra_id",
+        ayuda: "Para encontrar la obra: escribe el cliente y se quedan solo sus obras" },
+      { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "obras", req: true },
+      { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales",
+        pordefecto: "miProfesional" },
+      { c: "concepto", t: "Qué se hizo", ayuda: "Tirar cable, alicatar el baño…" },
+      { c: "notas", t: "Notas", tipo: "area" }
+    ]
+  },
+
   clientes: {
     titulo: "Clientes", sub: "Quién te contrata", icono: ico.gente, recurso: "clientes",
     filtroPropio: "clientes",
@@ -696,7 +759,7 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 
 // Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
 // lo que crea un miembro es suyo sin preguntar.
-["agenda", "solicitudes", "clientes", "obras", "notas", "costes", "ingresos"].forEach(function (k) {
+["agenda", "solicitudes", "clientes", "obras", "notas", "costes", "ingresos", "tiempos"].forEach(function (k) {
   MODULOS[k].campos.push({ c: "usuario_id", t: "Responsable", tipo: "ref", de: "equipo",
     soloAdmin: true, pordefecto: "yo",
     ayuda: "Solo lo ven esa persona y el administrador. Empieza puesto en ti." });
@@ -707,7 +770,7 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 
 var ORDEN_MENU = [
   { sep: null, items: ["dashboard", "agenda", "solicitudes", "visitas"] },
-  { sep: "Gestión", items: [{ k: "obras", hijos: ["obras_estados"] }, "notas",
+  { sep: "Gestión", items: [{ k: "obras", hijos: ["obras_estados"] }, "tiempos", "notas",
                             { k: "clientes", hijos: ["clientes_origen", "clientes_origenes"] },
                             "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas",
@@ -833,6 +896,7 @@ var VOLVER = null;
 
 function ir(k) {
   VOLVER = null;
+  pararTic();
   if (!MODULOS[k] || !puedeVer(k)) k = "dashboard";
   vistaActual = k;
   location.hash = k;
@@ -914,6 +978,7 @@ function verTabla(clave) {
           : "") +
         (fil ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"></select>' : "") +
         '<input type="search" id="buscar" placeholder="Buscar…"></div>' +
+        (m.encima ? '<div id="tabla-encima"></div>' : "") +
         (m.resumen ? '<div id="tabla-resumen"></div>' : "") +
         '<div class="tabla-caja"><div class="tabla-scroll" id="caja-tabla"></div>' +
         (m.suma ? '<div class="tabla-suma" id="tabla-suma"></div>' : "") + "</div>";
@@ -965,6 +1030,7 @@ function verTabla(clave) {
       }
       if (fil) pintarObras();
       repintar();
+      if (m.encima) m.encima($("#tabla-encima"), filas, function () { ir(clave); });
       $("#buscar").addEventListener("input", repintar);
       if (fil) $("#filtro").addEventListener("change", function () {
         est.obra = this.value;
@@ -1022,6 +1088,12 @@ function celda(col, fila) {
   }
   if (col.tipo === "conIva") return fila[col.c] ? eur(conIva(fila)) : "—";
   if (col.tipo === "clienteObra") return esc(clienteDeObra(v)) || "—";
+  if (col.tipo === "duracion") {
+    // Mientras corre, lo guardado se queda corto: lo que va del tramo abierto
+    // solo lo sabe el cronómetro de arriba, y se dice para que no chirríe.
+    return "<b>" + esc(duracion(v)) + "</b>" + (fila.arrancado
+      ? ' <span class="tag tag--verde">contando</span>' : "");
+  }
   if (col.tipo === "ref") {
     return esc(nombreDe(col.de, v)) || (col.vacio ? '<span class="tag">' + esc(col.vacio) + "</span>" : "—");
   }
@@ -1247,6 +1319,17 @@ function campoHTML(campo, valor, esNuevo) {
          items.map(function (x) {
            return '<option value="' + esc(x.nombre) + '"' + (x.nombre === v ? " selected" : "") + ">" + esc(x.nombre) + "</option>";
          }).join("") + "</select>";
+  } else if (campo.tipo === "duracion") {
+    // Horas y minutos por separado, que es como se piensa el tiempo. Lo que
+    // se guarda son segundos, en un campo oculto que los dos van rellenando:
+    // así lo escrito a mano y lo que cuenta el cronómetro son la misma cosa.
+    var seg = Math.max(0, Number(v) || 0);
+    h += '<div class="duracion" data-duracion="' + campo.c + '">' +
+         '<input type="number" min="0" step="1" id="c-' + campo.c + '-h" value="' +
+           Math.floor(seg / 3600) + '"><span>h</span>' +
+         '<input type="number" min="0" max="59" step="1" id="c-' + campo.c + '-m" value="' +
+           Math.round((seg % 3600) / 60) + '"><span>min</span></div>' +
+         '<input type="hidden" id="c-' + campo.c + '" data-c="' + campo.c + '" value="' + seg + '">';
   } else if (campo.tipo === "filtraObras") {
     // No se guarda (no lleva data-c): solo sirve para encontrar la obra. Se
     // escribe y el desplegable de obras se queda con las de ese cliente.
@@ -1274,7 +1357,8 @@ function campoHTML(campo, valor, esNuevo) {
     h += "</select>";
   } else if (campo.tipo === "ref") {
     h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '"><option value="">' +
-         (campo.de === "equipo" ? "— nadie: solo el administrador —" : "— sin asignar —") + "</option>";
+         (campo.de === "equipo" ? "— nadie: solo el administrador —"
+          : campo.req ? "— elige " + esc(campo.t.toLowerCase()) + " —" : "— sin asignar —") + "</option>";
     // Si la ficha apunta a algo que esta persona no ve (el administrador la
     // enlazó con el cliente de un compañero), se conserva: sin esta opción el
     // desplegable saldría en blanco y al guardar se perdería el enlace.
@@ -1574,6 +1658,16 @@ function abrirFormulario(clave, registro, inicial) {
         if (copiado) avisar("Dirección copiada de la ficha de " + cli.nombre);
       });
     }
+    $$("#f-form [data-duracion]").forEach(function (caja) {
+      var c = caja.dataset.duracion, oculto = $("#c-" + c);
+      var horas = $("#c-" + c + "-h"), minutos = $("#c-" + c + "-m");
+      function sincronizar() {
+        oculto.value = String(Math.max(0, (Number(horas.value) || 0) * 3600 +
+                                          (Number(minutos.value) || 0) * 60));
+      }
+      horas.addEventListener("input", sincronizar);
+      minutos.addEventListener("input", sincronizar);
+    });
     $("#f-guardar").addEventListener("click", function () {
       var datos = {}, falta = null;
       $$("#f-form [data-multi]").forEach(function (caja) {
@@ -1591,7 +1685,7 @@ function abrirFormulario(clave, registro, inicial) {
           // una obra antigua que lo tuviera escrito a mano.
           if (el.dataset.valor !== "") datos[el.dataset.c] = Number(el.dataset.valor);
         }
-        else if (campo.tipo === "numero") {
+        else if (campo.tipo === "numero" || campo.tipo === "duracion") {
           // Vacío = no se envía. La columna aplica su valor por defecto;
           // mandar null rompería el NOT NULL de iva, importe, etc.
           if (val !== "") datos[el.dataset.c] = Number(val);
@@ -1908,6 +2002,22 @@ function verDashboard() {
   }).catch(error);
 }
 
+// Un rato de trabajo, como lo diría una persona: «3 h 05 min», «45 min».
+function duracion(seg) {
+  seg = Math.max(0, Math.round(Number(seg) || 0));
+  var h = Math.floor(seg / 3600), m = Math.round((seg % 3600) / 60);
+  if (m === 60) { h++; m = 0; }
+  if (h) return h + " h " + ("0" + m).slice(-2) + " min";
+  // Un rato que no llega al minuto no es «0 min»: es que acaba de empezar.
+  return m ? m + " min" : (seg ? "menos de 1 min" : "0 min");
+}
+// Lo mismo mientras el cronómetro corre, con los segundos a la vista.
+function cronoTexto(seg) {
+  seg = Math.max(0, Math.floor(Number(seg) || 0));
+  var h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60);
+  return h + ":" + ("0" + m).slice(-2) + ":" + ("0" + (seg % 60)).slice(-2);
+}
+
 function metrica(valor, etiqueta, clase) {
   return '<div class="metrica ' + (clase || "") + '"><b>' + esc(valor) + "</b><span>" + esc(etiqueta) + "</span></div>";
 }
@@ -1926,6 +2036,7 @@ function verObras() {
   $("#btn-nuevo").addEventListener("click", function () { abrirFormulario("obras", null); });
 
   var conNotas = puedeVer("notas");
+  var conHoras = puedeVer("tiempos");
   Promise.all([api("/api/admin/informes/obras"), cargarRef("clientes"), cargarRef("obras")]
               .concat([esAdmin() ? cargarRef("equipo") : null, conNotas ? api("/api/admin/notas") : [],
                        cargarRef("listas/obra-estados")]))
@@ -1973,6 +2084,7 @@ function verObras() {
                  svg(ico.nota) + (nNotas[o.id] ? nNotas[o.id] + " nota" + (nNotas[o.id] === 1 ? "" : "s") : "Notas") +
                  "</button></td>"
                : "") +
+             (conHoras ? '<td class="num">' + esc(duracion(o.segundos)) + "</td>" : "") +
              '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' + eur(o.costes) + '</td><td class="num">' + eur(o.facturado) + "</td>" +
              '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b>" +
              (pct !== null ? '<div style="font-size:.76rem;color:var(--muted)">' + pct + "%</div>" : "") + "</td>" +
@@ -1993,6 +2105,7 @@ function verObras() {
         var venta = sum("importe_venta"), gastos = sum("costes"), margen = venta - gastos;
         $("#obras-resumen").innerHTML = '<div class="metricas">' +
           metrica(eur(venta), "Presupuestado sin IVA · " + vistas.length + " obra" + (vistas.length === 1 ? "" : "s"), "metrica--azul") +
+          (conHoras ? metrica(duracion(sum("segundos")), "Horas imputadas", "") : "") +
           metrica(eur(gastos), "Gastos sin IVA", "metrica--rojo") +
           metrica(eur(margen), "Margen" + (venta ? " · " + Math.round(margen / venta * 100) + " %" : ""),
                   margen >= 0 ? "metrica--verde" : "metrica--rojo") +
@@ -2006,6 +2119,7 @@ function verObras() {
         caja.innerHTML = "<table><thead><tr>" +
           "<th>Obra</th><th>Cliente</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
           "<th>Estado</th><th>Profesionales</th>" + (conNotas ? "<th>Notas</th>" : "") +
+          (conHoras ? '<th class="num">Horas</th>' : "") +
           '<th class="num">Presupuestado</th><th class="num">Gastos</th><th class="num">Facturado</th>' +
           '<th class="num">Margen</th><th class="num">Acciones</th></tr></thead><tbody>' +
           vistas.map(fila).join("") + "</tbody></table>";
@@ -4133,6 +4247,144 @@ function verOrigenes() {
   }).catch(error);
 }
 
+/* ── Cronómetro de los partes de horas ─────────────────────────────────── */
+// El tiempo lo cuenta el servidor: aquí solo se pintan los segundos que van
+// pasando. Por eso cerrar el panel, quedarse sin batería o seguir desde el
+// móvil no pierde nada; lo que se ve es lo que hay guardado.
+//
+// Un parte en pausa deja de estar «corriendo», así que para que no desaparezca
+// de la tarjeta durante el descanso se recuerda cuál se estaba cronometrando.
+// Eso es cosa de esta pestaña del navegador, no un dato del parte.
+var TIC = null;
+var PARTE_RECORDADO = null;
+try { PARTE_RECORDADO = Number(sessionStorage.getItem("loureiro_parte")) || null; } catch (e) {}
+
+function pararTic() { if (TIC) { clearInterval(TIC); TIC = null; } }
+
+function recordarParte(id) {
+  PARTE_RECORDADO = id || null;
+  try {
+    if (id) sessionStorage.setItem("loureiro_parte", String(id));
+    else sessionStorage.removeItem("loureiro_parte");
+  } catch (e) {}
+}
+
+// Cuándo arrancó el tramo abierto, en hora de este navegador. Lo que guarda el
+// servidor es UTC; si alguna fila viniera sin zona, se toma como UTC.
+function arrancadoEn(parte) {
+  if (!parte.arrancado) return 0;
+  var t = String(parte.arrancado);
+  if (!/(Z|[+-][0-9]{2}:?[0-9]{2})$/i.test(t)) t += "Z";
+  return Date.parse(t) || 0;
+}
+
+function cronometro(caja, filas, recargar) {
+  pararTic();
+  var corriendo = filas.filter(function (f) { return f.arrancado; })[0];
+  var parte = corriendo || filas.filter(function (f) { return f.id === PARTE_RECORDADO; })[0];
+  if (parte) recordarParte(parte.id);
+  else if (PARTE_RECORDADO) recordarParte(null);
+
+  if (!parte) {
+    caja.innerHTML = '<div class="crono">' +
+      '<div class="crono__texto"><b>Ningún cronómetro en marcha</b>' +
+      "<span>Elige la obra y el tiempo empieza a contar. Puedes pausarlo para los descansos " +
+      "y seguir después.</span></div>" +
+      '<div class="crono__botones"><button class="btn btn--amber" id="crono-nuevo">' +
+      svg(ico.play) + "Empezar a contar</button></div></div>";
+    $("#crono-nuevo").addEventListener("click", function () { empezarParte(recargar); });
+    return;
+  }
+
+  var base = Number(parte.segundos) || 0, desde = arrancadoEn(parte);
+  function total() {
+    return base + (desde ? Math.max(0, Math.floor((Date.now() - desde) / 1000)) : 0);
+  }
+  caja.innerHTML = '<div class="crono' + (parte.arrancado ? " crono--corre" : "") + '">' +
+    '<div class="crono__texto"><b id="crono-tiempo">' + esc(cronoTexto(total())) + "</b>" +
+    "<span>" + esc(nombreDe("obras", parte.obra_id) || "sin obra") +
+      (parte.concepto ? " · " + esc(parte.concepto) : "") +
+      (parte.arrancado ? " · contando" : " · en pausa") + "</span></div>" +
+    '<div class="crono__botones">' +
+      (parte.arrancado
+        ? '<button class="btn btn--fant" id="crono-pausa">' + svg(ico.pausa) + "Pausar</button>"
+        : '<button class="btn btn--amber" id="crono-sigue">' + svg(ico.play) + "Seguir</button>") +
+      '<button class="btn btn--fant" id="crono-fin">' + svg(ico.ok) + "Terminar</button>" +
+    "</div></div>";
+
+  if (parte.arrancado) {
+    TIC = setInterval(function () {
+      var e = $("#crono-tiempo");
+      if (!e) return pararTic();
+      e.textContent = cronoTexto(total());
+    }, 1000);
+  }
+
+  function mandar(accion, despues) {
+    pararTic();
+    api("/api/admin/tiempos/" + parte.id + "/" + accion, { metodo: "POST" })
+      .then(function (p) {
+        if (accion === "pausar") avisar("Apuntado: " + duracion(p.segundos));
+        if (despues) despues();
+        recargar();
+      })
+      .catch(function (e) { avisar(e.message, "err"); recargar(); });
+  }
+  if ($("#crono-pausa")) $("#crono-pausa").addEventListener("click", function () { mandar("pausar"); });
+  if ($("#crono-sigue")) $("#crono-sigue").addEventListener("click", function () { mandar("arrancar"); });
+  $("#crono-fin").addEventListener("click", function () {
+    if (parte.arrancado) return mandar("pausar", function () { recordarParte(null); });
+    recordarParte(null);
+    recargar();
+  });
+}
+
+// Elegir obra y arrancar. El cliente va delante solo para encontrarla: lo que
+// se guarda es la obra.
+function empezarParte(recargar) {
+  modal("Empezar a contar",
+    '<div class="aviso aviso--err" id="cr-err" hidden></div>' +
+    '<div class="campo"><label for="cr-cli">Cliente <span class="opt">(para encontrar la obra)</span></label>' +
+    '<input id="cr-cli" list="cr-clientes" autocomplete="off" placeholder="Escribe para filtrar…">' +
+    '<datalist id="cr-clientes">' + (cache.clientes || []).map(function (c) {
+      return '<option value="' + esc(c.nombre) + '"></option>';
+    }).join("") + "</datalist></div>" +
+    '<div class="campo"><label for="cr-obra">A qué obra va</label><select id="cr-obra"></select></div>' +
+    '<div class="campo"><label for="cr-que">Qué vas a hacer <span class="opt">(opcional)</span></label>' +
+    '<input id="cr-que" maxlength="200" placeholder="Tirar cable, alicatar el baño…"></div>',
+    '<button class="btn btn--fant" id="cr-no">Cancelar</button>' +
+    '<button class="btn btn--amber" id="cr-si">' + svg(ico.play) + "Empezar</button>");
+
+  function pintarObras() {
+    var clis = clientesQueEncajan("clientes", $("#cr-cli").value);
+    var suyas = (cache.obras || []).filter(function (o) {
+      return !clis || clis.indexOf(String(o.cliente_id)) >= 0;
+    });
+    $("#cr-obra").innerHTML = suyas.length
+      ? suyas.map(function (o) {
+          return '<option value="' + o.id + '">' + esc(o.titulo || o.nombre) + "</option>";
+        }).join("")
+      : '<option value="">No hay obras de ese cliente</option>';
+  }
+  pintarObras();
+  $("#cr-cli").addEventListener("input", pintarObras);
+  $("#cr-no").addEventListener("click", cerrarModal);
+  $("#cr-si").addEventListener("click", function () {
+    var obra = $("#cr-obra").value, err = $("#cr-err");
+    if (!obra) {
+      err.textContent = "Elige la obra a la que va el tiempo.";
+      err.hidden = false;
+      return;
+    }
+    var btn = this;
+    btn.disabled = true;
+    api("/api/admin/tiempos/arrancar",
+        { metodo: "POST", datos: { obra_id: Number(obra), concepto: $("#cr-que").value.trim() } })
+      .then(function (p) { recordarParte(p.id); cerrarModal(); recargar(); })
+      .catch(function (e) { btn.disabled = false; err.textContent = e.message; err.hidden = false; });
+  });
+}
+
 /* ── Agenda ───────────────────────────────────────────────────────────── */
 // Estado de la vista. Se conserva al volver de guardar una cita, para no
 // saltar al mes actual cada vez que se toca algo.
@@ -4590,8 +4842,9 @@ function formSeccion(s) {
 
 /* ── Equipo: quién entra al panel y a qué ─────────────────────────────── */
 // Módulos que se pueden dar a un miembro, en el orden del menú.
-var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "notas", "clientes", "profesionales",
-  "presupuestos", "proformas", "facturas", "costes", "contabilidad", "stock", "proveedores"];
+var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "tiempos", "notas", "clientes",
+  "profesionales", "presupuestos", "proformas", "facturas", "costes", "contabilidad",
+  "stock", "proveedores"];
 
 function verMiembros() {
   $("#vista-acciones").innerHTML =
