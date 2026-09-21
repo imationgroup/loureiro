@@ -154,7 +154,7 @@ _LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "coste
 TABLAS = {
     "clientes": Tabla("clientes",
         ["nombre", "nif", "email", "telefono", "direccion", "cp", "ciudad",
-         "provincia", "notas"],
+         "provincia", "notas", "resena_pedida"],
         obligatorios=("nombre",),
         modulo="clientes", lectura=_LEE_CLIENTES, responsable=True),
     "profesionales": Tabla("profesionales",
@@ -383,6 +383,48 @@ def borrar(recurso: str, id_: int, u: dict = Depends(sesion_actual)):
 
 
 # ═══ Notificaciones (la campanita del panel) ════════════════════════════
+
+# ═══ Ajustes sueltos del panel ══════════════════════════════════════════
+
+# Lo que se puede guardar por aquí, con quién puede leerlo y quién tocarlo.
+# Es una lista blanca a propósito: `ajustes` es una tabla de clave-valor y sin
+# esto cualquiera podría escribir en cualquier clave, incluido el token de la
+# agenda.
+AJUSTES = {
+    # Enlace corto de Google para dejar reseña, el que da el propio perfil.
+    "resenas_url": {"lectura": ("clientes",), "escritura": "admin"},
+}
+
+
+@router.get("/ajustes/{clave}")
+def ver_ajuste(clave: str, u: dict = Depends(sesion_actual)):
+    a = AJUSTES.get(clave)
+    if not a:
+        raise HTTPException(404, "Ajuste desconocido")
+    exigir(u, *a["lectura"])
+    fila = db.fila("SELECT valor FROM ajustes WHERE clave = ?", (clave,))
+    return {"clave": clave, "valor": (fila or {}).get("valor") or ""}
+
+
+class Ajuste(BaseModel):
+    valor: str = Field(default="", max_length=500)
+
+
+@router.put("/ajustes/{clave}")
+def guardar_ajuste(clave: str, datos: Ajuste, u: dict = Depends(sesion_actual)):
+    a = AJUSTES.get(clave)
+    if not a:
+        raise HTTPException(404, "Ajuste desconocido")
+    if a["escritura"] == "admin" and not es_admin(u):
+        raise HTTPException(403, "Solo el administrador puede cambiar esto.")
+    valor = datos.valor.strip()
+    if clave == "resenas_url" and valor and not valor.startswith(("http://", "https://")):
+        raise HTTPException(422, "El enlace tiene que empezar por https://")
+    with db.tx() as con:
+        con.execute("INSERT INTO ajustes (clave, valor) VALUES (?,?) "
+                    "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor", (clave, valor))
+    return {"clave": clave, "valor": valor}
+
 
 # ═══ Ficha de cliente ═══════════════════════════════════════════════════
 

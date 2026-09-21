@@ -534,6 +534,9 @@ MIGRACIONES = [
     ("costes", "estado", "TEXT"),
     # Una nota puede ser de un cliente además de (o en vez de) una obra.
     ("notas", "cliente_id", "INTEGER"),
+    # Cuándo se le pidió una reseña de Google a este cliente. Se apunta al
+    # pulsar el botón, para no volver a pedírsela a los dos días.
+    ("clientes", "resena_pedida", "TEXT"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la
