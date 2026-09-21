@@ -178,6 +178,10 @@ TABLAS = {
         orden="fecha DESC, id DESC", obligatorios=("concepto",), presentes=("obra_id",),
         validar=completar_gasto,
         modulo="costes", responsable=True),
+    "tiempos": Tabla("tiempos",
+        ["obra_id", "profesional_id", "fecha", "concepto", "segundos", "notas"],
+        orden="fecha DESC, id DESC", obligatorios=("obra_id",),
+        modulo="tiempos", responsable=True),
     "ingresos": Tabla("ingresos",
         ["obra_id", "cliente_id", "concepto", "importe", "iva", "fecha",
          "factura_ref", "cobrado", "notas"],
@@ -821,6 +825,7 @@ def informe_obras(u: dict = Depends(sesion_actual)):
                c.nombre AS cliente,
                COALESCE((SELECT SUM(importe) FROM costes   WHERE obra_id = o.id), 0) AS costes,
                COALESCE((SELECT SUM(importe) FROM ingresos WHERE obra_id = o.id), 0) AS facturado,
+               COALESCE((SELECT SUM(segundos) FROM tiempos WHERE obra_id = o.id), 0) AS segundos,
                (SELECT COUNT(*) FROM obra_profesionales WHERE obra_id = o.id) AS n_profesionales
         FROM obras o
         LEFT JOIN clientes c ON c.id = o.cliente_id

@@ -38,6 +38,7 @@ from .agenda import router as router_agenda, publico as router_agenda_publico
 from .visitas import router as router_visitas
 from .notas import router as router_notas
 from .listas import router as router_listas
+from .tiempos import router as router_tiempos
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("loureiro-contact")
@@ -139,6 +140,7 @@ app.include_router(router_agenda_publico)
 app.include_router(router_visitas)
 app.include_router(router_notas)
 app.include_router(router_listas)
+app.include_router(router_tiempos)
 app.include_router(router_admin_crud)
 
 

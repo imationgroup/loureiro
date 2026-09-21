@@ -231,6 +231,27 @@ a{color:var(--amber);text-underline-offset:3px}
 .paneles{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
 .paneles--3{grid-template-columns:2fr 1fr}
 
+/* ── Cronómetro de los partes de horas ───────────────────────────────── */
+.crono{
+  background:var(--ink-2);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:18px 20px;margin-bottom:16px;display:flex;gap:16px;align-items:center;
+  justify-content:space-between;flex-wrap:wrap;position:relative;overflow:hidden;
+}
+.crono::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--line-2)}
+.crono--corre::after{background:var(--verde)}
+.crono__texto b{
+  display:block;font-family:var(--ff-h);font-size:2.1rem;font-weight:800;
+  letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums;
+}
+.crono--corre .crono__texto b{color:var(--verde)}
+.crono__texto span{display:block;font-size:.85rem;color:var(--muted);margin-top:5px}
+.crono__botones{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Horas y minutos, cada uno en su recuadro: es como se piensa el tiempo. */
+.duracion{display:flex;gap:8px;align-items:center}
+.duracion input{width:5.5rem;text-align:right}
+.duracion span{color:var(--muted);font-size:.85rem}
+
 /* ── Tablas ──────────────────────────────────────────────────────────── */
 .tabla-caja{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
 .tabla-scroll{overflow-x:auto}
