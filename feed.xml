@@ -5,8 +5,17 @@
     <link>https://loureirosoluciones.es/blog/</link>
     <description>Reformas, electricidad, albañilería, aire acondicionado y mantenimiento en Ourense y provincia.</description>
     <language>es-ES</language>
-    <lastBuildDate>Sun, 20 Sep 2026 11:17:16 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 21 Sep 2026 07:07:19 +0000</lastBuildDate>
     <atom:link href="https://loureirosoluciones.es/feed.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>Placas solares: te revisamos la instalación o te la hacemos nueva</title>
+      <link>https://loureirosoluciones.es/blog/electricidad/placas-solares-revision-e-instalacion.html</link>
+      <guid isPermaLink="false">https://loureirosoluciones.es/blog/electricidad/placas-solares-revision-e-instalacion.html#novedad-202609210707</guid>
+      <pubDate>Mon, 21 Sep 2026 07:07:17 +0000</pubDate>
+      <description>Muchas instalaciones producen menos de lo que podrían. La revisamos, la ajustamos y, si no tienes, la montamos.</description>
+      <category>Electricidad</category>
+      <enclosure url="https://loureirosoluciones.es/assets/img/blog/placas-solares-og.jpg" type="image/jpeg" length="0"/>
+    </item>
     <item>
       <title>Apago la luz y la bombilla LED sigue alumbrando</title>
       <link>https://loureirosoluciones.es/blog/electricidad/bombillas-led-encendidas-con-interruptor-apagado.html</link>
@@ -60,15 +69,6 @@
       <description>Qué potencia pide tu casa, qué tipos hay, cuánto consume y el mantenimiento que la mantiene viva. Venta, instalación y averías.</description>
       <category>Estufas de pellets</category>
       <enclosure url="https://loureirosoluciones.es/assets/img/blog/estufa-pellets-og.jpg" type="image/jpeg" length="0"/>
-    </item>
-    <item>
-      <title>Placas solares: te revisamos la instalación o te la hacemos nueva</title>
-      <link>https://loureirosoluciones.es/blog/electricidad/placas-solares-revision-e-instalacion.html</link>
-      <guid isPermaLink="true">https://loureirosoluciones.es/blog/electricidad/placas-solares-revision-e-instalacion.html</guid>
-      <pubDate>Wed, 16 Sep 2026 23:35:21 +0200</pubDate>
-      <description>Muchas instalaciones producen menos de lo que podrían. La revisamos, la ajustamos y, si no tienes, la montamos.</description>
-      <category>Electricidad</category>
-      <enclosure url="https://loureirosoluciones.es/assets/img/blog/placas-solares-og.jpg" type="image/jpeg" length="0"/>
     </item>
     <item>
       <title>Te revisamos la factura de la luz gratis</title>
