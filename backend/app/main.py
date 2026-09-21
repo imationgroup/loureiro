@@ -297,26 +297,26 @@ def _acuse(nombre: str, telefono: str, servicio: str, mensaje: str) -> tuple[str
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Hemos recibido tu solicitud</title></head><body style="margin:0;padding:0;background:#F4F5F7">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F7;padding:24px 12px">
 <tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#22252B">
-  <tr><td style="background:#14161A;padding:20px 28px">
-    <span style="font-size:19px;font-weight:bold;color:#FFFFFF">Loureiro</span><span style="font-size:19px;color:#9AA0AA">soluciones</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#242A36">
+  <tr><td style="background:#1E2533;padding:20px 28px">
+    <span style="font-size:19px;font-weight:bold;color:#FFFFFF">Loureiro</span><span style="font-size:19px;color:#9AA2B1">soluciones</span>
   </td></tr>
   <tr><td style="padding:28px 28px 8px">
-    <p style="margin:0 0 14px;font-size:21px;font-weight:bold;color:#14161A">Hola {n},</p>
+    <p style="margin:0 0 14px;font-size:21px;font-weight:bold;color:#1E2533">Hola {n},</p>
     <p style="margin:0 0 14px;font-size:15px;line-height:1.6">Gracias por escribirnos. Hemos recibido tu solicitud y <b>la atenderemos lo antes posible</b>.</p>
-    <p style="margin:24px 0 8px;font-size:12px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#6C7079">Esto es lo que nos has enviado</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F7F9;border-left:3px solid #F97316;border-radius:6px">
-      <tr><td style="padding:14px 16px;font-size:14px;line-height:1.6;color:#22252B">
+    <p style="margin:24px 0 8px;font-size:12px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#6B7180">Esto es lo que nos has enviado</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F7F9;border-left:3px solid #F2A81C;border-radius:6px">
+      <tr><td style="padding:14px 16px;font-size:14px;line-height:1.6;color:#242A36">
         <b>Servicio:</b> {s}<br>
         <b>Teléfono:</b> {t}<br><br>
         {m}
       </td></tr>
     </table>
-    <p style="margin:24px 0 0;font-size:15px;line-height:1.6">Si quieres añadir algo, responde a este correo o llámanos al <a href="tel:+34603905128" style="color:#F97316;font-weight:bold;text-decoration:none">603&nbsp;905&nbsp;128</a>.</p>
+    <p style="margin:24px 0 0;font-size:15px;line-height:1.6">Si quieres añadir algo, responde a este correo o llámanos al <a href="tel:+34603905128" style="color:#9A6A05;font-weight:bold;text-decoration:none">603&nbsp;905&nbsp;128</a>.</p>
     <p style="margin:22px 0 20px;font-size:15px;line-height:1.6">Un saludo,<br><b>Loureiro Soluciones</b></p>
   </td></tr>
-  <tr><td style="padding:16px 28px;border-top:1px solid #E2E4E8;font-size:12px;color:#6C7079;line-height:1.5">
-    Reformas y mantenimiento del hogar en Ourense · <a href="https://loureirosoluciones.es" style="color:#6C7079">loureirosoluciones.es</a><br>
+  <tr><td style="padding:16px 28px;border-top:1px solid #E2E4E8;font-size:12px;color:#6B7180;line-height:1.5">
+    Reformas y mantenimiento del hogar en Ourense · <a href="https://loureirosoluciones.es" style="color:#6B7180">loureirosoluciones.es</a><br>
     Recibes este correo porque has enviado una solicitud desde nuestra web.
   </td></tr>
 </table>
