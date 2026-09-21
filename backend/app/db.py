@@ -370,6 +370,14 @@ CREATE TABLE IF NOT EXISTS obra_estados (
   orden   INTEGER NOT NULL DEFAULT 0
 );
 
+-- Cómo nos conoció el cliente (Clientes > Orígenes). Sirve para saber qué
+-- canal trae trabajo y dónde merece la pena seguir gastando.
+CREATE TABLE IF NOT EXISTS cliente_origenes (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre  TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  orden   INTEGER NOT NULL DEFAULT 0
+);
+
 -- ── Notas ────────────────────────────────────────────────────────────
 -- Apuntes sueltos. Pueden ir colgados de una obra (lo que se habló con el
 -- cliente, lo que falta por pedir) o de ninguna.
@@ -537,6 +545,10 @@ MIGRACIONES = [
     # Cuándo se le pidió una reseña de Google a este cliente. Se apunta al
     # pulsar el botón, para no volver a pedírsela a los dos días.
     ("clientes", "resena_pedida", "TEXT"),
+    # Cómo nos conoció. En el cliente y, si lo dijo al escribir, ya en la
+    # solicitud: al convertirla en cliente se lleva consigo.
+    ("clientes", "origen", "TEXT"),
+    ("solicitudes", "origen", "TEXT"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la
@@ -546,6 +558,10 @@ CATEGORIAS_GASTO = ["material", "mano de obra", "maquinaria", "residuos", "subco
 ESTADOS_GASTO = [("pendiente", 0), ("pagado", 1)]
 ESTADOS_OBRA = [("presupuesto", 0), ("en curso", 1), ("pausada", 1), ("terminada", 0),
                 ("cancelada", 0)]
+# Los canales de siempre. El primero es el que sale en el formulario de la web
+# en el mismo orden; a partir de ahí los cambia el usuario desde el panel.
+ORIGENES_CLIENTE = ["Google", "Recomendación", "Ya era cliente", "Redes sociales",
+                    "Furgoneta o cartel", "Páginas amarillas", "Otro"]
 
 # Tablas donde cada fila tiene responsable (usuario_id). Lo que ya existía
 # antes del equipo queda con el responsable vacío, que es lo del
@@ -622,6 +638,9 @@ def migrar():
     con.execute("""INSERT OR IGNORE INTO obra_estados (nombre, orden)
                    SELECT DISTINCT estado, 100 FROM obras
                    WHERE estado IS NOT NULL AND trim(estado) != ''""")
+    if not con.execute("SELECT COUNT(*) FROM cliente_origenes").fetchone()[0]:
+        for i, nombre in enumerate(ORIGENES_CLIENTE, 1):
+            con.execute("INSERT INTO cliente_origenes (nombre, orden) VALUES (?,?)", (nombre, i))
     # Gastos sin estado (los de antes, o uno que se colara sin él): el primer
     # estado que diga lo mismo que su casilla de pagado.
     con.execute("""UPDATE costes SET estado = (

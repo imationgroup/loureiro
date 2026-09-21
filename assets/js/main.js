@@ -110,6 +110,23 @@
   var msg = $("#form-msg");
   var submit = $("#submit");
 
+  // Los canales de «¿Cómo nos conociste?» se editan en el panel, así que se
+  // piden al servidor. Si no contesta, se quedan los que trae el HTML: el
+  // campo es opcional y no puede impedir que se mande la solicitud.
+  var origen = $("#f-origin");
+  if (origen && API) {
+    fetch(API.replace(/contact$/, "origenes")).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.items || !d.items.length) return;
+        var elegido = origen.value;
+        origen.length = 1;
+        d.items.forEach(function (nombre) {
+          origen.add(new Option(nombre, nombre, false, nombre === elegido));
+        });
+      })
+      .catch(function () { /* se queda la lista del HTML */ });
+  }
+
   // Qué decir según el campo que falla, tanto si lo detecta el navegador como
   // si lo rechaza el servidor. Un "revisa los campos" a secas no dice nada.
   var AVISOS_CAMPO = {
@@ -134,6 +151,7 @@
       "Email: " + data.email,
       "Teléfono: " + (data.phone || "-"),
       "Servicio: " + data.service,
+      "Nos conoció: " + (data.origin || "no lo ha dicho"),
       "",
       data.message
     ].join("\n");
@@ -164,6 +182,7 @@
       email: (fd.get("email") || "").trim(),
       phone: (fd.get("phone") || "").trim(),
       service: fd.get("service") || "",
+      origin: fd.get("origin") || "",
       message: (fd.get("message") || "").trim(),
       website: fd.get("website") || ""
     };

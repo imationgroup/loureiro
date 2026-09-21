@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from . import db
 from .agenda import validar_cita
 from .documentos import totales
-from .listas import completar_gasto, completar_obra, estado_pendiente
+from .listas import completar_cliente, completar_gasto, completar_obra, estado_pendiente
 from .notas import adjuntos_de
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
@@ -154,8 +154,8 @@ _LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "coste
 TABLAS = {
     "clientes": Tabla("clientes",
         ["nombre", "nif", "email", "telefono", "direccion", "cp", "ciudad",
-         "provincia", "notas", "resena_pedida"],
-        obligatorios=("nombre",),
+         "provincia", "notas", "resena_pedida", "origen"],
+        obligatorios=("nombre",), validar=completar_cliente,
         modulo="clientes", lectura=_LEE_CLIENTES, responsable=True),
     "profesionales": Tabla("profesionales",
         ["nombre", "categoria", "telefono", "email", "nif", "ciudades",
@@ -190,8 +190,9 @@ TABLAS = {
         modulo="stock"),
     "solicitudes": Tabla("solicitudes",
         ["nombre", "email", "telefono", "servicio", "mensaje", "estado",
-         "notas", "cliente_id"],
+         "notas", "cliente_id", "origen"],
         obligatorios=("nombre",), defectos={"email": "", "mensaje": ""},
+        validar=completar_cliente,
         modulo="solicitudes", responsable=True),
     "citas": Tabla("citas",
         ["titulo", "tipo", "inicio", "fin", "profesional_id", "cliente_id",
@@ -614,13 +615,18 @@ def _enlazar_con_cliente(s: dict, u: dict, origen: str = "una solicitud de la we
             if s.get("mensaje"):
                 notas += "." + SALTO + SALTO + s["mensaje"]
             cur = con.execute(
-                """INSERT INTO clientes (nombre, email, telefono, notas, usuario_id)
-                   VALUES (?,?,?,?,?)""",
-                (s["nombre"], email or None, s.get("telefono"), notas, responsable))
+                """INSERT INTO clientes (nombre, email, telefono, notas, usuario_id, origen)
+                   VALUES (?,?,?,?,?,?)""",
+                (s["nombre"], email or None, s.get("telefono"), notas, responsable,
+                 s.get("origen") or None))
             cliente_id, creado = cur.lastrowid, True
 
         con.execute("UPDATE solicitudes SET cliente_id = ? WHERE id = ?",
                     (cliente_id, s["id"]))
+        if s.get("origen"):
+            con.execute("""UPDATE clientes SET origen = ?
+                           WHERE id = ? AND (origen IS NULL OR origen = '')""",
+                        (s["origen"], cliente_id))
         # Si seguía pendiente, pasa a atendida: convertirla en cliente ya es
         # haberla atendido, y dejarla pendiente falsea la campanita del panel.
         # Las que se apuntan a mano no: se apuntan justo porque están por hacer.
@@ -821,6 +827,79 @@ def informe_obras(u: dict = Depends(sesion_actual)):
         WHERE {cond}
         ORDER BY o.id DESC
     """, params)
+
+
+# ═══ De dónde vienen los clientes ═══════════════════════════════════════
+
+@router.get("/informes/origenes")
+def informe_origenes(periodo: str | None = None, u: dict = Depends(sesion_actual)):
+    """Qué canal trae trabajo: clientes, solicitudes, obras y facturado por origen.
+
+    `periodo` es un año (2026) o un mes (2026-09), como el panel. Se cuenta por
+    la fecha de alta de cada cosa, no por la del canal: lo que interesa es qué
+    trajo cada mes. Los canales de la lista salen aunque estén a cero, que un
+    canal que no trae nada también es una respuesta.
+    """
+    exigir(u, "clientes")
+    periodo = periodo or str(date.today().year)
+    fmt = "%Y" if len(periodo) == 4 else "%Y-%m"
+    SIN = "Sin indicar"
+
+    filas: dict[str, dict] = {}
+
+    def apuntar(origen, clave=None, valor=0):
+        f = filas.setdefault(origen or SIN, {"origen": origen or SIN, "clientes": 0,
+                                             "solicitudes": 0, "obras": 0, "facturado": 0})
+        if clave:
+            f[clave] = round(f[clave] + (valor or 0), 2)
+
+    for o in db.filas("SELECT nombre FROM cliente_origenes ORDER BY orden, id"):
+        apuntar(o["nombre"])
+
+    cond, p = filtro_responsable(u, "c")
+    for f in db.filas(f"""SELECT c.origen AS o, COUNT(*) AS n FROM clientes c
+                          WHERE strftime(?, c.creado) = ? AND {cond}
+                          GROUP BY c.origen""", (fmt, periodo, *p)):
+        apuntar(f["o"], "clientes", f["n"])
+
+    if puede(u, "solicitudes"):
+        cond, p = filtro_responsable(u, "s")
+        for f in db.filas(f"""SELECT s.origen AS o, COUNT(*) AS n FROM solicitudes s
+                              WHERE strftime(?, s.creado) = ? AND {cond}
+                              GROUP BY s.origen""", (fmt, periodo, *p)):
+            apuntar(f["o"], "solicitudes", f["n"])
+
+    if puede(u, "obras"):
+        cond, p = filtro_responsable(u, "o")
+        for f in db.filas(f"""SELECT c.origen AS o, COUNT(*) AS n
+                              FROM obras o LEFT JOIN clientes c ON c.id = o.cliente_id
+                              WHERE strftime(?, o.creado) = ? AND {cond}
+                              GROUP BY c.origen""", (fmt, periodo, *p)):
+            apuntar(f["o"], "obras", f["n"])
+
+    if puede(u, "facturas"):
+        cond, p = filtro_responsable(u, "f")
+        # Sin IVA, como todos los márgenes del panel: los precios se guardan
+        # en base aunque se escriban con IVA incluido.
+        for f in db.filas(f"""SELECT c.origen AS o,
+                                     COALESCE(SUM(l.cantidad * l.precio), 0) AS t
+                              FROM facturas f
+                              JOIN factura_lineas l ON l.factura_id = f.id
+                              LEFT JOIN clientes c ON c.id = f.cliente_id
+                              WHERE f.estado != 'anulada' AND strftime(?, f.fecha) = ?
+                                AND {cond}
+                              GROUP BY c.origen""", (fmt, periodo, *p)):
+            apuntar(f["o"], "facturado", f["t"])
+
+    orden = [o["nombre"] for o in db.filas("SELECT nombre FROM cliente_origenes ORDER BY orden, id")]
+    def clave(f):
+        return (-f["facturado"], -f["clientes"], -f["obras"],
+                orden.index(f["origen"]) if f["origen"] in orden else 99)
+
+    items = sorted(filas.values(), key=clave)
+    return {"periodo": periodo, "items": items,
+            "totales": {k: round(sum(f[k] for f in items), 2)
+                        for k in ("clientes", "solicitudes", "obras", "facturado")}}
 
 
 # ═══ Contabilidad ═══════════════════════════════════════════════════════
