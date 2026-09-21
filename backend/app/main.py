@@ -385,12 +385,40 @@ class ContactPayload(BaseModel):
     message: str = Field(min_length=4, max_length=4000)
     phone: str | None = Field(default=None, max_length=30)
     service: str | None = Field(default=None, max_length=80)
+    # Cómo nos conoció. Es opcional a propósito: un campo más que obligar a
+    # rellenar antes de pedir presupuesto cuesta solicitudes.
+    origin: str | None = Field(default=None, max_length=60)
     # Honeypot — humanos no rellenan, los bots sí.
     website: str | None = None
 
 
 class ContactResponse(BaseModel):
     sent: bool
+
+
+@app.get("/api/origenes")
+def origenes():
+    """Los canales del desplegable «¿Cómo nos conociste?» del formulario.
+
+    La lista se edita en el panel (Clientes > Orígenes), así que la web la pide
+    en vez de llevarla escrita: si no llega, el formulario se queda con las
+    opciones que trae puestas y la solicitud entra igual.
+    """
+    return {"items": [f["nombre"] for f in db.filas(
+        "SELECT nombre FROM cliente_origenes ORDER BY orden, id")]}
+
+
+def _origen_valido(valor: str | None) -> str | None:
+    """El canal, tal como está escrito en la lista; si no es uno de ella, nada.
+
+    Lo que llega es un POST público: se acepta lo que esté en la lista y punto,
+    para que nadie meta texto suyo en un campo que luego se agrupa en el informe.
+    """
+    valor = (valor or "").strip()
+    if not valor:
+        return None
+    fila = db.fila("SELECT nombre FROM cliente_origenes WHERE nombre = ? COLLATE NOCASE", (valor,))
+    return fila["nombre"] if fila else None
 
 
 @app.post("/api/contact", response_model=ContactResponse)
@@ -412,6 +440,7 @@ def contact(payload: ContactPayload, request: Request, tareas: BackgroundTasks):
     sender_email = payload.email.strip()
     service = (payload.service or "Sin especificar").strip()
     phone = (payload.phone or "").strip() or "No facilitado"
+    origen = _origen_valido(payload.origin)
 
     body = (
         "Nueva solicitud desde el formulario de loureirosoluciones.es\n\n"
@@ -419,6 +448,7 @@ def contact(payload: ContactPayload, request: Request, tareas: BackgroundTasks):
         f"Email:    {sender_email}\n"
         f"Teléfono: {phone}\n"
         f"Servicio: {service}\n"
+        f"Nos conoció: {origen or 'no lo ha dicho'}\n"
         f"IP:       {ip}\n\n"
         "Mensaje:\n"
         "---------\n"
@@ -436,10 +466,11 @@ def contact(payload: ContactPayload, request: Request, tareas: BackgroundTasks):
                 # El estado va explícito: en la base de producción la columna se
                 # creó con DEFAULT 'nueva', y SQLite no deja cambiar un valor por
                 # defecto sin rehacer la tabla entera.
-                """INSERT INTO solicitudes (nombre, email, telefono, servicio, mensaje, ip, estado)
-                   VALUES (?,?,?,?,?,?,'pendiente')""",
+                """INSERT INTO solicitudes
+                       (nombre, email, telefono, servicio, mensaje, ip, estado, origen)
+                   VALUES (?,?,?,?,?,?,'pendiente',?)""",
                 (name, sender_email, phone if phone != "No facilitado" else None,
-                 service, payload.message.strip(), ip),
+                 service, payload.message.strip(), ip, origen),
             ).lastrowid
         guardada = True
     except Exception:  # noqa: BLE001

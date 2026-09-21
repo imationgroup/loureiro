@@ -63,6 +63,7 @@ var ico = {
   firma:'<path d="M3 17c3 0 4-9 7-9s3 9 6 9c2 0 3-2 5-3"/><path d="M3 21h18"/>',
   whatsapp:'<path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2z"/>',
   nota:'<path d="M5 3h14v12l-6 6H5z"/><path d="M13 21v-6h6"/><path d="M8 8h8M8 12h5"/>',
+  grafico:'<path d="M4 20V11M10 20V4M16 20v-6M3 20h18"/>',
   etiqueta:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
   estrella:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
   clip:'<path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/>',
@@ -411,6 +412,9 @@ var MODULOS = {
       { c: "telefono", t: "Teléfono", mitad: true },
       { c: "servicio", t: "Servicio", mitad: true },
       { c: "estado", t: "Estado", tipo: "select", ops: ESTADOS_SOL, mitad: true },
+      { c: "origen", t: "Cómo nos conoció", tipo: "lista", de: "listas/cliente-origenes",
+        vacio: "Sin indicar",
+        ayuda: "Si viene de la web, lo trae puesto. Al pasar la solicitud a cliente, se va con ella." },
       { c: "mensaje", t: "Mensaje", tipo: "area" },
       { c: "notas", t: "Notas internas", tipo: "area" }
     ]
@@ -450,7 +454,7 @@ var MODULOS = {
     columnas: [
       { c: "nombre", t: "Nombre" }, { c: "nif", t: "NIF" },
       { c: "telefono", t: "Teléfono" }, { c: "email", t: "Email" },
-      { c: "ciudad", t: "Ciudad" }, { c: "provincia", t: "Provincia" }
+      { c: "ciudad", t: "Ciudad" }, { c: "origen", t: "Nos conoció por" }
     ],
     campos: [
       { c: "nombre", t: "Nombre o razón social", req: true },
@@ -461,6 +465,9 @@ var MODULOS = {
       { c: "cp", t: "Código postal", mitad: true },
       { c: "provincia", t: "Provincia", tipo: "provincia", mitad: true },
       { c: "ciudad", t: "Ciudad", tipo: "ciudad" },
+      { c: "origen", t: "Cómo nos conoció", tipo: "lista", de: "listas/cliente-origenes",
+        vacio: "Sin indicar",
+        ayuda: "De aquí sale el informe de qué canal trae trabajo (Clientes > De dónde vienen)" },
       { c: "notas", t: "Notas", tipo: "area" }
     ]
   },
@@ -675,6 +682,13 @@ MODULOS.gastos_estados = { titulo: "Estados de gasto", menu: "Estados", sub: "Pe
   icono: ico.ok, especial: "listaEditable", lista: "gasto-estados", permiso: "costes" };
 MODULOS.obras_estados = { titulo: "Estados de obra", menu: "Estados", sub: "Presupuesto, en curso… los que uséis",
   icono: ico.ok, especial: "listaEditable", lista: "obra-estados", permiso: "obras" };
+// Submenús de Clientes: de dónde vienen y la lista de canales.
+MODULOS.clientes_origenes = { titulo: "Cómo nos conocen", menu: "Orígenes",
+  sub: "Los canales por los que llega la gente",
+  icono: ico.etiqueta, especial: "listaEditable", lista: "cliente-origenes", permiso: "clientes" };
+MODULOS.clientes_origen = { titulo: "De dónde vienen", menu: "De dónde vienen",
+  sub: "Qué canal trae clientes, obras y dinero",
+  icono: ico.grafico, especial: "origenes", permiso: "clientes" };
 // La ficha de un cliente: no sale en el menú, se entra desde Clientes.
 MODULOS.ficha_cliente = { titulo: "Ficha de cliente", sub: "", icono: ico.gente, especial: "fichaCliente",
   permiso: "clientes" };
@@ -693,7 +707,9 @@ MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", ico
 
 var ORDEN_MENU = [
   { sep: null, items: ["dashboard", "agenda", "solicitudes", "visitas"] },
-  { sep: "Gestión", items: [{ k: "obras", hijos: ["obras_estados"] }, "notas", "clientes", "profesionales"] },
+  { sep: "Gestión", items: [{ k: "obras", hijos: ["obras_estados"] }, "notas",
+                            { k: "clientes", hijos: ["clientes_origen", "clientes_origenes"] },
+                            "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas",
                              { k: "costes", hijos: ["gastos_categorias", "gastos_estados"] }, "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
@@ -840,6 +856,7 @@ function ir(k) {
   if (m.especial === "notas") return verNotas();
   if (m.especial === "fichaCliente") return verFichaCliente();
   if (m.especial === "listaEditable") return verListaEditable(k);
+  if (m.especial === "origenes") return verOrigenes();
   if (m.especial === "documento") return verDocumentos(k);
   return verTabla(k);
 }
@@ -1215,11 +1232,16 @@ function campoHTML(campo, valor, esNuevo) {
     // de los gastos). Se guarda el nombre. Vacío: el primero, o el primer
     // estado pendiente. Un valor que ya no está en la lista se conserva.
     var items = cache[campo.de] || [];
-    if (v === "") {
+    // Hay listas donde no contestar es una respuesta: cómo nos conoció un
+    // cliente no siempre se sabe, y poner el primero por defecto sería
+    // inventárselo justo en el dato del que luego sale el informe.
+    if (v === "" && !campo.vacio) {
       var pend = items.filter(function (x) { return !x.pagado; })[0];
       v = ((campo.de === "listas/gasto-estados" && pend) || items[0] || {}).nombre || "";
     }
     h += '<select id="c-' + campo.c + '" data-c="' + campo.c + '">' +
+         (campo.vacio ? '<option value=""' + (v === "" ? " selected" : "") + ">" +
+                        esc(campo.vacio) + "</option>" : "") +
          (v && !items.some(function (x) { return x.nombre === v; })
            ? '<option value="' + esc(v) + '" selected>' + esc(v) + "</option>" : "") +
          items.map(function (x) {
@@ -1765,11 +1787,13 @@ function periodoVecino(p, paso) {
   return periodoDe(new Date(Number(p.slice(0, 4)), Number(p.slice(5)) - 1 + paso, 1), "mes");
 }
 
-function verDashboard() {
+// Pinta los botones de periodo en la barra de la vista y devuelve el elegido.
+// Lo comparten el Panel y el informe de orígenes: el año o el mes elegido vale
+// para los dos, así que al cambiarlo en uno sigue puesto al ir al otro.
+function pintarPeriodo(repintar) {
   var hoy = new Date();
   var periodo = PERIODO || periodoDe(hoy, "anio");
-  var esAnio = periodo.length === 4;
-  var actual = periodoDe(hoy, esAnio ? "anio" : "mes");
+  var actual = periodoDe(hoy, periodo.length === 4 ? "anio" : "mes");
   var anterior = periodoVecino(periodoDe(hoy, "mes"), -1);
   function boton(p, txt) {
     return '<button type="button" data-periodo="' + p + '"' + (p === periodo ? ' class="is-on"' : "") + ">" + txt + "</button>";
@@ -1788,8 +1812,14 @@ function verDashboard() {
       "</div>" +
     "</div>";
   $$("#vista-acciones [data-periodo]").forEach(function (b) {
-    b.addEventListener("click", function () { PERIODO = b.dataset.periodo; verDashboard(); });
+    b.addEventListener("click", function () { PERIODO = b.dataset.periodo; repintar(); });
   });
+  return periodo;
+}
+
+function verDashboard() {
+  var periodo = pintarPeriodo(verDashboard);
+  var esAnio = periodo.length === 4;
 
   api("/api/admin/dashboard?periodo=" + periodo).then(function (d) {
     var c = d.contadores, margen = (d.periodo.ingresos || 0) - (d.periodo.gastos || 0);
@@ -2161,6 +2191,10 @@ var LISTAS_EDIT = {
     marca: { c: "pagado", si: "Pagado", no: "Pendiente de pago", pregunta: "Un gasto en este estado cuenta como" },
     ayuda: "El estado marcado como «Pagado» cuenta como pagado en contabilidad; el resto, como pendiente de pago. " +
            "Los gastos nuevos empiezan en el primer estado pendiente de la lista." },
+  "cliente-origenes": { una: "origen", nueva: "Nuevo origen", ruta: "listas/cliente-origenes",
+    cosas: "usos",
+    ayuda: "Son las opciones del desplegable «¿Cómo nos conociste?» de la web y de la ficha del cliente. " +
+           "Si cambias un nombre, cambia en los clientes y solicitudes que lo llevan." },
   "obra-estados": { una: "estado", nueva: "Nuevo estado", ruta: "listas/obra-estados", cosas: "obras",
     marca: { c: "activa", si: "Obra activa", no: "No activa", pregunta: "Una obra en este estado cuenta como" },
     ayuda: "Las obras en un estado marcado como activo cuentan en «Obras activas» del panel. " +
@@ -2399,6 +2433,7 @@ function verFichaCliente() {
         dato("NIF", esc(c.nif)) +
         dato("Dirección", esc(dir)) +
         dato("Cliente desde", esc(fecha(c.creado))) +
+        dato("Nos conoció por", esc(c.origen)) +
         dato("Reseña pedida", esc(fecha(c.resena_pedida))) +
         (esAdmin() ? dato("Responsable", esc(nombreDe("equipo", c.usuario_id))) : "") +
         "</dl>" + (c.notas ? '<div class="fc-notas-ficha">' + textoRico(c.notas) + "</div>" : "") + "</div>" +
@@ -4042,6 +4077,57 @@ function verContabilidad() {
       '<p style="color:var(--muted-2);font-size:.83rem;margin-top:14px">' +
       "Estos números son para llevar el control interno del negocio. No sustituyen a tu gestoría " +
       "ni a las declaraciones fiscales: sirven para que sepas en todo momento cómo vas.</p></div>";
+
+    $("#vista").innerHTML = h;
+  }).catch(error);
+}
+
+/* ── De dónde vienen los clientes ─────────────────────────── */
+// Para saber dónde merece la pena gastar: qué trae cada canal en clientes,
+// solicitudes, obras y dinero facturado. Un canal a cero también dice algo,
+// así que sale en la tabla igual, apagado.
+function verOrigenes() {
+  var periodo = pintarPeriodo(verOrigenes);
+
+  api("/api/admin/informes/origenes?periodo=" + periodo).then(function (d) {
+    var t = d.totales;
+    var del = periodo.length === 4 ? "del año" : "del mes";
+
+    var h = '<div class="metricas">' +
+      metrica(t.clientes, "Clientes nuevos " + del, "") +
+      metrica(t.solicitudes, "Solicitudes " + del, "") +
+      metrica(t.obras, "Obras " + del, "") +
+      metrica(eur(t.facturado), "Facturado " + del + " · sin IVA", "metrica--verde") +
+      "</div>";
+
+    h += '<div class="tarjeta" style="margin-top:16px"><h3>Por dónde llegaron <span>' +
+         esc(nombrePeriodo(periodo)) + "</span></h3>";
+
+    if (!t.clientes && !t.solicitudes && !t.obras && !t.facturado) {
+      h += '<div class="vacia">Nada apuntado en este periodo.</div>';
+    } else {
+      h += '<div class="tabla-scroll"><table><thead><tr><th>Canal</th>' +
+        '<th class="num">Clientes</th><th class="num">Solicitudes</th>' +
+        '<th class="num">Obras</th><th class="num">Facturado</th></tr></thead><tbody>' +
+        d.items.map(function (f) {
+          var pct = t.facturado ? Math.round(f.facturado / t.facturado * 100) : 0;
+          var vacio = !f.clientes && !f.solicitudes && !f.obras && !f.facturado;
+          return "<tr" + (vacio ? ' style="opacity:.45"' : "") + "><td><b>" + esc(f.origen) + "</b>" +
+            (f.facturado ? '<div style="height:4px;border-radius:2px;background:var(--amber);width:' +
+              Math.max(4, pct) + '%;margin-top:6px"></div>' : "") + "</td>" +
+            '<td class="num">' + f.clientes + "</td>" +
+            '<td class="num">' + f.solicitudes + "</td>" +
+            '<td class="num">' + f.obras + "</td>" +
+            '<td class="num"><b>' + eur(f.facturado) + "</b>" +
+            (f.facturado ? '<div style="font-size:.76rem;color:var(--muted)">' + pct + "%</div>" : "") +
+            "</td></tr>";
+        }).join("") + "</tbody></table></div>";
+    }
+
+    h += '<p style="color:var(--muted-2);font-size:.83rem;margin-top:14px">' +
+      "Cada cosa cuenta en el periodo en que se dio de alta, y el facturado va sin IVA. " +
+      "El canal se apunta en la ficha del cliente, y las solicitudes de la web lo traen " +
+      "puesto si la persona lo dice. Los canales se cambian en Clientes › Orígenes.</p></div>";
 
     $("#vista").innerHTML = h;
   }).catch(error);

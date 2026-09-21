@@ -1,11 +1,14 @@
-"""Listas que se editan desde el panel: categorías y estados de los gastos, y
-estados de las obras.
+"""Listas que se editan desde el panel: categorías y estados de los gastos,
+estados de las obras y orígenes de los clientes (cómo nos conocieron).
 
 Cada gasto u obra guarda el NOMBRE de su categoría o estado, no un id: así
 eran los datos de siempre (categoria = 'material', estado = 'en curso') y así
 se leen sin cruzar tablas. Por eso renombrar renombra también los registros
 que lo llevan, y borrar uno que está en uso obliga a decir a cuál se pasan:
 nada se puede quedar con un estado que ya no existe.
+
+Una lista puede usarse en más de una tabla (el origen está en el cliente y en
+la solicitud que lo trajo): entonces renombrar y mover afectan a todas.
 
 Algunas listas llevan una marca por elemento:
 - estados de gasto: si el gasto cuenta como pagado. De ahí sale la columna
@@ -30,7 +33,22 @@ LISTAS = {
                       "marca": "pagado", "espejo": "pagado"},
     "obra-estados": {"tabla": "obra_estados", "uso": "obras", "columna": "estado",
                      "una": "el estado", "modulo": "obras", "marca": "activa"},
+    "cliente-origenes": {"tabla": "cliente_origenes", "uso": "clientes", "columna": "origen",
+                         "una": "el origen", "modulo": "clientes",
+                         # el mismo canal se apunta también en la solicitud
+                         "tambien": [("solicitudes", "origen")]},
 }
+
+
+def _usos(l: dict) -> list[tuple[str, str]]:
+    """Todas las tablas donde se guarda el nombre de un elemento de la lista."""
+    return [(l["uso"], l["columna"]), *l.get("tambien", [])]
+
+
+def completar_cliente(d: dict, existente: dict | None):
+    """El origen de un cliente, si se indica, tiene que ser uno de la lista."""
+    if d.get("origen"):
+        d["origen"] = _existente("cliente_origenes", d["origen"], "origen")["nombre"]
 
 
 def estado_pendiente(con=None) -> str | None:
@@ -102,9 +120,9 @@ def listar(que: str, u: dict = Depends(sesion_actual)):
     """La lista con cuántos registros usan cada elemento (de toda la empresa)."""
     l = _lista(que)
     exigir(u, l["modulo"])
-    return db.filas(f"""
-        SELECT x.*, (SELECT COUNT(*) FROM {l['uso']} r WHERE r.{l['columna']} = x.nombre) AS n
-        FROM {l['tabla']} x ORDER BY x.orden, x.id""")
+    cuenta = " + ".join(f"(SELECT COUNT(*) FROM {t} r WHERE r.{c} = x.nombre)"
+                        for t, c in _usos(l))
+    return db.filas(f"SELECT x.*, {cuenta} AS n FROM {l['tabla']} x ORDER BY x.orden, x.id")
 
 
 @router.post("/{que}", status_code=201)
@@ -137,8 +155,8 @@ def editar(que: str, id_: int, e: Elemento, u: dict = Depends(sesion_actual)):
     _repetido(l["tabla"], nombre, id_)
     with db.tx() as con:
         con.execute(f"UPDATE {l['tabla']} SET nombre = ? WHERE id = ?", (nombre, id_))
-        con.execute(f"UPDATE {l['uso']} SET {l['columna']} = ? WHERE {l['columna']} = ?",
-                    (nombre, viejo["nombre"]))
+        for t, c in _usos(l):
+            con.execute(f"UPDATE {t} SET {c} = ? WHERE {c} = ?", (nombre, viejo["nombre"]))
         if l.get("marca") and e.marca is not None:
             marca = 1 if e.marca else 0
             con.execute(f"UPDATE {l['tabla']} SET {l['marca']} = ? WHERE id = ?", (marca, id_))
@@ -158,8 +176,8 @@ def borrar(que: str, id_: int, mover_a: str | None = None, u: dict = Depends(ses
         raise HTTPException(404, "No encontrado")
     if db.escalar(f"SELECT COUNT(*) FROM {l['tabla']}") <= 1:
         raise HTTPException(409, f"No se puede borrar: tiene que quedar al menos {l['una']}.")
-    en_uso = db.escalar(f"SELECT COUNT(*) FROM {l['uso']} WHERE {l['columna']} = ?",
-                        (viejo["nombre"],))
+    en_uso = sum(db.escalar(f"SELECT COUNT(*) FROM {t} WHERE {c} = ?", (viejo["nombre"],))
+                 for t, c in _usos(l))
     destino = None
     if en_uso:
         if not mover_a:
@@ -171,8 +189,9 @@ def borrar(que: str, id_: int, mover_a: str | None = None, u: dict = Depends(ses
             raise HTTPException(422, f"No existe {l['una']} al que pasarlos.")
     with db.tx() as con:
         if destino:
-            con.execute(f"UPDATE {l['uso']} SET {l['columna']} = ? WHERE {l['columna']} = ?",
-                        (destino["nombre"], viejo["nombre"]))
+            for t, c in _usos(l):
+                con.execute(f"UPDATE {t} SET {c} = ? WHERE {c} = ?",
+                            (destino["nombre"], viejo["nombre"]))
             if l.get("espejo"):
                 con.execute(f"UPDATE {l['uso']} SET {l['espejo']} = ? WHERE {l['columna']} = ?",
                             (destino[l["marca"]], destino["nombre"]))
