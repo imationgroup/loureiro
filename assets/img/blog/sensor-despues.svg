@@ -13,11 +13,11 @@
   <!-- Detector de presencia en el techo -->
   <ellipse cx="400" cy="66" rx="26" ry="9" fill="#2B3039"/>
   <circle cx="400" cy="72" r="11" fill="#3A414C"/>
-  <circle cx="400" cy="72" r="4" fill="#F97316"/>
+  <circle cx="400" cy="72" r="4" fill="#F2A81C"/>
 
   <!-- Cono de detección -->
   <path d="M400 80l-150 250h300z" fill="url(#sd-g)"/>
-  <g stroke="#F97316" stroke-width="2" fill="none" opacity=".55">
+  <g stroke="#F2A81C" stroke-width="2" fill="none" opacity=".55">
     <path d="M400 92a58 58 0 0 1 0 0M356 128a112 112 0 0 1 88 0M330 176a166 166 0 0 1 140 0"/>
   </g>
 

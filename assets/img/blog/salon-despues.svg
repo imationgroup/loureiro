@@ -28,13 +28,13 @@
   <!-- Mueble bajo moderno -->
   <rect x="76" y="252" width="176" height="68" rx="5" fill="#2B3039"/>
   <rect x="76" y="252" width="176" height="7" rx="3" fill="#3A414C"/>
-  <rect x="120" y="282" width="40" height="4" rx="2" fill="#F97316"/>
-  <rect x="176" y="282" width="40" height="4" rx="2" fill="#F97316"/>
+  <rect x="120" y="282" width="40" height="4" rx="2" fill="#F2A81C"/>
+  <rect x="176" y="282" width="40" height="4" rx="2" fill="#F2A81C"/>
 
   <!-- Sofá -->
   <rect x="576" y="244" width="160" height="52" rx="12" fill="#E4DCD2"/>
   <rect x="566" y="222" width="180" height="42" rx="14" fill="#EFE8DF"/>
-  <rect x="604" y="230" width="48" height="30" rx="8" fill="#F97316" opacity=".85"/>
+  <rect x="604" y="230" width="48" height="30" rx="8" fill="#F2A81C" opacity=".85"/>
 
   <!-- Luminaria -->
   <path d="M400 0v44" stroke="#2B3039" stroke-width="3"/>

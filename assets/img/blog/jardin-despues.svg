@@ -31,10 +31,10 @@
     <rect x="8" y="8" width="72" height="30" rx="5" fill="#3A414C"/>
     <circle cx="16" cy="14" r="3" fill="#8B93A0"/><circle cx="72" cy="14" r="3" fill="#8B93A0"/>
     <circle cx="16" cy="38" r="3" fill="#8B93A0"/><circle cx="72" cy="38" r="3" fill="#8B93A0"/>
-    <text x="44" y="30" font-family="Inter, sans-serif" font-size="13" fill="#F97316" text-anchor="middle">IP67</text>
+    <text x="44" y="30" font-family="Inter, sans-serif" font-size="13" fill="#9A6A05" text-anchor="middle">IP67</text>
   </g>
   <!-- Manguera enterrada en tubo -->
-  <path d="M208 342h72" stroke="#F97316" stroke-width="7" stroke-linecap="round" opacity=".8"/>
+  <path d="M208 342h72" stroke="#F2A81C" stroke-width="7" stroke-linecap="round" opacity=".8"/>
   <path d="M208 342h72" stroke="#2B3039" stroke-width="3" stroke-linecap="round"/>
 
   <!-- Cielo despejado con estrellas -->

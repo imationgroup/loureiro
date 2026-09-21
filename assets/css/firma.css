@@ -6,15 +6,15 @@
    entender antes de firmar, no admirar la marca.
    ═══════════════════════════════════════════════════════════════════════ */
 
-.fi{ background:#F4F5F7; color:#22252B; }
+.fi{ background:#F4F5F7; color:#242A36; }
 
-.fi__cab{ background:#14161A; color:#fff; padding:14px 0; }
+.fi__cab{ background:#1E2533; color:#fff; padding:14px 0; }
 .fi__cab-in{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .fi__tel{ color:#fff; font-weight:600; font-size:.95rem; text-decoration:none; }
 .fi__tel:hover{ color:var(--amber); }
 
 .fi__main{ max-width:760px; padding:28px 20px 60px; }
-.fi__cargando{ color:#6C7079; padding:40px 0; text-align:center; }
+.fi__cargando{ color:#6B7180; padding:40px 0; text-align:center; }
 
 .fi__aviso{ border-radius:10px; padding:14px 16px; font-size:.95rem; line-height:1.55; margin-bottom:20px; }
 .fi__aviso--err{ background:#FEE2E2; color:#991B1B; }
@@ -22,7 +22,7 @@
 .fi__aviso--info{ background:#FFF7ED; color:#9A3412; }
 
 .fi__tarjeta{ background:#fff; border-radius:14px; padding:24px; margin-bottom:18px;
-  box-shadow:0 1px 3px rgba(20,22,26,.06); }
+  box-shadow:0 1px 3px rgba(30,37,51,.06); }
 .fi__tarjeta h2{ font-size:1.12rem; margin:0 0 14px; }
 .fi__tarjeta h3{ font-size:.95rem; margin:18px 0 6px; }
 .fi__tarjeta p{ margin:0 0 10px; line-height:1.6; font-size:.95rem; }
@@ -30,37 +30,37 @@
 .fi__enc{ display:flex; flex-wrap:wrap; gap:8px 24px; align-items:baseline;
   justify-content:space-between; margin-bottom:6px; }
 .fi__num{ font-family:var(--ff-head, inherit); font-size:1.45rem; font-weight:800; margin:0; }
-.fi__meta{ color:#6C7079; font-size:.9rem; }
+.fi__meta{ color:#6B7180; font-size:.9rem; }
 .fi__partes{ display:grid; gap:16px; grid-template-columns:1fr 1fr; margin:18px 0 4px; }
 .fi__parte h4{ font-size:.72rem; text-transform:uppercase; letter-spacing:.06em;
-  color:#6C7079; margin:0 0 6px; }
+  color:#6B7180; margin:0 0 6px; }
 .fi__parte p{ margin:0; font-size:.92rem; line-height:1.5; }
 
 .fi__tabla{ width:100%; border-collapse:collapse; margin:10px 0 0; font-size:.92rem; }
 .fi__tabla th{ text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em;
-  color:#6C7079; border-bottom:1px solid #E2E4E8; padding:8px 6px; }
+  color:#6B7180; border-bottom:1px solid #E2E4E8; padding:8px 6px; }
 .fi__tabla td{ padding:10px 6px; border-bottom:1px solid #EFF1F4; vertical-align:top; }
 .fi__tabla .num{ text-align:right; white-space:nowrap; }
 .fi__totales{ margin-top:16px; margin-left:auto; max-width:300px; font-size:.95rem; }
 .fi__totales div{ display:flex; justify-content:space-between; padding:5px 0; }
-.fi__totales .fi__total{ border-top:2px solid #14161A; margin-top:6px; padding-top:10px;
+.fi__totales .fi__total{ border-top:2px solid #1E2533; margin-top:6px; padding-top:10px;
   font-size:1.15rem; font-weight:800; }
 
 .fi__cond{ font-size:.92rem; line-height:1.62; color:#3A3E46; }
-.fi__cond h3{ font-size:.95rem; color:#14161A; margin:16px 0 4px; }
+.fi__cond h3{ font-size:.95rem; color:#1E2533; margin:16px 0 4px; }
 .fi__cond h3:first-child{ margin-top:0; }
 
 .fi__campo{ display:grid; gap:6px; margin-bottom:16px; }
 .fi__campo label{ font-size:.88rem; font-weight:600; }
 .fi__campo input{ font:inherit; font-size:1rem; padding:13px 14px; border:1px solid #D7DBE0;
-  border-radius:10px; background:#fff; color:#22252B; }
+  border-radius:10px; background:#fff; color:#242A36; }
 .fi__campo input:focus{ outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(249,115,22,.15); }
-.fi__campo small{ color:#6C7079; font-size:.82rem; }
+.fi__campo small{ color:#6B7180; font-size:.82rem; }
 
 .fi__firma{ border:2px dashed #C9CED6; border-radius:12px; background:#fff; touch-action:none; }
 .fi__firma-pie{ display:flex; justify-content:space-between; align-items:center;
-  margin-top:8px; font-size:.84rem; color:#6C7079; }
-.fi__borrar{ background:none; border:0; color:#6C7079; font:inherit; font-size:.86rem;
+  margin-top:8px; font-size:.84rem; color:#6B7180; }
+.fi__borrar{ background:none; border:0; color:#6B7180; font:inherit; font-size:.86rem;
   text-decoration:underline; cursor:pointer; padding:4px; }
 
 .fi__check{ display:flex; gap:12px; align-items:flex-start; margin-bottom:14px;
@@ -68,11 +68,11 @@
 .fi__check input{ width:22px; height:22px; margin:2px 0 0; accent-color:var(--amber); flex:none; }
 
 .fi__enviar{ width:100%; font-size:1.05rem; padding:17px; }
-.fi__legal{ color:#6C7079; font-size:.82rem; line-height:1.55; margin-top:14px; }
+.fi__legal{ color:#6B7180; font-size:.82rem; line-height:1.55; margin-top:14px; }
 
-.fi__pie{ background:#14161A; color:#9AA0AA; padding:22px 0 30px; font-size:.84rem; }
+.fi__pie{ background:#1E2533; color:#9AA2B1; padding:22px 0 30px; font-size:.84rem; }
 .fi__pie p{ margin:0 0 4px; }
-.fi__pie a{ color:#9AA0AA; }
+.fi__pie a{ color:#9AA2B1; }
 
 @media (max-width:640px){
   .fi__main{ padding:18px 14px 44px; }
@@ -83,7 +83,7 @@
   .fi__tabla thead{ display:none; }
   .fi__tabla tr{ display:block; border-bottom:1px solid #EFF1F4; padding:10px 0; }
   .fi__tabla td{ display:flex; justify-content:space-between; gap:16px; border:0; padding:3px 0; }
-  .fi__tabla td::before{ content:attr(data-et); color:#6C7079; font-size:.82rem; }
+  .fi__tabla td::before{ content:attr(data-et); color:#6B7180; font-size:.82rem; }
   .fi__tabla td.fi__concepto{ display:block; font-weight:600; margin-bottom:4px; }
   .fi__tabla td.fi__concepto::before{ content:none; }
 }
