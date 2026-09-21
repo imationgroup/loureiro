@@ -490,29 +490,56 @@ def ficha_cliente(id_: int, u: dict = Depends(sesion_actual)):
 def notificaciones(u: dict = Depends(sesion_actual)):
     """Lo que está pendiente de atender.
 
-    Por ahora solo las solicitudes pendientes: todas para el administrador y
-    las que tiene asignadas para un miembro. La respuesta es genérica
-    (tipo, título, detalle, fecha y vista a la que lleva) para poder añadir
-    más avisos —facturas vencidas, stock bajo mínimo— sin tocar el panel.
-    Tiene que ir en el router de rutas concretas: en el genérico, /{recurso}
-    se la tragaría como si "notificaciones" fuese una tabla.
-    """
-    if not puede(u, "solicitudes"):
-        return {"total": 0, "items": []}
-    cond, params = filtro_responsable(u)
-    pendientes = db.filas(
-        f"""SELECT id, nombre, servicio, creado FROM solicitudes
-            WHERE estado = 'pendiente' AND {cond} ORDER BY creado DESC, id DESC""", params)
-    items = [{
-        "tipo": "solicitud",
-        "id": s["id"],
-        "titulo": s["nombre"],
-        "detalle": s["servicio"] or "Sin especificar",
-        "fecha": s["creado"],
-        "vista": "solicitudes",
-    } for s in pendientes[:20]]
-    return {"total": len(pendientes), "items": items}
+    Dos cosas: las solicitudes sin atender y los presupuestos que se enviaron
+    hace días y siguen sin respuesta, que es trabajo ya hecho esperando una
+    llamada. Cada uno ve lo suyo; el administrador, todo.
 
+    La respuesta es genérica (tipo, título, detalle, fecha y vista a la que
+    lleva) para poder añadir más avisos sin tocar el panel. Tiene que ir en el
+    router de rutas concretas: en el genérico, /{recurso} se la tragaría como
+    si "notificaciones" fuese una tabla.
+    """
+    cond, params = filtro_responsable(u)
+    items = []
+
+    if puede(u, "solicitudes"):
+        for s in db.filas(
+                f"""SELECT id, nombre, servicio, creado FROM solicitudes
+                    WHERE estado = 'pendiente' AND {cond} ORDER BY creado DESC, id DESC""",
+                params):
+            items.append({
+                "tipo": "solicitud",
+                "id": s["id"],
+                "titulo": s["nombre"],
+                "detalle": s["servicio"] or "Sin especificar",
+                "fecha": s["creado"],
+                "vista": "solicitudes",
+            })
+
+    if puede(u, "presupuestos"):
+        dias = DIAS_PRESUPUESTO_SIN_RESPUESTA
+        for p_ in db.filas(
+                f"""SELECT p.id, p.numero, p.fecha, c.nombre AS cliente
+                    FROM presupuestos p LEFT JOIN clientes c ON c.id = p.cliente_id
+                    WHERE p.estado = 'enviado' AND p.firmado_el IS NULL
+                      AND date(p.fecha) <= date('now', ?) AND {cond.replace('usuario_id', 'p.usuario_id')}
+                    ORDER BY p.fecha, p.id""", (f"-{dias} days", *params)):
+            espera = (date.today() - date.fromisoformat(p_["fecha"][:10])).days
+            items.append({
+                "tipo": "presupuesto",
+                "id": p_["id"],
+                "titulo": (p_["numero"] or f"#{p_['id']}") + " · " + (p_["cliente"] or "sin cliente"),
+                "detalle": f"Enviado hace {espera} días y sin respuesta",
+                "fecha": p_["fecha"],
+                "vista": "presupuestos",
+            })
+
+    return {"total": len(items), "items": items[:20]}
+
+
+# Días que se espera la respuesta de un presupuesto enviado antes de avisar.
+# Pasado ese tiempo, una llamada recupera unos cuantos.
+DIAS_PRESUPUESTO_SIN_RESPUESTA = 10
 
 SALTO = chr(10)   # separador dentro de las notas del cliente
 

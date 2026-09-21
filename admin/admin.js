@@ -4732,21 +4732,26 @@ function pintarCampana() {
       (n.total ? " <span>" + n.total + "</span>" : "") + "</div>" +
     (n.items.length
       ? n.items.map(function (it) {
-          return '<button type="button" class="campana__item" data-noti="' + it.id + '">' +
+          return '<button type="button" class="campana__item" data-noti="' + it.id +
+                 '" data-tipo="' + esc(it.tipo) + '">' +
                  "<b>" + esc(it.titulo) + "</b><span>" + esc(it.detalle) + " · " +
                  esc(hace(it.fecha)) + "</span></button>";
         }).join("")
       : '<div class="campana__vacio">Todo atendido. No hay nada pendiente.</div>') +
-    ((n.total > n.items.length || n.total) && puedeVer("solicitudes")
+    ((n.total > n.items.length) && puedeVer("solicitudes")
       ? '<button type="button" class="campana__todas">Ver todas las solicitudes</button>'
       : "");
 
-  // Pinchar un aviso lleva a Solicitudes y abre esa solicitud, con el mensaje
-  // y el desplegable de estado a mano.
+  // Pinchar un aviso lleva a lo que avisa y lo abre: la solicitud con su
+  // mensaje, o el presupuesto que lleva días sin respuesta.
   $$("[data-noti]", p).forEach(function (b) {
     b.addEventListener("click", function () {
       var id = b.dataset.noti;
       cerrarCampana();
+      if (b.dataset.tipo === "presupuesto") {
+        ir("presupuestos");
+        return editarDocumento("presupuestos", id);
+      }
       ir("solicitudes");
       api("/api/admin/solicitudes").then(function (lista) {
         var f = lista.filter(function (x) { return String(x.id) === id; })[0];
