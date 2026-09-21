@@ -9,11 +9,17 @@ de feeds o para mandarlo a una newsletter.
 Se ejecuta en cada despliegue (ver scripts/deploy.sh), así que el feed siempre
 va al día aunque nadie se acuerde de regenerarlo. Solo librería estándar.
 
-La fecha de cada post sale de su primer commit, que es cuando se publicó de
-verdad; si el repo no está a mano, del propio fichero.
+La fecha de cada post sale de su primer commit, siguiendo los cambios de
+carpeta: si no se siguieran, todos los artículos que se movieron a carpetas por
+categoría tendrían la fecha de la mudanza y el feed saldría desordenado.
+
+Además, `scripts/destacar-post.py` permite empujar un post ya publicado para
+que el conector lo vuelva a publicar como novedad: se apunta en
+blog/novedades.json y aquí sale con fecha e identificador nuevos.
 """
 
 import html
+import json
 import re
 import subprocess
 from email.utils import format_datetime
@@ -23,6 +29,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 WEB = "https://loureirosoluciones.es"
 SALIDA = RAIZ / "feed.xml"
+DESTACADOS = RAIZ / "blog" / "novedades.json"
 TITULO = "Blog de Loureiro Soluciones"
 # Foto de reserva: un item sin imagen no lo puede publicar un conector.
 IMAGEN_POR_DEFECTO = WEB + "/assets/img/og-image.jpg"
@@ -58,20 +65,37 @@ def primer_parrafo(texto: str) -> str:
 
 
 def _fecha(ruta: Path) -> datetime:
-    """Cuándo se publicó: el primer commit del fichero, o su fecha en disco."""
+    """Cuándo se publicó de verdad: su commit más antiguo, o la fecha del fichero.
+
+    Con --follow la historia atraviesa los cambios de carpeta, así que la
+    última línea del log es la creación del artículo y no la mudanza a su
+    categoría.
+    """
     try:
         salida = subprocess.run(
-            ["git", "log", "--diff-filter=A", "--follow", "--format=%cI", "-1", "--",
+            ["git", "log", "--follow", "--format=%cI", "--",
              str(ruta.relative_to(RAIZ).as_posix())],
-            cwd=RAIZ, capture_output=True, text=True, timeout=20)
-        if salida.returncode == 0 and salida.stdout.strip():
-            return datetime.fromisoformat(salida.stdout.strip())
+            cwd=RAIZ, capture_output=True, text=True, timeout=30)
+        lineas = [l.strip() for l in salida.stdout.splitlines() if l.strip()]
+        if salida.returncode == 0 and lineas:
+            return datetime.fromisoformat(lineas[-1])
     except (OSError, ValueError, subprocess.SubprocessError):
         pass
     return datetime.fromtimestamp(ruta.stat().st_mtime, timezone.utc)
 
 
+def destacados() -> dict:
+    """Posts que se han vuelto a lanzar a mano, con la fecha en que se lanzaron."""
+    if not DESTACADOS.exists():
+        return {}
+    try:
+        return json.loads(DESTACADOS.read_text(encoding="utf-8")).get("destacados", {})
+    except (ValueError, OSError):
+        return {}
+
+
 def posts() -> list[dict]:
+    lanzados = destacados()
     encontrados = []
     for ruta in (RAIZ / "blog").rglob("*.html"):
         if ruta.name == "index.html":
@@ -98,6 +122,17 @@ def posts() -> list[dict]:
             "categoria": categoria.capitalize(),
             "fecha": _fecha(ruta),
         })
+        # Un post relanzado a mano sale con la fecha del relanzamiento y con
+        # otro identificador, para que el conector lo vea como algo nuevo.
+        relanzado = lanzados.get(encontrados[-1]["url"])
+        if relanzado:
+            try:
+                cuando = datetime.fromisoformat(relanzado)
+            except ValueError:
+                cuando = None
+            if cuando and cuando > encontrados[-1]["fecha"]:
+                encontrados[-1]["fecha"] = cuando
+                encontrados[-1]["relanzado"] = cuando
     encontrados.sort(key=lambda p: p["fecha"], reverse=True)
     return encontrados
 
@@ -123,7 +158,9 @@ def main():
             "    <item>",
             f"      <title>{xml(p['titulo'])}</title>",
             f"      <link>{xml(p['url'])}</link>",
-            f"      <guid isPermaLink=\"true\">{xml(p['url'])}</guid>",
+            (f"      <guid isPermaLink=\"false\">{xml(p['url'])}#novedad-"
+             f"{p['relanzado'].strftime('%Y%m%d%H%M')}</guid>" if p.get("relanzado") else
+             f"      <guid isPermaLink=\"true\">{xml(p['url'])}</guid>"),
             f"      <pubDate>{format_datetime(p['fecha'])}</pubDate>",
             f"      <description>{xml(p['descripcion'])}</description>",
         ]

@@ -269,12 +269,19 @@ Nadie tiene que acordarse de nada.
 Al activarlo, Make marca como vistos los items que ya hay, así que **no
 republica el blog entero**.
 
-### Republicar los posts viejos
+### Republicar un post cuando quieras
 
-Las novedades de Google envejecen y dejan de verse. En el mismo Make se puede
-añadir un segundo escenario programado (por ejemplo, semanal) que coja un item
-al azar del feed y publique otra novedad. Es opcional, pero mantiene el perfil
-con movimiento.
+Las novedades de Google envejecen y dejan de verse, así que de vez en cuando
+interesa relanzar un artículo que ya está en el blog:
+
+```bash
+python scripts/destacar-post.py placas      # un trozo del nombre basta
+python scripts/destacar-post.py --lista     # qué se ha relanzado y cuándo
+```
+
+Lo apunta en `blog/novedades.json` y regenera el feed: ese post pasa a ser el
+primero, con la fecha de hoy y otro identificador, así que Make lo ve como algo
+nuevo y publica la novedad. Commitea y despliega como siempre.
 
 ### Si algún día Google aprueba el acceso
 
