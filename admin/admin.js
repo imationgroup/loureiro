@@ -64,6 +64,7 @@ var ico = {
   whatsapp:'<path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.6z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2z"/>',
   nota:'<path d="M5 3h14v12l-6 6H5z"/><path d="M13 21v-6h6"/><path d="M8 8h8M8 12h5"/>',
   etiqueta:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+  estrella:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
   clip:'<path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/>',
   camara:'<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
@@ -439,6 +440,9 @@ var MODULOS = {
     // ciudad o la provincia, el navegador llevaría al centro del pueblo.
     acciones: [
       { ico: "ojo", titulo: "Ficha del cliente", fn: function (f) { abrirFicha(f.id); } },
+      { ico: "estrella", titulo: "Pedir reseña de Google por WhatsApp",
+        oculta: function (f) { return !telefonoWhatsApp(f.telefono); },
+        fn: function (f) { pedirResena(f, function () { ir("clientes"); }); } },
       { ico: "mapa", titulo: "Cómo llegar (Google Maps)",
         oculta: function (f) { return !String(f.direccion || "").trim(); },
         fn: function (f) { abrirMaps(f); } }
@@ -2255,6 +2259,77 @@ function borrarDeLista(clave, f, filas) {
   });
 }
 
+/* ── Reseñas de Google ────────────────────────────────────────────────── */
+// El enlace para dejar reseña lo da el propio Perfil de Empresa. Se guarda una
+// vez y se lee al entrar, para que al pulsar el botón se pueda abrir WhatsApp
+// en el mismo clic: si se pidiera al servidor primero, el navegador bloquearía
+// la ventana.
+//
+// La reseña NO se pide sola en ningún momento: solo cuando se pulsa el botón.
+var RESENAS_URL = "";
+
+function cargarEnlaceResenas() {
+  if (!puedeVer("clientes")) return Promise.resolve("");
+  return api("/api/admin/ajustes/resenas_url")
+    .then(function (r) { RESENAS_URL = r.valor || ""; return RESENAS_URL; })
+    .catch(function () { return ""; });
+}
+
+function textoResena(cliente) {
+  var nombre = String(cliente.nombre || "").trim().split(" ")[0];
+  return "Hola" + (nombre ? " " + nombre : "") + ", somos Loureiro Soluciones. " +
+    "Si has quedado contento con el trabajo, ¿nos dejas una reseña en Google? " +
+    "Es un minuto y nos ayuda mucho a que otros vecinos nos encuentren:\n" + RESENAS_URL;
+}
+
+// Guarda el enlace de reseñas. Solo el administrador.
+function configurarResenas(despues) {
+  if (!esAdmin()) {
+    return avisar("Falta el enlace de reseñas. Que lo configure el administrador.", "err");
+  }
+  modal("Enlace para dejar reseña",
+    '<div class="aviso aviso--err" id="re-err" hidden></div>' +
+    '<p style="color:var(--muted);line-height:1.55">En tu Perfil de Empresa de Google, ' +
+    'en «Pedir reseñas», Google te da un enlace corto. Pégalo aquí y se usará en todos ' +
+    'los mensajes.</p>' +
+    '<div class="campo"><label for="re-url">Enlace</label>' +
+    '<input id="re-url" placeholder="https://g.page/r/..." value="' + esc(RESENAS_URL) + '"></div>',
+    '<button class="btn btn--fant" id="re-no">Cancelar</button>' +
+    '<button class="btn btn--amber" id="re-si">Guardar</button>');
+  $("#re-no").addEventListener("click", cerrarModal);
+  $("#re-si").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    api("/api/admin/ajustes/resenas_url", { metodo: "PUT", datos: { valor: $("#re-url").value.trim() } })
+      .then(function (r) {
+        RESENAS_URL = r.valor;
+        cerrarModal();
+        avisar("Enlace guardado");
+        if (despues) despues();
+      })
+      .catch(function (e) { btn.disabled = false; var el = $("#re-err"); el.textContent = e.message; el.hidden = false; });
+  });
+}
+
+// Abre WhatsApp con el mensaje escrito y apunta la fecha en la ficha.
+function pedirResena(cliente, alTerminar) {
+  var tel = telefonoWhatsApp(cliente.telefono);
+  if (!tel) return avisar("Ese cliente no tiene un teléfono válido para WhatsApp", "err");
+  if (!RESENAS_URL) return configurarResenas(function () { pedirResena(cliente, alTerminar); });
+
+  var ventana = window.open("https://wa.me/" + tel + "?text=" + encodeURIComponent(textoResena(cliente)),
+                            "_blank");
+  if (!ventana) avisar("El navegador no ha dejado abrir WhatsApp", "err");
+  api("/api/admin/clientes/" + cliente.id,
+      { metodo: "PUT", datos: { resena_pedida: new Date().toISOString().slice(0, 10) } })
+    .then(function () {
+      invalidar();
+      avisar("Apuntado: reseña pedida a " + cliente.nombre);
+      if (alTerminar) alTerminar();
+    })
+    .catch(function (e) { avisar(e.message, "err"); });
+}
+
 /* ── Ficha de cliente ─────────────────────────────────────────────────── */
 // Todo lo de un cliente en una página: datos, mapa, obras, presupuestos,
 // facturas con lo cobrado y lo pendiente, visitas y notas. Lo que se abre
@@ -2290,6 +2365,10 @@ function verFichaCliente() {
       // Acciones de arriba.
       var acc = '<button class="btn btn--fant" id="fc-volver">← Clientes</button>' +
         '<button class="btn btn--fant" id="fc-editar">' + svg(ico.lapiz) + "Editar</button>";
+      if (telefonoWhatsApp(c.telefono)) {
+        acc += '<button class="btn btn--fant" id="fc-resena" title="Abre WhatsApp con el mensaje escrito">' +
+               svg(ico.estrella) + (c.resena_pedida ? "Pedir reseña otra vez" : "Pedir reseña") + "</button>";
+      }
       if (d.notas) acc += '<button class="btn btn--fant" id="fc-nota">' + svg(ico.nota) + "Nota</button>";
       if (d.visitas && puedeVer("visitas")) acc += '<button class="btn btn--fant" id="fc-visita">' + svg(ico.camara) + "Visita</button>";
       if (d.presupuestos) acc += '<button class="btn btn--amber" id="fc-presu">' + svg(ico.doc) + "Presupuesto</button>";
@@ -2320,6 +2399,7 @@ function verFichaCliente() {
         dato("NIF", esc(c.nif)) +
         dato("Dirección", esc(dir)) +
         dato("Cliente desde", esc(fecha(c.creado))) +
+        dato("Reseña pedida", esc(fecha(c.resena_pedida))) +
         (esAdmin() ? dato("Responsable", esc(nombreDe("equipo", c.usuario_id))) : "") +
         "</dl>" + (c.notas ? '<div class="fc-notas-ficha">' + textoRico(c.notas) + "</div>" : "") + "</div>" +
         '<div class="tarjeta fc-mapa"><h3>Localización' +
@@ -2391,6 +2471,9 @@ function verFichaCliente() {
         editarDocumento("presupuestos", null, { cliente_id: c.id });
       }));
       if ($("#fc-ruta")) $("#fc-ruta").addEventListener("click", function () { abrirMaps(c); });
+      if ($("#fc-resena")) $("#fc-resena").addEventListener("click", function () {
+        pedirResena(c, function () { ir("ficha_cliente"); });
+      });
       $$("[data-obra]").forEach(function (tr) {
         tr.addEventListener("click", desdeFicha(function () {
           api("/api/admin/obras").then(function (todas) {
@@ -4709,6 +4792,7 @@ function arrancar(desdeLogin) {
     ? (YO.nombre || YO.email) + (esAdmin() ? " · administrador" : "")
     : guardado("loureiro_email");
   invalidar();
+  cargarEnlaceResenas();
   // Al entrar con la contraseña se abre siempre el Panel, aunque la URL traiga
   // la vista de la sesión anterior. Al recargar con la sesión viva sí se
   // respeta la vista en la que estabas.
