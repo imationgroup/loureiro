@@ -14,7 +14,7 @@
   <rect width="800" height="450" fill="url(#mb-cielo)"/>
 
   <!-- Cota entre juntas -->
-  <g stroke="#F97316" stroke-width="2.5" stroke-linecap="round">
+  <g stroke="#F2A81C" stroke-width="2.5" stroke-linecap="round">
     <path d="M64 96v18M404 96v18M64 105h340"/>
     <path d="M76 99l-12 6 12 6M392 99l12 6-12 6" fill="none"/>
   </g>
@@ -36,7 +36,7 @@
   </g>
 
   <!-- Junta de dilatación, de arriba abajo -->
-  <rect x="398" y="136" width="8" height="176" fill="#F97316"/>
+  <rect x="398" y="136" width="8" height="176" fill="#F2A81C"/>
   <path d="M402 136v176" stroke="#C2410C" stroke-width="1.5" stroke-dasharray="6 5"/>
   <text x="414" y="330" font-family="Inter, sans-serif" font-size="15" fill="#C2410C">Junta de dilatación</text>
 
