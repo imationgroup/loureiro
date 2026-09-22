@@ -28,7 +28,7 @@
   <!-- Etiqueta regulable -->
   <g transform="translate(596 300)">
     <rect width="150" height="40" rx="20" fill="#FFFFFF" stroke="#E0DBD2" stroke-width="2"/>
-    <circle cx="26" cy="20" r="9" fill="#F2A81C"/>
+    <circle cx="26" cy="20" r="9" fill="#F97316"/>
     <text x="46" y="26" font-family="Inter, sans-serif" font-size="14" fill="#4A4F58">Regulable</text>
   </g>
 </svg>

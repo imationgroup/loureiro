@@ -22,10 +22,10 @@
 
   <!-- Cable viejo saliendo y nuevo entrando -->
   <path d="M86 155h120" stroke="#8A8E96" stroke-width="6" stroke-linecap="round"/>
-  <path d="M206 155h134" stroke="#F2A81C" stroke-width="6" stroke-linecap="round"/>
-  <circle cx="206" cy="155" r="9" fill="#FFFFFF" stroke="#F2A81C" stroke-width="3"/>
+  <path d="M206 155h134" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="206" cy="155" r="9" fill="#FFFFFF" stroke="#F97316" stroke-width="3"/>
   <text x="70" y="216" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Cable viejo</text>
-  <text x="250" y="216" font-family="Inter, sans-serif" font-size="13" fill="#9A6A05" font-weight="600">Cable nuevo</text>
+  <text x="250" y="216" font-family="Inter, sans-serif" font-size="13" fill="#F97316" font-weight="600">Cable nuevo</text>
   <text x="70" y="242" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">Se atan por el punto de unión y, al tirar</text>
   <text x="70" y="260" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">del viejo, el nuevo ocupa su sitio.</text>
   <text x="70" y="292" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Se aprovecha para subir la sección</text>
@@ -45,13 +45,13 @@
 
   <!-- Rodapié con la línea -->
   <rect x="440" y="268" width="300" height="20" rx="6" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
-  <path d="M481 174v94h240" stroke="#F2A81C" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M481 174v94h240" stroke="#F97316" stroke-width="6" fill="none" stroke-linecap="round"/>
 
   <!-- Enchufe -->
   <rect x="700" y="216" width="44" height="44" rx="8" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3"/>
   <circle cx="713" cy="238" r="4" fill="#C8C3BA"/>
   <circle cx="731" cy="238" r="4" fill="#C8C3BA"/>
-  <path d="M721 268v-8" stroke="#F2A81C" stroke-width="6" stroke-linecap="round"/>
+  <path d="M721 268v-8" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
 
   <text x="440" y="316" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">Enchufes nuevos donde hacen falta, sin</text>
   <text x="440" y="334" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">rozas, sin polvo y en el mismo día.</text>

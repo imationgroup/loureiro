@@ -25,13 +25,13 @@
 
     <!-- Línea marcada: la potencia -->
     <rect x="110" y="148" width="302" height="34" rx="6" fill="#FDEBD9"/>
-    <rect x="110" y="148" width="4" height="34" rx="2" fill="#F2A81C"/>
+    <rect x="110" y="148" width="4" height="34" rx="2" fill="#F97316"/>
     <text x="122" y="170" font-family="Inter, sans-serif" font-size="14" fill="#8A4A16">Potencia contratada</text>
     <rect x="330" y="160" width="70" height="9" rx="4.5" fill="#F6BE8C"/>
 
     <!-- Total -->
     <rect x="122" y="300" width="278" height="1.5" fill="#E0DBD2"/>
-    <text x="122" y="332" font-family="Inter, sans-serif" font-size="15" fill="#6B7180">Total</text>
+    <text x="122" y="332" font-family="Inter, sans-serif" font-size="15" fill="#6C7079">Total</text>
     <rect x="300" y="320" width="100" height="14" rx="7" fill="#C8C3BA"/>
     <rect x="122" y="364" width="120" height="8" rx="4" fill="#EFEBE4"/>
   </g>
@@ -47,10 +47,10 @@
 
   <!-- Periodos: punta, llano y valle -->
   <g>
-    <text x="556" y="96" font-family="Inter, sans-serif" font-size="15" fill="#6B7180">Cuándo consumes</text>
+    <text x="556" y="96" font-family="Inter, sans-serif" font-size="15" fill="#6C7079">Cuándo consumes</text>
     <rect x="556" y="120" width="160" height="10" rx="5" fill="#EFEBE4"/>
 
-    <rect x="556" y="150" width="150" height="30" rx="6" fill="#F2A81C"/>
+    <rect x="556" y="150" width="150" height="30" rx="6" fill="#F97316"/>
     <text x="568" y="170" font-family="Inter, sans-serif" font-size="14" fill="#FFFFFF">Punta</text>
 
     <rect x="556" y="192" width="104" height="30" rx="6" fill="#F6BE8C"/>

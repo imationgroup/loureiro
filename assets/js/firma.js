@@ -156,7 +156,7 @@ function prepararFirma() {
   ctx.lineWidth = 2.4;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "#1E2533";
+  ctx.strokeStyle = "#14161A";
 
   var pintando = false;
   var punto = function (e) {

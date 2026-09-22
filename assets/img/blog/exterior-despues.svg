@@ -13,7 +13,7 @@
   <!-- Bañado de muro desde abajo -->
   <path d="M210 380l24-190h22l24 190z" fill="url(#ed-b)"/>
   <path d="M520 380l24-190h22l24 190z" fill="url(#ed-b)"/>
-  <g fill="#F2A81C">
+  <g fill="#F97316">
     <rect x="228" y="370" width="20" height="8" rx="3"/>
     <rect x="538" y="370" width="20" height="8" rx="3"/>
   </g>
