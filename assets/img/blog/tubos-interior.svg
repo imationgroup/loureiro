@@ -16,17 +16,17 @@
 
   <!-- Canaleta por techo -->
   <rect x="120" y="106" width="226" height="18" rx="6" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
-  <path d="M132 115h202" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+  <path d="M132 115h202" stroke="#F2A81C" stroke-width="6" stroke-linecap="round"/>
 
   <!-- Split -->
   <rect x="62" y="134" width="132" height="34" rx="9" fill="#FFFFFF"/>
   <rect x="62" y="134" width="132" height="34" rx="9" fill="none" stroke="#C8C3BA" stroke-width="3"/>
   <path d="M76 160h104" stroke="#C8C3BA" stroke-width="3"/>
-  <path d="M128 134v-10q0-9 9-9h0" stroke="#F97316" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M128 134v-10q0-9 9-9h0" stroke="#F2A81C" stroke-width="6" fill="none" stroke-linecap="round"/>
 
   <!-- Salida a fachada -->
-  <path d="M334 115h26" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
-  <circle cx="360" cy="115" r="10" fill="none" stroke="#F97316" stroke-width="3"/>
+  <path d="M334 115h26" stroke="#F2A81C" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="360" cy="115" r="10" fill="none" stroke="#F2A81C" stroke-width="3"/>
   <text x="196" y="194" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Canaleta vista, pegada</text>
   <text x="196" y="212" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">al techo y pintada</text>
   <text x="196" y="230" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">del color de la pared</text>
@@ -52,15 +52,15 @@
   <text x="440" y="238" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Salón</text>
 
   <!-- Tres ramales al colector -->
-  <path d="M544 118h120M544 188h120M544 258h120" stroke="#F97316" stroke-width="5" stroke-linecap="round"/>
-  <path d="M664 118v140" stroke="#F97316" stroke-width="5" stroke-linecap="round"/>
+  <path d="M544 118h120M544 188h120M544 258h120" stroke="#F2A81C" stroke-width="5" stroke-linecap="round"/>
+  <path d="M664 118v140" stroke="#F2A81C" stroke-width="5" stroke-linecap="round"/>
 
   <!-- Canaleta vertical -->
   <rect x="652" y="100" width="24" height="176" rx="7" fill="none" stroke="#C8C3BA" stroke-width="3"/>
 
   <!-- Salida única -->
-  <path d="M664 276v18q0 10 10 10h46" stroke="#F97316" stroke-width="6" fill="none" stroke-linecap="round"/>
-  <circle cx="726" cy="304" r="10" fill="none" stroke="#F97316" stroke-width="3"/>
+  <path d="M664 276v18q0 10 10 10h46" stroke="#F2A81C" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <circle cx="726" cy="304" r="10" fill="none" stroke="#F2A81C" stroke-width="3"/>
 
   <text x="420" y="360" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46" font-weight="600">Los tres pares van juntos, pero no se unen</text>
   <text x="420" y="380" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Cada split lleva su ida y su retorno hasta la máquina de fuera.</text>
@@ -68,10 +68,10 @@
   <text x="420" y="416" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">y tres cables: por eso pide una canaleta más ancha.</text>
 
   <!-- Leyenda -->
-  <path d="M62 380h26" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+  <path d="M62 380h26" stroke="#F2A81C" stroke-width="6" stroke-linecap="round"/>
   <text x="96" y="385" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Par de tubos aislados</text>
   <rect x="62" y="404" width="26" height="14" rx="5" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
   <text x="96" y="416" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Canaleta vista</text>
-  <circle cx="75" cy="440" r="9" fill="none" stroke="#F97316" stroke-width="3"/>
+  <circle cx="75" cy="440" r="9" fill="none" stroke="#F2A81C" stroke-width="3"/>
   <text x="96" y="445" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Paso a fachada</text>
 </svg>

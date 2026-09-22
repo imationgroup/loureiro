@@ -133,13 +133,13 @@ def _correo_firma(doc: dict, cliente: dict, enlace: str) -> bool:
     html = f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Presupuesto {escape(numero)}</title></head><body style="margin:0;padding:0;background:#F4F5F7">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F7;padding:24px 12px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#22252B">
-  <tr><td style="background:#14161A;padding:20px 28px"><span style="font-size:19px;font-weight:bold;color:#FFFFFF">Loureiro</span><span style="font-size:19px;color:#9AA0AA">soluciones</span></td></tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#242A36">
+  <tr><td style="background:#1E2533;padding:20px 28px"><span style="font-size:19px;font-weight:bold;color:#FFFFFF">Loureiro</span><span style="font-size:19px;color:#9AA2B1">soluciones</span></td></tr>
   <tr><td style="padding:28px">
-    <p style="margin:0 0 14px;font-size:20px;font-weight:bold;color:#14161A">Hola{(' ' + escape(nombre)) if nombre else ''},</p>
+    <p style="margin:0 0 14px;font-size:20px;font-weight:bold;color:#1E2533">Hola{(' ' + escape(nombre)) if nombre else ''},</p>
     <p style="margin:0 0 14px;font-size:15px;line-height:1.6">Aquí tienes el presupuesto <b>{escape(numero)}</b>. Puedes leerlo entero y, si estás de acuerdo, firmarlo desde el móvil.</p>
-    <p style="margin:24px 0"><a href="{escape(enlace)}" style="display:inline-block;background:#F97316;color:#FFFFFF;font-weight:bold;font-size:15px;text-decoration:none;padding:13px 24px;border-radius:999px">Ver y firmar el presupuesto</a></p>
-    <p style="margin:0;font-size:13px;line-height:1.6;color:#6C7079">El enlace es personal, no lo compartas. ¿Dudas? Responde a este correo o llámanos al 603 905 128.</p>
+    <p style="margin:24px 0"><a href="{escape(enlace)}" style="display:inline-block;background:#F2A81C;color:#2C3444;font-weight:bold;font-size:15px;text-decoration:none;padding:13px 24px;border-radius:999px">Ver y firmar el presupuesto</a></p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#6B7180">El enlace es personal, no lo compartas. ¿Dudas? Responde a este correo o llámanos al 603 905 128.</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
     return send_email(to=cliente["email"], subject=f"Tu presupuesto {numero} · Loureiro Soluciones",

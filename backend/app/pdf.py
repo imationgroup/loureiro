@@ -54,9 +54,9 @@ TIPOS = {
     },
 }
 
-INK = colors.HexColor("#14161A")
-AMBER = colors.HexColor("#F97316")
-GRIS = colors.HexColor("#6C7079")
+INK = colors.HexColor("#1E2533")
+AMBER = colors.HexColor("#F2A81C")
+GRIS = colors.HexColor("#6B7180")
 LINEA = colors.HexColor("#E2E4E8")
 SUAVE = colors.HexColor("#F6F7F9")
 
