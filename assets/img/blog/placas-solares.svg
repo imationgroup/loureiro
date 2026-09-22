@@ -12,8 +12,8 @@
 
   <!-- Sol -->
   <circle cx="648" cy="98" r="42" fill="#FFD9A8" opacity=".5"/>
-  <circle cx="648" cy="98" r="26" fill="#F2A81C"/>
-  <g stroke="#F2A81C" stroke-width="4" stroke-linecap="round" opacity=".85">
+  <circle cx="648" cy="98" r="26" fill="#F97316"/>
+  <g stroke="#F97316" stroke-width="4" stroke-linecap="round" opacity=".85">
     <path d="M648 36v-14M648 174v14M710 98h14M572 98h14M693 53l10-10M593 143l-10 10M693 143l10 10M593 53l-10-10"/>
   </g>
 
@@ -54,7 +54,7 @@
   <rect x="180" y="278" width="62" height="52" rx="4" fill="none" stroke="#2B3039" stroke-width="4"/>
   <path d="M211 278v52M180 304h62" stroke="#2B3039" stroke-width="3"/>
   <rect x="368" y="292" width="58" height="80" rx="4" fill="#2B3039"/>
-  <circle cx="382" cy="334" r="4" fill="#F2A81C"/>
+  <circle cx="382" cy="334" r="4" fill="#F97316"/>
 
   <!-- Inversor en la fachada -->
   <rect x="280" y="278" width="54" height="68" rx="6" fill="#FFFFFF"/>
@@ -64,10 +64,10 @@
   <rect x="291" y="302" width="32" height="18" rx="3" fill="#E8E3DA"/>
   <path d="M297 311h20" stroke="#8B93A0" stroke-width="3" stroke-linecap="round"/>
   <circle cx="297" cy="334" r="4" fill="#4ADE80"/>
-  <circle cx="311" cy="334" r="4" fill="#F2A81C"/>
+  <circle cx="311" cy="334" r="4" fill="#F97316"/>
 
   <!-- La energía va a la casa y a la batería -->
-  <g stroke="#F2A81C" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <g stroke="#F97316" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
     <path d="M470 244 C 498 258 508 268 514 286"/>
     <path d="M504 274l10 14 10-12"/>
   </g>
@@ -78,18 +78,18 @@
   <rect x="502" y="310" width="42" height="10" rx="5" fill="#4ADE80"/>
   <rect x="502" y="326" width="42" height="10" rx="5" fill="#4ADE80"/>
   <rect x="502" y="342" width="42" height="10" rx="5" fill="#E8E3DA"/>
-  <text x="523" y="366" font-family="Inter, sans-serif" font-size="12" fill="#6B7180" text-anchor="middle">Batería</text>
+  <text x="523" y="366" font-family="Inter, sans-serif" font-size="12" fill="#6C7079" text-anchor="middle">Batería</text>
 
   <!-- Producción medida -->
   <g transform="translate(600 186)">
     <rect width="150" height="96" rx="10" fill="#FFFFFF"/>
     <rect width="150" height="96" rx="10" fill="none" stroke="#E0DBD2" stroke-width="3"/>
-    <text x="16" y="26" font-family="Inter, sans-serif" font-size="12" fill="#6B7180">Producción</text>
+    <text x="16" y="26" font-family="Inter, sans-serif" font-size="12" fill="#6C7079">Producción</text>
     <g fill="#F6BE8C">
       <rect x="16" y="52" width="16" height="24" rx="3"/>
       <rect x="40" y="42" width="16" height="34" rx="3"/>
     </g>
-    <g fill="#F2A81C">
+    <g fill="#F97316">
       <rect x="64" y="34" width="16" height="42" rx="3"/>
       <rect x="88" y="44" width="16" height="32" rx="3"/>
       <rect x="112" y="56" width="16" height="20" rx="3"/>

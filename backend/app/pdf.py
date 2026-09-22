@@ -54,9 +54,9 @@ TIPOS = {
     },
 }
 
-INK = colors.HexColor("#1E2533")
-AMBER = colors.HexColor("#F2A81C")
-GRIS = colors.HexColor("#6B7180")
+INK = colors.HexColor("#14161A")
+AMBER = colors.HexColor("#F97316")
+GRIS = colors.HexColor("#6C7079")
 LINEA = colors.HexColor("#E2E4E8")
 SUAVE = colors.HexColor("#F6F7F9")
 
@@ -109,25 +109,17 @@ def _cabecera(c, tipo, p):
 
     # Isotipo: la misma casa de trazo del sitio, dibujada a mano porque son
     # cuatro líneas y así no hay que arrastrar un fichero de imagen.
-    # La marca, la misma que va rotulada en la furgoneta: la L en grafito y
-    # el rayo en amarillo. Va en un lienzo de 64 y con la Y al revés, que en
-    # un PDF crece hacia arriba.
-    u = 11 * mm / 64.0
+    u = 11 * mm / 40.0
     x0, y0 = MARGEN, y - 11 * mm
-    g = lambda px, py: (x0 + px * u, y0 + (64 - py) * u)
-
-    def forma(puntos, color):
-        c.setFillColor(color)
-        camino = c.beginPath()
-        camino.moveTo(*g(*puntos[0]))
-        for punto in puntos[1:]:
-            camino.lineTo(*g(*punto))
-        camino.close()
-        c.drawPath(camino, stroke=0, fill=1)
-
-    forma([(27.8, 2), (20.4, 47.3), (47.8, 48.3), (46.7, 62), (1.5, 62), (8.8, 10.4)], INK)
-    forma([(48.8, 7.3), (46.7, 28.3), (56.2, 29.4), (62.5, 50.4), (50.9, 59.9),
-           (47.8, 59.9), (46.7, 38.8), (34.1, 37.8), (35.2, 29.4), (38.3, 10.4)], AMBER)
+    g = lambda px, py: (x0 + px * u, y0 + (40 - py) * u)
+    c.setLineWidth(3 * u)
+    c.setLineJoin(1)
+    c.setStrokeColor(INK)
+    c.lines([(*g(6, 30), *g(6, 10)), (*g(6, 10), *g(20, 4)),
+             (*g(20, 4), *g(34, 10)), (*g(34, 10), *g(34, 30))])
+    c.setStrokeColor(AMBER)
+    c.lines([(*g(14, 30), *g(14, 20)), (*g(14, 20), *g(26, 20)),
+             (*g(26, 20), *g(26, 30))])
 
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 14)

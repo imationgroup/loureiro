@@ -7,7 +7,7 @@
     <rect width="150" height="150" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
     <rect x="32" y="28" width="86" height="94" rx="8" fill="#FAF8F5"/>
     <rect x="32" y="28" width="86" height="94" rx="8" fill="none" stroke="#E0DBD2" stroke-width="2"/>
-    <rect x="60" y="46" width="30" height="4" rx="2" fill="#F2A81C"/>
+    <rect x="60" y="46" width="30" height="4" rx="2" fill="#F97316"/>
     <circle cx="75" cy="102" r="5" fill="#4ADE80"/>
   </g>
 
@@ -33,7 +33,7 @@
     <circle cx="61" cy="56" r="6" fill="#2B3039"/><circle cx="89" cy="56" r="6" fill="#2B3039"/>
     <rect x="44" y="108" width="28" height="12" rx="3" fill="#2B3039"/>
     <rect x="80" y="108" width="28" height="12" rx="3" fill="#2B3039"/>
-    <text x="75" y="140" font-family="Inter, sans-serif" font-size="13" fill="#6B7180" text-anchor="middle">USB-C</text>
+    <text x="75" y="140" font-family="Inter, sans-serif" font-size="13" fill="#6C7079" text-anchor="middle">USB-C</text>
   </g>
 
   <!-- Nota tierra OK -->
