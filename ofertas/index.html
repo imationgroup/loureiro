@@ -36,7 +36,9 @@
         "areaServed": "Ourense y provincia",
         "provider": { "@type": "Organization", "name": "Loureiro Soluciones" },
         "offers": { "@type": "AggregateOffer", "priceCurrency": "EUR", "lowPrice": "1000",
-                    "availability": "https://schema.org/LimitedAvailability" }
+                    "availability": "https://schema.org/LimitedAvailability",
+                    "priceSpecification": { "@type": "PriceSpecification",
+                                            "valueAddedTaxIncluded": false } }
       }
     },
     {
@@ -48,7 +50,9 @@
         "areaServed": "Ourense y provincia",
         "provider": { "@type": "Organization", "name": "Loureiro Soluciones" },
         "offers": { "@type": "AggregateOffer", "priceCurrency": "EUR", "lowPrice": "2700",
-                    "availability": "https://schema.org/LimitedAvailability" }
+                    "availability": "https://schema.org/LimitedAvailability",
+                    "priceSpecification": { "@type": "PriceSpecification",
+                                            "valueAddedTaxIncluded": false } }
       }
     }
   ]
@@ -112,7 +116,7 @@
     <!-- ── Oferta 1: aire acondicionado ───────────────────────────────── -->
     <article class="oferta reveal" id="aire">
       <p class="oferta__precio"><small>Aire acondicionado frío y calor</small>Desde 1.000 €</p>
-      <p class="oferta__sub">Máquina e instalación incluidas.</p>
+      <p class="oferta__sub">Máquina e instalación incluidas. Precio sin IVA.</p>
 
       <p>En Ourense, cuando hace frío, <strong>hace frío</strong>. Y encima con humedad, que
       es lo peor de todo. Y cuando aprieta el calor, aprieta de verdad.</p>
@@ -144,7 +148,8 @@
     <!-- ── Oferta 2: reforma eléctrica ────────────────────────────────── -->
     <article class="oferta reveal" id="electricidad">
       <p class="oferta__precio"><small>Reforma eléctrica integral</small>Desde 2.700 €</p>
-      <p class="oferta__sub">Toda la instalación de la vivienda, lista para el boletín.</p>
+      <p class="oferta__sub">Toda la instalación de la vivienda, lista para el boletín.
+      Precio sin IVA.</p>
 
       <p>¿Acabas de comprar una casa y te has encontrado la instalación de hace cuarenta
       años? Por unos <strong>2.700 €</strong> te la renovamos entera.</p>
@@ -167,9 +172,11 @@
       </div>
     </article>
 
-    <p class="letra-chica">Precios con IVA incluido. «Desde» quiere decir eso: el precio final
-    depende de la vivienda, de los metros y de lo que haya detrás de la pared. Vamos a verlo,
-    te lo cerramos por escrito y ya decides, sin coste ni compromiso.</p>
+    <p class="letra-chica"><strong>Precios sin IVA.</strong> Y «desde» quiere decir eso: el
+    precio final depende de la vivienda, de los metros y de lo que haya detrás de la pared.
+    Vamos a verlo y te lo cerramos por escrito, con el IVA que corresponda ya sumado, para que
+    sepas exactamente lo que vas a pagar. La visita y el presupuesto no tienen coste ni
+    compromiso.</p>
 
   </div>
 </section>
