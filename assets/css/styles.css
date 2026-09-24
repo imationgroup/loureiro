@@ -353,6 +353,24 @@ a.card{ text-decoration:none; color:inherit; }
   border-radius:100px; padding:9px 18px; font-size:.88rem; font-weight:600;
 }
 .oferta__cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; }
+.compartir{
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+  margin-top:20px; padding-top:18px; border-top:1px solid var(--line);
+  font-size:.9rem; color:var(--muted);
+}
+.compartir__btn{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:var(--ff-head); font-weight:600; font-size:.88rem;
+  color:var(--txt); text-decoration:none;
+  background:var(--sand); border:1px solid var(--line); border-radius:100px;
+  padding:8px 16px;
+  transition:transform .18s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.compartir__btn:hover{ transform:translateY(-2px); border-color:transparent; box-shadow:var(--sh); }
+.compartir__btn svg{ width:17px; height:17px; flex:none; }
+.compartir__btn--wa svg{ fill:#25D366; }
+.compartir__btn--fb svg{ fill:#1877F2; }
+
 .letra-chica{ color:var(--muted); font-size:.87rem; margin-top:26px; max-width:70ch; }
 
 /* ── Por qué ────────────────────────────────────────────────────────── */

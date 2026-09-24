@@ -39,6 +39,10 @@ PUERTA = [(14, 30), (14, 20), (26, 20), (26, 30)]
 TARJETAS = [
     ("og-image.jpg", "Tu reforma entera,", "con una sola llamada.",
      "Reformas integrales y servicios para el hogar en Ourense."),
+    # La de ofertas es la que más se comparte por WhatsApp: lleva el precio
+    # en el titular, que es lo que se ve en la miniatura del chat.
+    ("og/ofertas.jpg", "Tiramos la casa", "por la ventana.",
+     "Aire 1.000 € · Ducha 700 € · Eléctrica 2.700 € · Sin IVA"),
     ("og/reformas-integrales-ourense.jpg", "Reformas integrales", "en Ourense",
      "Demolición, instalaciones, acabados y limpieza final"),
     ("og/electricista-ourense.jpg", "Electricista", "en Ourense",
