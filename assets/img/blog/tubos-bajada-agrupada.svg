@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" width="800" height="470" role="img" aria-label="Dos esquemas del recorrido agrupado: a la izquierda, el alzado de la fachada con la unidad exterior en un lateral y una sola bajada vertical que entra por una habitación; a la derecha, la planta de esa habitación, desde la que las líneas se reparten por dentro hacia las otras dos">
+  <defs>
+    <linearGradient id="ba-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="470" fill="url(#ba-bg)"/>
+
+  <!-- ══ A · Por fuera: una sola bajada ══════════════════════════════ -->
+  <text x="40" y="40" font-family="Archivo, Inter, sans-serif" font-size="16" font-weight="700" fill="#3A3E46">A · Por fuera, una sola línea</text>
+  <text x="40" y="62" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Por un lateral, no por la fachada principal.</text>
+
+  <rect x="40" y="80" width="330" height="340" rx="12" fill="#FFFFFF"/>
+  <rect x="40" y="80" width="330" height="340" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+
+  <!-- Alzado del edificio -->
+  <rect x="78" y="112" width="254" height="268" fill="#F3EFE8" stroke="#D6D0C6" stroke-width="2"/>
+  <path d="M70 112h270l-135-34z" fill="#E7E1D8" stroke="#D6D0C6" stroke-width="2"/>
+
+  <!-- Ventanas -->
+  <rect x="112" y="150" width="52" height="46" rx="4" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="2"/>
+  <rect x="246" y="150" width="52" height="46" rx="4" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="2"/>
+
+  <!-- La bajada agrupada, pegada a la esquina -->
+  <path d="M196 380V176" stroke="#F2A81C" stroke-width="13" stroke-linecap="round"/>
+  <path d="M196 176h-24" stroke="#F2A81C" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="168" cy="176" r="8" fill="#FFFFFF" stroke="#F2A81C" stroke-width="4"/>
+
+  <!-- Unidad exterior abajo -->
+  <rect x="150" y="336" width="92" height="52" rx="6" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3"/>
+  <circle cx="180" cy="362" r="17" fill="none" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M212 348v28" stroke="#C8C3BA" stroke-width="3"/>
+
+  <text x="244" y="248" font-family="Inter, sans-serif" font-size="13" fill="#9A6A05" font-weight="600">Las 3 líneas,</text>
+  <text x="244" y="266" font-family="Inter, sans-serif" font-size="13" fill="#9A6A05" font-weight="600">en un solo canal</text>
+  <text x="90" y="410" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">Unidad exterior en el lateral</text>
+
+  <!-- ══ B · Por dentro: el reparto ══════════════════════════════════ -->
+  <text x="420" y="40" font-family="Archivo, Inter, sans-serif" font-size="16" font-weight="700" fill="#3A3E46">B · Por dentro, solo el reparto</text>
+  <text x="420" y="62" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Entra por una habitación y de ahí sale a las otras.</text>
+
+  <rect x="420" y="80" width="340" height="340" rx="12" fill="#FFFFFF"/>
+  <rect x="420" y="80" width="340" height="340" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+
+  <!-- Planta de tres habitaciones -->
+  <rect x="452" y="150" width="276" height="180" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
+  <path d="M544 150v180M636 150v180" stroke="#C8C3BA" stroke-width="3"/>
+
+  <text x="470" y="320" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Habitación 1</text>
+  <text x="562" y="320" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Habitación 2</text>
+  <text x="654" y="320" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Habitación 3</text>
+
+  <!-- Entrada desde la bajada y reparto junto al techo -->
+  <circle cx="452" cy="182" r="8" fill="#FFFFFF" stroke="#F2A81C" stroke-width="4"/>
+  <path d="M452 182h258" stroke="#F2A81C" stroke-width="10" stroke-linecap="round"/>
+  <path d="M498 182v22M590 182v22M682 182v22" stroke="#F2A81C" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- Los tres splits -->
+  <rect x="470" y="204" width="56" height="18" rx="5" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3"/>
+  <rect x="562" y="204" width="56" height="18" rx="5" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3"/>
+  <rect x="654" y="204" width="56" height="18" rx="5" fill="#FFFFFF" stroke="#C8C3BA" stroke-width="3"/>
+
+  <text x="452" y="132" font-family="Inter, sans-serif" font-size="13" fill="#9A6A05" font-weight="600">Aquí entra todo junto</text>
+  <text x="452" y="366" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">Canal visto solo en este recorrido,</text>
+  <text x="452" y="384" font-family="Inter, sans-serif" font-size="13" fill="#3A3E46">pegado al techo y cruzando tabiques.</text>
+</svg>
