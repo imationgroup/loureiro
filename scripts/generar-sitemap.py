@@ -35,6 +35,8 @@ EXCLUIDAS = {".git", "admin", "backend", "scripts", ".github", "assets"}
 REGLAS = [
     (r"^/$",                       "monthly", "1.0"),
     (r"^/servicios/[^/]+/$",       "monthly", "0.9"),
+    # Las ofertas cambian y son puerta de entrada: van altas y se revisan a menudo.
+    (r"^/ofertas/$",               "weekly",  "0.9"),
     (r"^/blog/$",                  "weekly",  "0.8"),
     (r"^/blog/[^/]+/$",            "weekly",  "0.7"),
     (r"^/blog/[^/]+/[^/]+\.html$", "yearly",  "0.6"),
