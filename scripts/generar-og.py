@@ -43,6 +43,13 @@ TARJETAS = [
     # en el titular, que es lo que se ve en la miniatura del chat.
     ("og/ofertas.jpg", "Tiramos la casa", "por la ventana.",
      "Aire 1.000 € · Ducha 700 € · Eléctrica 2.700 € · Sin IVA"),
+    # Una por oferta: al compartirlas, cada enlace enseña la suya.
+    ("og/oferta-aire.jpg", "Aire frío y calor", "desde 1.000 €",
+     "Máquina e instalación · Ourense · Precio sin IVA"),
+    ("og/oferta-ducha.jpg", "Bañera por ducha", "desde 700 €",
+     "En dos días · Escombros incluidos · Precio sin IVA"),
+    ("og/oferta-electrica.jpg", "Reforma eléctrica", "desde 2.700 €",
+     "Cuadro y cableado nuevos · Lista para el boletín"),
     ("og/reformas-integrales-ourense.jpg", "Reformas integrales", "en Ourense",
      "Demolición, instalaciones, acabados y limpieza final"),
     ("og/electricista-ourense.jpg", "Electricista", "en Ourense",
