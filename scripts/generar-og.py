@@ -43,13 +43,7 @@ TARJETAS = [
     # en el titular, que es lo que se ve en la miniatura del chat.
     ("og/ofertas.jpg", "Tiramos la casa", "por la ventana.",
      "Aire 1.000 € · Ducha 700 € · Eléctrica 2.700 € · Sin IVA"),
-    # Una por oferta: al compartirlas, cada enlace enseña la suya.
-    ("og/oferta-aire.jpg", "Aire frío y calor", "desde 1.000 €",
-     "Máquina e instalación · Ourense · Precio sin IVA"),
-    ("og/oferta-ducha.jpg", "Bañera por ducha", "desde 700 €",
-     "En dos días · Escombros incluidos · Precio sin IVA"),
-    ("og/oferta-electrica.jpg", "Reforma eléctrica", "desde 2.700 €",
-     "Cuadro y cableado nuevos · Lista para el boletín"),
+
     ("og/reformas-integrales-ourense.jpg", "Reformas integrales", "en Ourense",
      "Demolición, instalaciones, acabados y limpieza final"),
     ("og/electricista-ourense.jpg", "Electricista", "en Ourense",
@@ -64,6 +58,17 @@ TARJETAS = [
      "Interior, exterior, alisado de gotelé y antihumedad"),
     ("og/limpieza-fin-de-obra-ourense.jpg", "Limpieza de fin de obra", "en Ourense",
      "Pisos y locales listos para entrar"),
+]
+
+# Las ofertas van con la otra tarjeta: fichero, titular, precio, el renglón de
+# debajo y qué icono se dibuja en la cuña.
+OFERTAS = [
+    ("og/oferta-aire.jpg", "Aire frío y calor", "1.000 €",
+     "Máquina e instalación · Ourense", "aire"),
+    ("og/oferta-ducha.jpg", "Bañera por ducha", "700 €",
+     "En dos días · Escombros incluidos", "ducha"),
+    ("og/oferta-electrica.jpg", "Reforma eléctrica", "2.700 €",
+     "Cuadro y cableado nuevos · Boletín", "rayo"),
 ]
 
 
@@ -151,6 +156,77 @@ def tarjeta(linea1: str, linea2: str, pie: str, tipos: dict) -> Image.Image:
     return im
 
 
+def icono(d, clase, cx, cy, lado, color):
+    """Un dibujo simple, de trazo grueso, que se reconozca en miniatura."""
+    u = lado / 100.0
+    g = max(3, round(7 * u))
+
+    def r(x0, y0, x1, y1, radio=0):
+        caja = [cx + x0 * u, cy + y0 * u, cx + x1 * u, cy + y1 * u]
+        if radio:
+            d.rounded_rectangle(caja, radius=radio * u, outline=color, width=g)
+        else:
+            d.rectangle(caja, outline=color, width=g)
+
+    def l(x0, y0, x1, y1):
+        d.line([cx + x0 * u, cy + y0 * u, cx + x1 * u, cy + y1 * u], fill=color, width=g)
+
+    if clase == "aire":
+        # Split de pared y el aire saliendo.
+        r(-50, -46, 50, -6, 10)
+        l(-36, -20, 36, -20)
+        for i, x in enumerate((-30, 0, 30)):
+            l(x, 6, x - 10, 30)
+            l(x - 10, 30, x, 52)
+    elif clase == "ducha":
+        # Alcachofa, chorro y plato.
+        l(-4, -52, -4, -30)
+        d.ellipse([cx - 30 * u, cy - 34 * u, cx + 22 * u, cy - 18 * u], outline=color, width=g)
+        for x in (-22, -8, 6):
+            l(x, -10, x - 6, 26)
+        r(-52, 34, 52, 50, 6)
+    else:
+        # Rayo.
+        d.polygon([(cx + 14 * u, cy - 54 * u), (cx - 34 * u, cy + 6 * u),
+                   (cx - 4 * u, cy + 6 * u), (cx - 16 * u, cy + 54 * u),
+                   (cx + 34 * u, cy - 8 * u), (cx + 2 * u, cy - 8 * u)], fill=color)
+
+
+def tarjeta_oferta(titular, precio, pie, clase, tipos):
+    """La que se comparte: precio enorme, cuña amarilla y teléfono."""
+    im = fondo()
+    d = ImageDraw.Draw(im, "RGBA")
+
+    # Cuña amarilla a la derecha, con el icono dentro.
+    d.polygon([(842, 0), (ANCHO, 0), (ANCHO, ALTO), (722, ALTO)], fill=AMARILLO)
+    icono(d, clase, 992, 300, 260, GRAFITO)
+
+    # Marca arriba.
+    dibujar_marca(im, 80, 60, 44, BLANCO, AMARILLO)
+    d.text((138, 62), "Loureiro", font=tipos["marca_of"], fill=BLANCO)
+    ancho_marca = d.textlength("Loureiro", font=tipos["marca_of"])
+    d.text((138 + ancho_marca, 62), "soluciones", font=tipos["marca_of_sub"], fill=APAGADO)
+
+    # Etiqueta de oferta.
+    texto = "OFERTA"
+    ancho_texto = d.textlength(texto, font=tipos["pill"]) + 6 * 5.5
+    d.rounded_rectangle([80, 148, 80 + ancho_texto + 44, 196], radius=24, fill=AMARILLO)
+    texto_espaciado(d, (102, 158), texto, tipos["pill"], GRAFITO, 5.5)
+
+    d.text((78, 214), titular, font=tipos["titular_of"], fill=BLANCO)
+    d.text((80, 300), "desde", font=tipos["desde"], fill=APAGADO)
+    d.text((78, 330), precio, font=tipos["precio"], fill=AMARILLO)
+    d.text((80, 492), pie, font=tipos["pie_of"], fill=(201, 205, 212))
+
+    # Franja de abajo con el teléfono, en amarillo para que se lea de lejos.
+    d.rectangle([0, ALTO - 62, ANCHO, ALTO], fill=AMARILLO)
+    d.text((80, ALTO - 50), "603 905 128", font=tipos["tel"], fill=GRAFITO)
+    ancho_tel = d.textlength("603 905 128", font=tipos["tel"])
+    d.text((80 + ancho_tel + 20, ALTO - 48), "· loureirosoluciones.es",
+           font=tipos["tel_sub"], fill=GRAFITO)
+    return im
+
+
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         archivo800 = estatica("archivo-var-latin.woff2", 800, tmp)
@@ -164,11 +240,28 @@ def main():
             "titular": ImageFont.truetype(archivo800, 74),
             "pie": ImageFont.truetype(inter400, 27),
             "web": ImageFont.truetype(archivo600, 22),
+            # Las de la tarjeta de oferta.
+            "marca_of": ImageFont.truetype(archivo800, 24),
+            "marca_of_sub": ImageFont.truetype(archivo500, 24),
+            "pill": ImageFont.truetype(archivo800, 22),
+            "titular_of": ImageFont.truetype(archivo800, 66),
+            "desde": ImageFont.truetype(inter400, 30),
+            "precio": ImageFont.truetype(archivo800, 148),
+            "pie_of": ImageFont.truetype(inter400, 28),
+            "tel": ImageFont.truetype(archivo800, 26),
+            "tel_sub": ImageFont.truetype(archivo600, 22),
         }
         for nombre, l1, l2, pie in TARJETAS:
             destino = os.path.join(RAIZ, "assets", "img", *nombre.split("/"))
             os.makedirs(os.path.dirname(destino), exist_ok=True)
             im = tarjeta(l1, l2, pie, tipos)
+            im.save(destino, "JPEG", quality=88, optimize=True, progressive=True)
+            print("  %-46s %5.0f KB" % (nombre, os.path.getsize(destino) / 1024))
+
+        for nombre, titular, precio, pie, clase in OFERTAS:
+            destino = os.path.join(RAIZ, "assets", "img", *nombre.split("/"))
+            os.makedirs(os.path.dirname(destino), exist_ok=True)
+            im = tarjeta_oferta(titular, precio, pie, clase, tipos)
             im.save(destino, "JPEG", quality=88, optimize=True, progressive=True)
             print("  %-46s %5.0f KB" % (nombre, os.path.getsize(destino) / 1024))
     print("Tarjetas listas.")
