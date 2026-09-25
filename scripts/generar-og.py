@@ -192,38 +192,53 @@ def icono(d, clase, cx, cy, lado, color):
                    (cx + 34 * u, cy - 8 * u), (cx + 2 * u, cy - 8 * u)], fill=color)
 
 
+def centrado(d, y, texto, fuente, color, centro=ANCHO // 2):
+    ancho = d.textlength(texto, font=fuente)
+    d.text((centro - ancho / 2, y), texto, font=fuente, fill=color)
+    return ancho
+
+
 def tarjeta_oferta(titular, precio, pie, clase, tipos):
-    """La que se comparte: precio enorme, cuña amarilla y teléfono."""
+    """La que se comparte: todo centrado, porque WhatsApp recorta a cuadrado.
+
+    La franja que sobrevive al recorte son los 630 px centrales. Dentro de
+    ella va lo que hay que leer; a los lados, solo decoración.
+    """
     im = fondo()
     d = ImageDraw.Draw(im, "RGBA")
+    centro = ANCHO // 2
+    cuadro = ALTO // 2      # media anchura de lo que sobrevive al recorte
 
-    # Cuña amarilla a la derecha, con el icono dentro.
-    d.polygon([(842, 0), (ANCHO, 0), (ANCHO, ALTO), (722, ALTO)], fill=AMARILLO)
-    icono(d, clase, 992, 300, 260, GRAFITO)
+    # Decoración de los lados: se pierde en WhatsApp y se ve en Facebook.
+    d.polygon([(0, 0), (150, 0), (0, 320)], fill=AMARILLO + (26,))
+    d.polygon([(ANCHO, ALTO), (ANCHO - 170, ALTO), (ANCHO, ALTO - 340)], fill=AMARILLO + (26,))
 
-    # Marca arriba.
-    dibujar_marca(im, 80, 60, 44, BLANCO, AMARILLO)
-    d.text((138, 62), "Loureiro", font=tipos["marca_of"], fill=BLANCO)
+    # Marca, arriba del todo.
+    dibujar_marca(im, centro - 118, 34, 34, BLANCO, AMARILLO)
+    d.text((centro - 72, 36), "Loureiro", font=tipos["marca_of"], fill=BLANCO)
     ancho_marca = d.textlength("Loureiro", font=tipos["marca_of"])
-    d.text((138 + ancho_marca, 62), "soluciones", font=tipos["marca_of_sub"], fill=APAGADO)
+    d.text((centro - 72 + ancho_marca, 36), "soluciones", font=tipos["marca_of_sub"], fill=APAGADO)
 
     # Etiqueta de oferta.
     texto = "OFERTA"
     ancho_texto = d.textlength(texto, font=tipos["pill"]) + 6 * 5.5
-    d.rounded_rectangle([80, 148, 80 + ancho_texto + 44, 196], radius=24, fill=AMARILLO)
-    texto_espaciado(d, (102, 158), texto, tipos["pill"], GRAFITO, 5.5)
+    d.rounded_rectangle([centro - ancho_texto / 2 - 22, 98, centro + ancho_texto / 2 + 22, 142],
+                        radius=22, fill=AMARILLO)
+    texto_espaciado(d, (centro - ancho_texto / 2, 108), texto, tipos["pill"], GRAFITO, 5.5)
 
-    d.text((78, 214), titular, font=tipos["titular_of"], fill=BLANCO)
-    d.text((80, 300), "desde", font=tipos["desde"], fill=APAGADO)
-    d.text((78, 330), precio, font=tipos["precio"], fill=AMARILLO)
-    d.text((80, 492), pie, font=tipos["pie_of"], fill=(201, 205, 212))
+    centrado(d, 168, titular, tipos["titular_of"], BLANCO)
+    centrado(d, 240, "desde", tipos["desde"], APAGADO)
+    centrado(d, 274, precio, tipos["precio"], AMARILLO)
 
-    # Franja de abajo con el teléfono, en amarillo para que se lea de lejos.
+    # El icono, debajo del precio: es lo que hace reconocible la oferta de un
+    # vistazo, y en miniatura se lee antes que cualquier texto pequeño.
+    icono(d, clase, centro, 470, 130, AMARILLO)
+
+    # Franja de abajo con el teléfono, dentro del recorte.
     d.rectangle([0, ALTO - 62, ANCHO, ALTO], fill=AMARILLO)
-    d.text((80, ALTO - 50), "603 905 128", font=tipos["tel"], fill=GRAFITO)
-    ancho_tel = d.textlength("603 905 128", font=tipos["tel"])
-    d.text((80 + ancho_tel + 20, ALTO - 48), "· loureirosoluciones.es",
-           font=tipos["tel_sub"], fill=GRAFITO)
+    linea = "603 905 128 · loureirosoluciones.es"
+    centrado(d, ALTO - 48, linea, tipos["tel"], GRAFITO)
+
     return im
 
 
@@ -244,11 +259,11 @@ def main():
             "marca_of": ImageFont.truetype(archivo800, 24),
             "marca_of_sub": ImageFont.truetype(archivo500, 24),
             "pill": ImageFont.truetype(archivo800, 22),
-            "titular_of": ImageFont.truetype(archivo800, 66),
+            "titular_of": ImageFont.truetype(archivo800, 52),
             "desde": ImageFont.truetype(inter400, 30),
-            "precio": ImageFont.truetype(archivo800, 148),
+            "precio": ImageFont.truetype(archivo800, 132),
             "pie_of": ImageFont.truetype(inter400, 28),
-            "tel": ImageFont.truetype(archivo800, 26),
+            "tel": ImageFont.truetype(archivo800, 25),
             "tel_sub": ImageFont.truetype(archivo600, 22),
         }
         for nombre, l1, l2, pie in TARJETAS:
