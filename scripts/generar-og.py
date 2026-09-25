@@ -42,7 +42,7 @@ TARJETAS = [
     # La de ofertas es la que más se comparte por WhatsApp: lleva el precio
     # en el titular, que es lo que se ve en la miniatura del chat.
     ("og/ofertas.jpg", "Tiramos la casa", "por la ventana.",
-     "Aire 1.000 € · Ducha 700 € · Eléctrica 2.700 € · Sin IVA"),
+     "Aire 1.200 € · Ducha 850 € · Eléctrica 2.950 €"),
 
     ("og/reformas-integrales-ourense.jpg", "Reformas integrales", "en Ourense",
      "Demolición, instalaciones, acabados y limpieza final"),
@@ -63,11 +63,11 @@ TARJETAS = [
 # Las ofertas van con la otra tarjeta: fichero, titular, precio, el renglón de
 # debajo y qué icono se dibuja en la cuña.
 OFERTAS = [
-    ("og/oferta-aire.jpg", "Aire frío y calor", "1.000 €",
+    ("og/oferta-aire.jpg", "Aire frío y calor", "1.200 €",
      "Máquina e instalación · Ourense", "aire"),
-    ("og/oferta-ducha.jpg", "Bañera por ducha", "700 €",
-     "En dos días · Escombros incluidos", "ducha"),
-    ("og/oferta-electrica.jpg", "Reforma eléctrica", "2.700 €",
+    ("og/oferta-ducha.jpg", "Bañera por ducha", "850 €",
+     "En tres días · Escombros incluidos", "ducha"),
+    ("og/oferta-electrica.jpg", "Reforma eléctrica", "2.950 €",
      "Cuadro y cableado nuevos · Boletín", "rayo"),
 ]
 
