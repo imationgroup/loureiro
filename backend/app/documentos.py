@@ -53,7 +53,8 @@ DOCUMENTOS = {
 # Las proformas llevan su propia serie (PF) y nunca la de facturas: una
 # proforma no es una factura, y si consumiese números de esa serie dejaría
 # huecos en una numeración que tiene que ser correlativa.
-SERIES = {"presupuestos": "P", "proformas": "PF", "facturas": "F"}
+SERIES = {"presupuestos": "P", "proformas": "PF", "facturas": "F",
+          "certificados": "CIE"}
 
 # Estados válidos de cada documento. Un presupuesto no se "rechaza": se
 # cancela, y al cancelarlo hay que decir por qué.

@@ -135,7 +135,8 @@ def limpiar_intentos(ip: str):
 # Módulos que el administrador puede dar a un miembro. El Panel (resumen) lo
 # tiene todo el mundo, con sus propios números; Equipo, solo el administrador.
 MODULOS = ("agenda", "solicitudes", "visitas", "obras", "notas", "clientes", "profesionales",
-           "presupuestos", "proformas", "facturas", "costes", "tiempos", "contabilidad",
+           "presupuestos", "proformas", "facturas", "certificados", "costes",
+           "tiempos", "contabilidad",
            "stock", "proveedores")
 
 
