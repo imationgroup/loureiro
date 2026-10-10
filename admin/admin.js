@@ -58,6 +58,7 @@ var ico = {
   proforma:'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 14h6M12 11v6"/>',
   altaCliente:'<path d="M14 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="3.5"/><path d="M18 8v6M15 11h6"/>',
   normas:'<path d="M6 3h11a2 2 0 0 1 2 2v16H8a2 2 0 0 1-2-2z"/><path d="M6 17h13"/><path d="M10 7h6M10 11h6"/>',
+  manual:'<path d="M12 7c0-1.5-2-2.5-5-2.5H3v13h4c3 0 5 1 5 2.5"/><path d="M12 7c0-1.5 2-2.5 5-2.5h4v13h-4c-3 0-5 1-5 2.5"/><path d="M12 7v13"/>',
   arriba:'<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>',
   abajo:'<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>',
   firma:'<path d="M3 17c3 0 4-9 7-9s3 9 6 9c2 0 3-2 5-3"/><path d="M3 21h18"/>',
@@ -113,6 +114,8 @@ function puedeVer(k) {
   // Los estatutos los lee todo el mundo: de nada sirve escribir cómo
   // funciona la empresa si media plantilla no puede abrirlo.
   if (k === "estatutos") return true;
+  // La documentación, igual: son instrucciones de trabajo, no datos de nadie.
+  if (k === "documentacion" || k === "guia") return true;
   if (esAdmin()) return true;
   if (k === "ingresos") return YO.permisos.indexOf("facturas") >= 0 || YO.permisos.indexOf("contabilidad") >= 0;
   return YO.permisos.indexOf(k) >= 0;
@@ -793,6 +796,11 @@ MODULOS.clientes_origen = { titulo: "De dónde vienen", menu: "De dónde vienen"
 MODULOS.ficha_cliente = { titulo: "Ficha de cliente", sub: "", icono: ico.gente, especial: "fichaCliente",
   permiso: "clientes" };
 MODULOS.estatutos = { titulo: "Estatutos", sub: "Cómo funciona la empresa", icono: ico.normas, especial: "estatutos" };
+MODULOS.documentacion = { titulo: "Documentación", sub: "Informes y guías de trabajo, con el reglamento citado",
+  icono: ico.manual, especial: "documentacion" };
+// El informe abierto. Como la ficha de cliente: no sale en el menú, se llega
+// desde la lista y el documento que se lee va en GUIA_SLUG.
+MODULOS.guia = { titulo: "Documentación", sub: "", icono: ico.manual, especial: "guia" };
 
 // Responsable: quién lleva cada cosa. Solo lo ve y lo cambia el administrador;
 // lo que crea un miembro es suyo sin preguntar.
@@ -813,7 +821,7 @@ var ORDEN_MENU = [
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "certificados",
                              { k: "costes", hijos: ["gastos_categorias", "gastos_estados"] }, "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
-  { sep: "Empresa", items: ["estatutos", "equipo"] }
+  { sep: "Empresa", items: ["estatutos", "documentacion", "equipo"] }
 ];
 
 /* ── Caché de referencias (para los desplegables) ─────────────────────── */
@@ -962,6 +970,8 @@ function ir(k) {
   if (m.especial === "dashboard") return verDashboard();
   if (m.especial === "equipo") return verMiembros();
   if (m.especial === "estatutos") return verEstatutos();
+  if (m.especial === "documentacion") return verDocumentacion();
+  if (m.especial === "guia") return verGuia();
   if (m.especial === "agenda") return verAgenda();
   if (m.especial === "contabilidad") return verContabilidad();
   if (m.especial === "obras") return verObras();
@@ -5109,6 +5119,131 @@ function textoRico(txt) {
   });
   if (lista) h += "</ul>";
   return h;
+}
+
+/* ── Documentación ────────────────────────────────────────────────────────
+   Informes que vienen con la aplicación (no se escriben desde el panel: son
+   documentos con citas del reglamento). El contenido llega del servidor como
+   bloques y aquí se pinta cada tipo; el PDF se hace allí con los mismos
+   bloques, así que lo que se lee en pantalla y lo que se descarga es lo
+   mismo.                                                                 */
+var GUIA_SLUG = "";
+
+function verDocumentacion() {
+  api("/api/admin/documentacion").then(function (docs) {
+    if (!docs.length) {
+      $("#vista").innerHTML = '<div class="tabla-caja"><div class="vacia">' +
+        "Todavía no hay documentos.</div></div>";
+      return;
+    }
+    $("#vista").innerHTML = '<div class="docs">' + docs.map(function (d) {
+      return '<article class="tarjeta doc-tarj"><h3>' + esc(d.titulo) + "</h3>" +
+        (d.subtitulo ? '<p class="doc-tarj__sub">' + esc(d.subtitulo) + "</p>" : "") +
+        (d.resumen ? '<p class="doc-tarj__txt">' + esc(d.resumen) + "</p>" : "") +
+        '<div class="doc-tarj__pie">' +
+          '<span>Actualizado ' + esc(fecha(d.actualizado)) + "</span>" +
+          '<div class="doc-tarj__btns">' +
+            '<button class="btn btn--fant" data-pdf="' + esc(d.slug) + '">' +
+              svg(ico.descarga) + "PDF</button>" +
+            '<button class="btn btn--amber" data-abrir="' + esc(d.slug) + '">' +
+              svg(ico.ojo) + "Leer</button>" +
+          "</div></div></article>";
+    }).join("") + "</div>";
+
+    $$("[data-abrir]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        GUIA_SLUG = b.dataset.abrir;
+        ir("guia");
+      });
+    });
+    $$("[data-pdf]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        bajarPdf("/api/admin/documentacion/" + b.dataset.pdf + "/pdf", b.dataset.pdf + ".pdf");
+      });
+    });
+  }).catch(error);
+}
+
+// Un bloque del documento. Son los mismos tipos que imprime el PDF.
+function bloqueHTML(b) {
+  if (b.tipo === "p") return "<p>" + negrita(b.texto) + "</p>";
+  if (b.tipo === "lista") {
+    return "<ul>" + b.puntos.map(function (p) { return "<li>" + negrita(p) + "</li>"; }).join("") + "</ul>";
+  }
+  if (b.tipo === "pasos") {
+    return "<ol>" + b.puntos.map(function (p) { return "<li>" + negrita(p) + "</li>"; }).join("") + "</ol>";
+  }
+  if (b.tipo === "cita") {
+    return '<blockquote class="doc-cita">«' + negrita(b.texto) + "»" +
+           '<cite>' + esc(b.fuente) + "</cite></blockquote>";
+  }
+  if (b.tipo === "aviso") return '<div class="doc-aviso">' + negrita(b.texto) + "</div>";
+  if (b.tipo === "fuente") return '<p class="doc-fuente">Fuente: ' + negrita(b.texto) + "</p>";
+  if (b.tipo === "tabla") return tablaDocHTML(b);
+  if (b.tipo === "prueba") return pruebaHTML(b);
+  return "";
+}
+
+function tablaDocHTML(b) {
+  return (b.titulo ? "<h4>" + esc(b.titulo) + "</h4>" : "") +
+    '<div class="tabla-caja doc-tabla"><table><thead><tr>' +
+    b.cabecera.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") +
+    "</tr></thead><tbody>" +
+    b.filas.map(function (fila) {
+      return "<tr>" + fila.map(function (c) {
+        return "<td>" + (String(c).trim() ? negrita(c) : "&nbsp;") + "</td>";
+      }).join("") + "</tr>";
+    }).join("") + "</tbody></table></div>";
+}
+
+function pruebaHTML(b) {
+  var h = '<section class="doc-prueba"><h4><span>' + esc(b.numero) + "</span> " + esc(b.titulo) + "</h4>" +
+    "<p>" + negrita(b.mide) + "</p>" +
+    '<p class="doc-prueba__et">Cómo se hace</p><ol>' +
+    b.pasos.map(function (p) { return "<li>" + negrita(p) + "</li>"; }).join("") + "</ol>" +
+    '<p class="doc-prueba__et">Qué valor vale</p><p>' + negrita(b.criterio) + "</p>";
+  if (b.limite) {
+    h += '<p class="doc-prueba__et">Límite de este equipo</p><p>' + negrita(b.limite) + "</p>";
+  }
+  if (b.aviso) h += '<p class="doc-prueba__nota">' + negrita(b.aviso) + "</p>";
+  return h + '<p class="doc-fuente">Fuente: ' + esc(b.fuente) + "</p></section>";
+}
+
+function verGuia() {
+  if (!GUIA_SLUG) return ir("documentacion");
+  api("/api/admin/documentacion/" + GUIA_SLUG).then(function (d) {
+    $("#vista-titulo").textContent = d.titulo;
+    $("#vista-sub").textContent = d.subtitulo || "";
+    $("#vista-acciones").innerHTML =
+      '<button class="btn btn--fant" id="doc-volver">← Documentación</button>' +
+      '<button class="btn btn--amber" id="doc-pdf">' + svg(ico.descarga) + "Descargar PDF</button>";
+    $("#doc-volver").addEventListener("click", function () { ir("documentacion"); });
+    $("#doc-pdf").addEventListener("click", function () {
+      bajarPdf("/api/admin/documentacion/" + d.slug + "/pdf", d.slug + ".pdf");
+    });
+
+    var h = '<article class="doc">';
+    if (d.resumen) h += '<p class="doc__resumen">' + negrita(d.resumen) + "</p>";
+    if (d.equipo && d.equipo.length) {
+      h += tablaDocHTML({ titulo: "Con qué se hace", cabecera: ["Aparato", "Qué se mide con él"],
+                          filas: d.equipo });
+    }
+    (d.secciones || []).forEach(function (sec) {
+      h += "<h3>" + esc(sec.titulo) + "</h3>";
+      sec.bloques.forEach(function (b) { h += bloqueHTML(b); });
+    });
+    if (d.fuentes && d.fuentes.length) {
+      h += "<h3>Fuentes</h3>";
+      d.fuentes.forEach(function (f) {
+        h += '<p class="doc__fuente"><b>' + esc(f.titulo) + "</b><br>" + esc(f.detalle) +
+             (f.url ? '<br><a href="' + esc(f.url) + '" target="_blank" rel="noopener">' +
+                      esc(f.url) + "</a>" : "") + "</p>";
+      });
+    }
+    if (d.aviso) h += bloqueHTML({ tipo: "aviso", texto: d.aviso });
+    h += '<p class="doc__pie">Actualizado ' + esc(fecha(d.actualizado)) + "</p>";
+    $("#vista").innerHTML = h + "</article>";
+  }).catch(error);
 }
 
 function verEstatutos() {
