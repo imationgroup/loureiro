@@ -551,7 +551,9 @@ var MODULOS = {
       { c: "nif", t: "NIF / CIF", mitad: true },
       { c: "telefono", t: "Teléfono", mitad: true },
       { c: "email", t: "Email", tipo: "email", mitad: true },
-      { c: "direccion", t: "Dirección" },
+      { c: "direccion", t: "Dirección", ayuda: "La calle, sin el número" },
+      { c: "numero", t: "Número", mitad: true, placeholder: "12, s/n" },
+      { c: "piso", t: "Piso y puerta", mitad: true, placeholder: "3º B" },
       { c: "cp", t: "Código postal", tipo: "cp", mitad: true },
       { c: "provincia", t: "Provincia", tipo: "provincia", mitad: true },
       { c: "ayuntamiento", t: "Ayuntamiento", tipo: "ciudad", mitad: true },
@@ -612,7 +614,9 @@ var MODULOS = {
         ayuda: "De aquí salen el importe y el cliente de la obra. Los cancelados no se ofrecen." },
       { c: "importe_venta", t: "Importe presupuestado al cliente (sin IVA)", tipo: "eurofijo",
         placeholder: "Sale del presupuesto que elijas" },
-      { c: "direccion", t: "Dirección" },
+      { c: "direccion", t: "Dirección", ayuda: "La calle, sin el número" },
+      { c: "numero", t: "Número", mitad: true, placeholder: "12, s/n" },
+      { c: "piso", t: "Piso y puerta", mitad: true, placeholder: "3º B" },
       { c: "cp", t: "Código postal", tipo: "cp", mitad: true },
       { c: "provincia", t: "Provincia", tipo: "provincia", mitad: true },
       { c: "ayuntamiento", t: "Ayuntamiento", tipo: "ciudad", mitad: true },
@@ -1430,6 +1434,7 @@ function campoHTML(campo, valor, esNuevo) {
              : campo.tipo === "email" ? "email" : "text";
     h += '<input id="c-' + campo.c + '" data-c="' + campo.c + '" type="' + tipo + '"' +
          (campo.tipo === "numero" ? ' step="any"' : "") +
+         (campo.placeholder ? ' placeholder="' + esc(campo.placeholder) + '"' : "") +
          ' value="' + esc(v) + '">';
   }
   if (campo.ayuda) h += '<small style="color:var(--muted-2);font-size:.79rem">' + esc(campo.ayuda) + "</small>";
@@ -1715,7 +1720,7 @@ function abrirFormulario(clave, registro, inicial) {
           prov.dispatchEvent(new Event("change"));
           copiado = true;
         }
-        ["direccion", "cp", "ciudad", "ayuntamiento"].forEach(function (c) {
+        ["direccion", "numero", "piso", "cp", "ciudad", "ayuntamiento"].forEach(function (c) {
           var el = $("#c-" + c);
           if (!el || !(c in deProvincia ? deProvincia[c] : libre(c))) return;
           // Si el cliente nuevo no tiene ese dato, se vacía el que se rellenó
@@ -1875,7 +1880,7 @@ function abrirMaps(f) {
   var provincia = String(f.provincia || "").trim();
   // En Ourense capital ciudad y provincia coinciden; no se repite.
   if (provincia.toLowerCase() === ciudad.toLowerCase()) provincia = "";
-  var destino = [f.direccion, f.cp, ciudad, provincia, "España"]
+  var destino = [calleCliente(f), f.cp, ciudad, provincia, "España"]
     .map(function (x) { return String(x || "").trim(); })
     .filter(Boolean).join(", ");
   window.open("https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
@@ -2566,6 +2571,17 @@ function desdeFicha(fn) {
   return function () { VOLVER = "ficha_cliente"; fn.apply(null, arguments); };
 }
 
+// La calle con su número y su piso. Se escriben en campos distintos porque
+// el impreso del boletín eléctrico los pide por separado, pero se leen
+// juntos en cualquier otro sitio.
+function calleCliente(c) {
+  if (!c) return "";
+  var calle = [c.direccion, c.numero]
+    .map(function (x) { return String(x || "").trim(); }).filter(Boolean).join(" ");
+  var piso = String(c.piso || "").trim();
+  return [calle, piso].filter(Boolean).join(", ");
+}
+
 function direccionCompleta(c) {
   // El concello se pone entre paréntesis cuando no es el nombre de la
   // población: «Sobrado (Barbadás)» es la dirección de verdad.
@@ -2574,7 +2590,7 @@ function direccionCompleta(c) {
   if (ayto && llano(ayto) !== llano(c.ciudad || "")) {
     poblacion = poblacion ? poblacion + " (" + ayto + ")" : ayto;
   }
-  return [c.direccion, poblacion, c.provincia]
+  return [calleCliente(c), poblacion, c.provincia]
     .map(function (x) { return String(x || "").trim(); }).filter(Boolean).join(", ");
 }
 
@@ -3298,7 +3314,7 @@ function abrirVisita(id, inicial) {
       var dir = $("#v-dir");
       if (dir.value.trim() && dir.value !== dirPuesta) return;
       dir.value = dirPuesta = c
-        ? [c.direccion, [c.cp, c.ciudad].filter(Boolean).join(" ")].filter(Boolean).join(", ")
+        ? [calleCliente(c), [c.cp, c.ciudad].filter(Boolean).join(" ")].filter(Boolean).join(", ")
         : "";
     });
     if (!id && v.cliente_id && !v.direccion) $("#v-cliente").dispatchEvent(new Event("change"));
@@ -4474,6 +4490,16 @@ var CIE_TIPOS = [
 var CIE_GRADOS = ["BÁSICO", "ELEVADO", "ESPECIAL"];
 var CIE_FILAS = 8;     // las que tiene el impreso, ni una más
 
+// Quién firma los boletines: la empresa instaladora habilitada y la persona
+// que la representa. Va aquí, y no en los datos de la empresa del servidor,
+// porque es el instalador el que firma el certificado, no Loureiro. Se puede
+// cambiar a mano en cada certificado.
+var CIE_FIRMA = {
+  empresa_nif: "05936472B",
+  instalador: "KEVIN HUERTAS DOMENECH",
+  instalador_nif: "05936472B"
+};
+
 // Los circuitos de una vivienda normal, que son casi siempre los mismos.
 var CIE_TIPICOS = [
   { designacion: "C1 - Iluminación", seccion: "1,5", interruptor: "10" },
@@ -4559,16 +4585,16 @@ function verCie() {
 function editarCie(id) {
   Promise.all([
     id ? api("/api/admin/cie/" + id) : Promise.resolve(null),
-    cargarRef("clientes"), cargarRef("obras"),
-    // El NIF de la empresa lo sirve el propio servidor, que es donde vive.
-    fetch(API + "/api/empresa").then(function (r) { return r.json(); }).catch(function () { return {}; })
+    cargarRef("clientes"), cargarRef("obras")
   ]).then(function (res) {
     var c = res[0] || {
       fecha: new Date().toISOString().slice(0, 10),
       provincia: "OURENSE", grado: "BÁSICO", tipo_instalacion: "nueva",
-      di_tension: "230", circuitos: [],
-      empresa_nif: (res[3] || {}).nif || "",
-      instalador: (YO && YO.nombre) || "", usuario_id: YO && YO.id
+      di_tension: "230", uso: "Vivienda", circuitos: [],
+      empresa_nif: CIE_FIRMA.empresa_nif,
+      instalador: CIE_FIRMA.instalador,
+      instalador_nif: CIE_FIRMA.instalador_nif,
+      usuario_id: YO && YO.id
     };
     var circuitos = (c.circuitos || []).slice(0, CIE_FILAS);
     while (circuitos.length < CIE_FILAS) circuitos.push({});
@@ -4675,6 +4701,8 @@ function editarCie(id) {
         titular: nombreCliente(cli),
         titular_nif: cli.nif || "",
         emplazamiento: cli.direccion || "",
+        numero_via: cli.numero || "",
+        piso: cli.piso || "",
         provincia: mayus(cli.provincia),
         ayuntamiento: mayus(cli.ayuntamiento || cli.ciudad)
       };

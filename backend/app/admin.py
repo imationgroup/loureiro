@@ -153,8 +153,9 @@ _LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "coste
 
 TABLAS = {
     "clientes": Tabla("clientes",
-        ["nombre", "apellidos", "nif", "email", "telefono", "direccion", "cp",
-         "ciudad", "ayuntamiento", "provincia", "notas", "resena_pedida", "origen"],
+        ["nombre", "apellidos", "nif", "email", "telefono", "direccion", "numero",
+         "piso", "cp", "ciudad", "ayuntamiento", "provincia", "notas",
+         "resena_pedida", "origen"],
         obligatorios=("nombre",), validar=completar_cliente,
         modulo="clientes", lectura=_LEE_CLIENTES, responsable=True),
     "profesionales": Tabla("profesionales",
@@ -167,8 +168,9 @@ TABLAS = {
         obligatorios=("nombre",),
         modulo="proveedores", lectura=("proveedores", "stock", "costes")),
     "obras": Tabla("obras",
-        ["codigo", "titulo", "cliente_id", "presupuesto_id", "direccion", "cp",
-         "ciudad", "ayuntamiento", "provincia", "estado", "fecha_inicio", "fecha_fin_prevista",
+        ["codigo", "titulo", "cliente_id", "presupuesto_id", "direccion", "numero",
+         "piso", "cp", "ciudad", "ayuntamiento", "provincia", "estado",
+         "fecha_inicio", "fecha_fin_prevista",
          "fecha_fin_real", "importe_venta", "notas"],
         obligatorios=("titulo",), validar=completar_obra,
         modulo="obras", lectura=_LEE_OBRAS, responsable=True),

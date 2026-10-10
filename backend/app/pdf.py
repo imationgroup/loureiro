@@ -187,7 +187,7 @@ def _bloque_cliente(c, y, tipo, cliente, obra):
     c.setFillColor(GRIS)
     lineas = [x for x in [
         cliente.get("nif"),
-        cliente.get("direccion"),
+        db.direccion_cliente(cliente),
         _localidad(cliente),
         " · ".join(x for x in [cliente.get("telefono"), cliente.get("email")] if x) or None,
     ] if x]
