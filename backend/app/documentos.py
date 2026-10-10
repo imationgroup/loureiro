@@ -321,7 +321,7 @@ def listar(tipo: str, u: dict = Depends(sesion_actual)):
     exigir(u, *d.get("lectura", (tipo,)))
     cond, params = filtro_responsable(u, "x")
     docs = db.filas(f"""
-        SELECT x.*, c.nombre AS cliente, o.titulo AS obra
+        SELECT x.*, TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente, o.titulo AS obra
         FROM {d['tabla']} x
         LEFT JOIN clientes c ON c.id = x.cliente_id
         LEFT JOIN obras o ON o.id = x.obra_id

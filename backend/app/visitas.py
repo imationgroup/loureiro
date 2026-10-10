@@ -94,7 +94,7 @@ def listar(u: dict = Depends(sesion_actual)):
     exigir(u, *LECTURA)
     cond, params = filtro_responsable(u, "v")
     visitas = db.filas(f"""
-        SELECT v.*, c.nombre AS cliente,
+        SELECT v.*, TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente,
                (SELECT COUNT(*) FROM visita_fotos f WHERE f.visita_id = v.id) AS n_fotos,
                (SELECT id FROM visita_fotos f WHERE f.visita_id = v.id
                 ORDER BY f.id LIMIT 1) AS portada
