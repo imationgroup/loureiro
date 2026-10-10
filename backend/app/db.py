@@ -440,6 +440,31 @@ CREATE TABLE IF NOT EXISTS certificado_circuitos (
   interruptor    TEXT
 );
 
+-- ── Tests de seguridad del cuadro ───────────────────────────────────
+-- La lista de comprobaciones de una vivienda, marcada (ver
+-- test_seguridad.py). Lo marcado va entero en `respuestas`, como JSON; la
+-- nota y el recuento de defectos se guardan aparte para pintar la lista.
+CREATE TABLE IF NOT EXISTS tests_seguridad (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero        TEXT,
+  cliente_id    INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  obra_id       INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  titular       TEXT,
+  direccion     TEXT,
+  instalador    TEXT,
+  observaciones TEXT,
+  respuestas    TEXT NOT NULL DEFAULT '{}',
+  puntuacion    INTEGER,
+  nivel         TEXT,      -- peligro|deficiente|mejorable|correcta|sin_datos
+  muy_graves    INTEGER NOT NULL DEFAULT 0,
+  graves        INTEGER NOT NULL DEFAULT 0,
+  leves         INTEGER NOT NULL DEFAULT 0,
+  pendientes    INTEGER NOT NULL DEFAULT 0,
+  fecha         TEXT NOT NULL DEFAULT (date('now')),
+  usuario_id    INTEGER,
+  creado        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ── Partes de tiempo ──────────────────────────────────
 -- Las horas que se le echan a una obra. Se pueden escribir a mano o contarlas
 -- con el cronómetro, que admite pausas: `segundos` guarda lo acumulado de los
@@ -703,7 +728,7 @@ ORIGENES_CLIENTE = ["Google", "Recomendación", "Ya era cliente", "Redes sociale
 # administrador: nadie más lo ve hasta que él lo reparta.
 TABLAS_CON_RESPONSABLE = ("clientes", "obras", "citas", "presupuestos", "proformas",
                           "facturas", "costes", "ingresos", "solicitudes", "visitas",
-                          "notas", "tiempos", "certificados")
+                          "notas", "tiempos", "certificados", "tests_seguridad")
 MIGRACIONES += [(t, "usuario_id", "INTEGER") for t in TABLAS_CON_RESPONSABLE]
 
 

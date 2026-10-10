@@ -792,6 +792,13 @@ MODULOS.clientes_origenes = { titulo: "Cómo nos conocen", menu: "Orígenes",
 MODULOS.clientes_origen = { titulo: "De dónde vienen", menu: "De dónde vienen",
   sub: "Qué canal trae clientes, obras y dinero",
   icono: ico.grafico, especial: "origenes", permiso: "clientes" };
+// Submenús de Certificados: el boletín y el test de seguridad del cuadro.
+// «certificados» a secas es la entrada del menú y abre el primero.
+MODULOS.certificados_cie = { titulo: "Certificados", menu: "CIE", sub: "Boletines eléctricos (CIE) para la Xunta",
+  icono: ico.firma, especial: "cie", permiso: "certificados" };
+MODULOS.tests_seguridad = { titulo: "Test de seguridad", menu: "Test de seguridad",
+  sub: "Revisión del cuadro de una vivienda, con puntuación y defectos",
+  icono: ico.ok, especial: "testSeguridad", permiso: "certificados" };
 // La ficha de un cliente: no sale en el menú, se entra desde Clientes.
 MODULOS.ficha_cliente = { titulo: "Ficha de cliente", sub: "", icono: ico.gente, especial: "fichaCliente",
   permiso: "clientes" };
@@ -818,7 +825,8 @@ var ORDEN_MENU = [
   { sep: "Gestión", items: [{ k: "obras", hijos: ["obras_estados"] }, "tiempos", "notas",
                             { k: "clientes", hijos: ["clientes_origen", "clientes_origenes"] },
                             "profesionales"] },
-  { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "certificados",
+  { sep: "Economía", items: ["presupuestos", "proformas", "facturas",
+                             { k: "certificados", hijos: ["certificados_cie", "tests_seguridad"] },
                              { k: "costes", hijos: ["gastos_categorias", "gastos_estados"] }, "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
   { sep: "Empresa", items: ["estatutos", "documentacion", "equipo"] }
@@ -956,6 +964,8 @@ function ir(k) {
   VOLVER = null;
   pararTic();
   if (!MODULOS[k] || !puedeVer(k)) k = "dashboard";
+  // Certificados tiene submenú: la entrada de arriba abre el primero (CIE).
+  if (k === "certificados") k = "certificados_cie";
   vistaActual = k;
   location.hash = k;
   pintarMenu();
@@ -983,6 +993,7 @@ function ir(k) {
   if (m.especial === "origenes") return verOrigenes();
   if (m.especial === "documento") return verDocumentos(k);
   if (m.especial === "cie") return verCie();
+  if (m.especial === "testSeguridad") return verTestsSeguridad();
   return verTabla(k);
 }
 
@@ -4523,8 +4534,10 @@ var CIE_TIPICOS = [
 
 function verCie() {
   $("#vista-acciones").innerHTML =
+    '<button class="btn btn--fant" id="btn-test">' + svg(ico.ok) + "Test de seguridad</button>" +
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nuevo certificado</button>";
   $("#btn-nuevo").addEventListener("click", function () { editarCie(null); });
+  $("#btn-test").addEventListener("click", function () { editarTest(null); });
 
   Promise.all([api("/api/admin/cie"), cargarRef("clientes")]).then(function (res) {
     var filas = res[0];
@@ -4763,6 +4776,316 @@ function editarCie(id) {
           var e = $("#cie-err");
           e.textContent = err.message;
           e.hidden = false;
+        });
+    });
+  }).catch(error);
+}
+
+/* ── Test de seguridad del cuadro ─────────────────────────────────────── */
+// La guía de «Pruebas de seguridad en un cuadro de vivienda» hecha lista para
+// ir marcando en la casa. Los puntos, la nota y los defectos los pone el
+// servidor (test_seguridad_puntos.py): aquí solo se pinta y se marca, y cada
+// vez que cambia algo se le vuelve a pedir la cuenta. Así la nota de la
+// pantalla y la del PDF salen de la misma fórmula.
+var TS_NIVEL = { peligro: "rojo", deficiente: "naranja", mejorable: "ambar", correcta: "verde", sin_datos: "gris" };
+var TS_GRAVEDAD = { muy_grave: "Muy grave", grave: "Grave", leve: "Leve" };
+
+function tsNota(t) {
+  return '<span class="ts-pastilla ts-pastilla--' + (TS_NIVEL[t.nivel] || "gris") + '">' +
+    (t.puntuacion === null || t.puntuacion === undefined ? "—" : t.puntuacion) + "</span>";
+}
+
+// «1 grave», «3 graves»: cuántos defectos hay de una clase.
+function tsCuenta(n, clase, color) {
+  n = n || 0;
+  return '<span class="ts-cuenta ts-cuenta--' + color + '">' + n + " " + clase + (n === 1 ? "" : "s") + "</span>";
+}
+
+function verTestsSeguridad() {
+  $("#vista-acciones").innerHTML =
+    '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nuevo test</button>";
+  $("#btn-nuevo").addEventListener("click", function () { editarTest(null); });
+
+  api("/api/admin/tests-seguridad").then(function (filas) {
+    $("#vista").innerHTML =
+      '<div class="herr"><input type="search" id="buscar" placeholder="Buscar por titular o dirección…"></div>' +
+      '<div class="tabla-caja"><div class="tabla-scroll" id="caja-ts"></div></div>';
+
+    function pintar() {
+      var q = llano($("#buscar").value);
+      var vistas = filas.filter(function (f) {
+        return !q || llano([f.numero, f.titular, f.direccion, f.cliente].join(" ")).indexOf(q) >= 0;
+      });
+      var caja = $("#caja-ts");
+      if (!vistas.length) {
+        caja.innerHTML = '<div class="vacia">Todavía no hay tests de seguridad. Pulsa «Nuevo test».</div>';
+        return;
+      }
+      caja.innerHTML = "<table><thead><tr><th>Número</th><th>Fecha</th><th>Titular</th>" +
+        "<th>Dirección</th><th class=\"num\">Puntuación</th><th>Defectos</th>" +
+        "<th class=\"num\">Acciones</th></tr></thead><tbody>" +
+        vistas.map(function (f) {
+          var defectos = [[f.muy_graves, "muy grave", "rojo"], [f.graves, "grave", "naranja"],
+                          [f.leves, "leve", "gris"]]
+            .filter(function (d) { return d[0]; })
+            .map(function (d) { return tsCuenta(d[0], d[1], d[2]); })
+            .join(" ");
+          return "<tr><td><b>" + (esc(f.numero) || "—") + "</b></td>" +
+            "<td>" + esc(fecha(f.fecha)) + "</td>" +
+            "<td>" + (esc(f.titular) || "—") + "</td><td>" + (esc(f.direccion) || "—") + "</td>" +
+            '<td class="num">' + tsNota(f) + "</td>" +
+            "<td>" + (defectos || '<span style="color:var(--muted-2)">ninguno</span>') +
+            (f.pendientes ? '<div style="font-size:.78rem;color:var(--muted-2)">' + f.pendientes + " sin comprobar</div>" : "") +
+            "</td>" +
+            '<td class="acciones">' +
+              '<button data-pdf="' + f.id + '" title="Descargar el informe">' + svg(ico.descarga) + "</button>" +
+              '<button data-editar="' + f.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
+              '<button class="borrar" data-borrar="' + f.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
+            "</td></tr>";
+        }).join("") + "</tbody></table>";
+
+      $$("[data-pdf]", caja).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var f = filas.filter(function (x) { return String(x.id) === b.dataset.pdf; })[0];
+          bajarPdf("/api/admin/tests-seguridad/" + f.id + "/pdf", (f.numero || "TS-" + f.id) + ".pdf");
+        });
+      });
+      $$("[data-editar]", caja).forEach(function (b) {
+        b.addEventListener("click", function () { editarTest(b.dataset.editar); });
+      });
+      $$("[data-borrar]", caja).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var cual = b.dataset.borrar;
+          modal("Confirmar borrado",
+            "<p style='color:var(--muted)'>Se va a borrar este test de seguridad. No se puede deshacer.</p>",
+            '<button class="btn btn--fant" id="b-no">Cancelar</button>' +
+            '<button class="btn btn--peligro" id="b-si">Borrar</button>');
+          $("#b-no").addEventListener("click", cerrarModal);
+          $("#b-si").addEventListener("click", function () {
+            api("/api/admin/tests-seguridad/" + cual, { metodo: "DELETE" })
+              .then(function () { cerrarModal(); avisar("Test borrado"); ir("tests_seguridad"); })
+              .catch(function (e) { avisar(e.message, "err"); });
+          });
+        });
+      });
+    }
+    pintar();
+    $("#buscar").addEventListener("input", pintar);
+  }).catch(error);
+}
+
+// La cabecera con la nota: se queda pegada arriba mientras se baja por la lista.
+function tsCabeceraHTML(r) {
+  var n = r.n || {};
+  return '<div class="ts-nota__num ts-nota__num--' + (TS_NIVEL[r.nivel] || "gris") + '">' +
+      (r.puntuacion === null || r.puntuacion === undefined ? "—" : r.puntuacion) +
+      "<small>sobre 100</small></div>" +
+    '<div class="ts-nota__txt"><b>' + esc(r.veredicto) + "</b>" +
+      '<div class="ts-nota__cuentas">' +
+        tsCuenta(n.muy_grave, "muy grave", "rojo") + tsCuenta(n.grave, "grave", "naranja") +
+        tsCuenta(n.leve, "leve", "gris") +
+        "<span>" + r.hechas + " de " + r.total + " comprobados</span>" +
+      "</div></div>";
+}
+
+// El final del formulario: lo mismo que saldrá en el PDF, de más a menos grave.
+function tsInformeHTML(r) {
+  if (r.nivel === "sin_datos") return '<p class="ts-informe__vacio">' + esc(r.porque) + "</p>";
+  var h = '<p class="ts-informe__porque ts-informe__porque--' + TS_NIVEL[r.nivel] + '"><b>' +
+          esc(r.veredicto) + ".</b> " + esc(r.porque) + "</p>";
+  ["muy_grave", "grave", "leve"].forEach(function (g) {
+    (r.defectos[g] || []).forEach(function (d) {
+      h += '<div class="ts-defecto ts-defecto--' + g + '">' +
+        '<p class="ts-defecto__tit"><span>' + esc(TS_GRAVEDAD[g]) + "</span> " + esc(d.numero) + " · " +
+        esc(d.defecto) + (d.detalle ? " <i>(" + esc(d.detalle) + ")</i>" : "") + "</p>" +
+        "<p><b>Qué hacer:</b> " + esc(d.recomendacion) + "</p>" +
+        "<p><b>Por qué:</b> " + esc(d.porque) + "</p></div>";
+    });
+  });
+  h += '<p class="ts-informe__siempre"><b>Además:</b> ' + esc(r.siempre) + "</p>";
+  if (r.pendientes) {
+    h += '<p class="ts-informe__siempre">Quedan ' + r.pendientes +
+         " puntos sin comprobar: la puntuación solo cuenta lo revisado.</p>";
+  }
+  return h;
+}
+
+function editarTest(id) {
+  Promise.all([
+    api("/api/admin/tests-seguridad/plantilla"),
+    id ? api("/api/admin/tests-seguridad/" + id) : Promise.resolve(null),
+    cargarRef("clientes"), cargarRef("obras")
+  ]).then(function (res) {
+    var plantilla = res[0];
+    var t = res[1] || {
+      fecha: new Date().toISOString().slice(0, 10),
+      instalador: (YO && YO.nombre) || "",
+      usuario_id: YO && YO.id,
+      respuestas: { estados: {}, valores: {} }
+    };
+    // Lo marcado. Es lo único que se manda al servidor para que haga la cuenta.
+    var R = { estados: Object.assign({}, t.respuestas.estados), valores: Object.assign({}, t.respuestas.valores) };
+
+    function campo(clave, etiqueta, tipo) {
+      var v = t[clave] === null || t[clave] === undefined ? "" : t[clave];
+      return '<div class="campo"><label for="k-' + clave + '">' + esc(etiqueta) + "</label>" +
+        '<input id="k-' + clave + '" data-k="' + clave + '" type="' + (tipo || "text") +
+        '" value="' + esc(v) + '"></div>';
+    }
+    function dos(a, b) { return '<div class="rejilla-2">' + a + b + "</div>"; }
+    function refer(clave, etiqueta, lista) {
+      return '<div class="campo"><label for="k-' + clave + '">' + esc(etiqueta) + "</label>" +
+        '<select id="k-' + clave + '" data-k="' + clave + '" data-num="1"><option value="">— ninguno —</option>' +
+        (cache[lista] || []).map(function (o) {
+          return '<option value="' + o.id + '"' + (String(t[clave] || "") === String(o.id) ? " selected" : "") +
+                 ">" + esc(o.titulo || nombreCliente(o)) + "</option>";
+        }).join("") + "</select></div>";
+    }
+    function medidaHTML(m) {
+      return '<label class="ts-medida">' + esc(m.etiqueta) +
+        '<span><input data-m="' + m.clave + '" inputmode="decimal" value="' + esc(R.valores[m.clave] || "") + '">' +
+        (m.unidad ? "<em>" + esc(m.unidad) + "</em>" : "") + "</span></label>";
+    }
+    function puntoHTML(p) {
+      var e = R.estados[p.clave];
+      var boton = function (estado, texto) {
+        return '<button type="button" class="ts-b ts-b--' + estado + (e === estado ? " is-on" : "") +
+               '" data-p="' + p.clave + '" data-e="' + estado + '">' + texto + "</button>";
+      };
+      return '<div class="ts-punto" data-punto="' + p.clave + '">' +
+        '<div class="ts-punto__txt">' + esc(p.texto) +
+          ' <span class="ts-grav ts-grav--' + p.gravedad + '">' + esc(plantilla.gravedades[p.gravedad]) + "</span>" +
+          (p.medidas.length ? '<div class="ts-medidas">' + p.medidas.map(medidaHTML).join("") + "</div>" : "") +
+        "</div>" +
+        '<div class="ts-punto__res">' +
+          (p.auto
+            ? '<span class="ts-auto" data-auto="' + p.clave + '">Escribe la medida</span>'
+            : boton("ok", "Sí") + boton("fallo", "No") + (p.na ? boton("na", "N/A") : "")) +
+        "</div></div>";
+    }
+
+    var cuerpo = '<div class="aviso aviso--err" id="ts-err" hidden></div>' +
+      '<div class="ts-nota" id="ts-nota"></div><form id="ts-form">' +
+      '<h3 class="cie-tit">Vivienda</h3>' +
+      dos(refer("cliente_id", "Cliente (opcional)", "clientes"), refer("obra_id", "Obra (opcional)", "obras")) +
+      dos(campo("titular", "Titular"), campo("direccion", "Dirección")) +
+      dos(campo("instalador", "Quién lo revisa"), campo("fecha", "Fecha", "date")) +
+      '<p class="ts-ayuda">Marca <b>Sí</b> si se cumple y <b>No</b> si hay defecto. Lo que no se marca ' +
+      "queda como «sin comprobar» y no cuenta en la nota. Donde hay una medida, se escribe el valor y " +
+      "el resultado sale solo.</p>" +
+      plantilla.bloques.map(function (b) {
+        return '<h3 class="cie-tit">' + esc(b.titulo) + "</h3>" +
+          b.grupos.map(function (g) {
+            return '<section class="ts-grupo"><h4><span>' + esc(g.numero) + "</span>" + esc(g.titulo) + "</h4>" +
+              g.puntos.map(puntoHTML).join("") + "</section>";
+          }).join("");
+      }).join("") +
+      '<div class="campo" style="margin-top:16px"><label for="k-observaciones">Observaciones</label>' +
+      '<textarea id="k-observaciones" data-k="observaciones" rows="3">' + esc(t.observaciones || "") + "</textarea></div>" +
+      '<h3 class="cie-tit">Resultado y recomendaciones</h3><div id="ts-informe"></div>' +
+      '<p class="ts-alcance">' + esc(plantilla.alcance) + "</p>" +
+      "</form>";
+
+    modal("Test de seguridad" + (t.numero ? " · " + t.numero : ""), cuerpo,
+      '<button class="btn btn--fant" id="ts-no">Cancelar</button>' +
+      '<button class="btn btn--fant" id="ts-pdf"' + (id ? "" : " disabled title=\"Guarda primero\"") + ">" +
+      svg(ico.descarga) + "PDF</button>" +
+      '<button class="btn btn--amber" id="ts-si">Guardar</button>', true);
+
+    function pintarResultado(r) {
+      $("#ts-nota").innerHTML = tsCabeceraHTML(r);
+      $("#ts-informe").innerHTML = tsInformeHTML(r);
+      $$("[data-auto]").forEach(function (el) {
+        var e = r.estados[el.dataset.auto];
+        el.className = "ts-auto" + (e ? " ts-auto--" + e : "");
+        el.textContent = e ? (e === "ok" ? "Correcto" : "Defecto") + " · " + (r.detalles[el.dataset.auto] || "")
+                           : "Escribe la medida";
+      });
+    }
+    // La cuenta la hace el servidor. Si se marca deprisa, solo vale la última
+    // respuesta: una que llegue tarde no puede pisar a la buena.
+    var turno = 0, espera = null;
+    function evaluar() {
+      var mio = ++turno;
+      api("/api/admin/tests-seguridad/evaluar", { metodo: "POST", datos: R })
+        .then(function (r) { if (mio === turno && $("#ts-nota")) pintarResultado(r); })
+        .catch(function () {});
+    }
+    function evaluarLuego() { clearTimeout(espera); espera = setTimeout(evaluar, 350); }
+
+    if (t.resultado) pintarResultado(t.resultado); else evaluar();
+
+    $("#ts-form").addEventListener("click", function (ev) {
+      var b = ev.target.closest ? ev.target.closest(".ts-b") : null;
+      if (!b) return;
+      var p = b.dataset.p;
+      // Pulsar otra vez el que está marcado lo desmarca.
+      if (R.estados[p] === b.dataset.e) delete R.estados[p]; else R.estados[p] = b.dataset.e;
+      $$('.ts-b[data-p="' + p + '"]').forEach(function (x) {
+        x.classList.toggle("is-on", R.estados[p] === x.dataset.e);
+      });
+      evaluar();
+    });
+    $("#ts-form").addEventListener("input", function (ev) {
+      var m = ev.target.dataset && ev.target.dataset.m;
+      if (!m) return;
+      var v = ev.target.value.trim();
+      if (v) R.valores[m] = v; else delete R.valores[m];
+      evaluarLuego();
+    });
+
+    // Al elegir el cliente se trae su nombre y su dirección, si están vacíos.
+    $("#k-cliente_id").addEventListener("change", function () {
+      var cli = (cache.clientes || []).filter(function (x) {
+        return String(x.id) === $("#k-cliente_id").value;
+      })[0];
+      if (!cli) return;
+      var calle = [cli.direccion, cli.numero].filter(Boolean).join(" ");
+      var datos = {
+        titular: nombreCliente(cli),
+        direccion: [[calle, cli.piso].filter(Boolean).join(", "), cli.ayuntamiento || cli.ciudad]
+          .filter(Boolean).join(" · ")
+      };
+      Object.keys(datos).forEach(function (k) {
+        var el = $("#k-" + k);
+        if (el && !el.value.trim() && datos[k]) el.value = datos[k];
+      });
+    });
+
+    $("#ts-no").addEventListener("click", cerrarModal);
+    if (id) $("#ts-pdf").addEventListener("click", function () {
+      bajarPdf("/api/admin/tests-seguridad/" + id + "/pdf", (t.numero || "TS-" + id) + ".pdf");
+    });
+
+    $("#ts-si").addEventListener("click", function () {
+      var datos = { respuestas: R };
+      $$("#ts-form [data-k]").forEach(function (el) {
+        var v = el.value.trim();
+        datos[el.dataset.k] = el.dataset.num ? (v === "" ? null : Number(v)) : v;
+      });
+      var e = $("#ts-err");
+      if (!datos.titular) {
+        e.textContent = "Falta el titular.";
+        e.hidden = false;
+        $("#modal .modal__caja").scrollTop = 0;
+        return;
+      }
+      if (t.usuario_id !== undefined) datos.usuario_id = t.usuario_id;
+      var btn = $("#ts-si");
+      btn.disabled = true;
+      btn.textContent = "Guardando…";
+      api("/api/admin/tests-seguridad" + (id ? "/" + id : ""), { metodo: id ? "PUT" : "POST", datos: datos })
+        .then(function (r) {
+          cerrarModal();
+          avisar("Test " + (r.numero || "") + " guardado");
+          ir("tests_seguridad");
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = "Guardar";
+          e.textContent = err.message;
+          e.hidden = false;
+          $("#modal .modal__caja").scrollTop = 0;
         });
     });
   }).catch(error);
