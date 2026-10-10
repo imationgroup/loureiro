@@ -534,6 +534,58 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .est__pie{ margin:14px 0 0; padding-top:10px; border-top:1px solid var(--line);
   font-size:.79rem; color:var(--muted-2); }
 
+/* ── Documentación ──────────────────────────────────── */
+.docs{ display:grid; gap:16px; max-width:900px; }
+.doc-tarj h3{ font-size:1.05rem; margin:0 0 4px; }
+.doc-tarj__sub{ margin:0 0 10px; color:var(--amber); font-size:.86rem; }
+.doc-tarj__txt{ margin:0; color:#C7CBD2; font-size:.92rem; line-height:1.6; }
+.doc-tarj__pie{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+  flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px solid var(--line);
+  font-size:.79rem; color:var(--muted-2); }
+.doc-tarj__btns{ display:flex; gap:8px; }
+
+/* El informe abierto. Columna estrecha a propósito: es texto para leer. */
+.doc{ max-width:860px; color:#C7CBD2; font-size:.94rem; line-height:1.68; }
+.doc__resumen{ margin:0 0 18px; padding-bottom:16px; border-bottom:1px solid var(--line);
+  color:var(--txt); font-size:1rem; }
+.doc h3{ font-family:var(--ff-h); font-size:1.12rem; color:var(--txt);
+  margin:30px 0 12px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+.doc h4{ font-size:.93rem; color:var(--txt); margin:18px 0 8px; }
+.doc p{ margin:0 0 11px; }
+.doc ul,.doc ol{ margin:0 0 12px; padding-left:22px; }
+.doc li{ margin-bottom:7px; }
+.doc b{ color:var(--txt); }
+.doc a{ color:var(--azul); overflow-wrap:anywhere; }
+.doc__fuente{ font-size:.86rem; color:var(--muted); margin:0 0 14px; }
+.doc__pie{ margin:24px 0 0; padding-top:12px; border-top:1px solid var(--line);
+  font-size:.79rem; color:var(--muted-2); }
+
+/* Cita literal del reglamento. */
+.doc-cita{ margin:0 0 14px; padding:12px 14px; background:var(--ink-2);
+  border-left:3px solid var(--line-2); border-radius:0 8px 8px 0; font-style:italic; }
+.doc-cita cite{ display:block; margin-top:8px; font-style:normal; font-size:.79rem;
+  color:var(--muted-2); }
+
+.doc-aviso{ margin:0 0 16px; padding:12px 14px; background:var(--amber-soft);
+  border:1px solid rgba(242,168,28,.4); border-radius:10px; color:var(--txt); }
+.doc-fuente{ font-size:.79rem; color:var(--muted-2); margin:10px 0 0; }
+
+/* La ficha de cada prueba. */
+.doc-prueba{ margin:0 0 16px; padding:16px 18px; background:var(--ink-2);
+  border:1px solid var(--line); border-radius:var(--r); }
+.doc-prueba h4{ display:flex; align-items:baseline; gap:10px; margin:0 0 8px;
+  font-size:1rem; color:var(--txt); }
+.doc-prueba h4 span{ flex:none; font-family:var(--ff-h); font-size:.78rem; color:#1E2533;
+  background:var(--amber); border-radius:6px; padding:3px 7px; }
+.doc-prueba__et{ margin:14px 0 6px !important; font-size:.72rem; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--muted-2); }
+.doc-prueba__nota{ padding:10px 12px; background:rgba(255,255,255,.04);
+  border-radius:8px; font-size:.89rem; }
+.doc-prueba ol{ margin-bottom:0; }
+
+.doc-tabla{ margin:0 0 16px; }
+.doc-tabla td,.doc-tabla th{ vertical-align:top; font-size:.86rem; line-height:1.5; }
+
 /* ── Agenda ───────────────────────────────────────────────────────────── */
 .ag-barra{ display:flex; justify-content:space-between; align-items:center; gap:12px;
   flex-wrap:wrap; margin-bottom:14px; }
