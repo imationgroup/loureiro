@@ -255,6 +255,90 @@ a{color:var(--amber);text-underline-offset:3px}
 .cie-circuitos td:first-child{width:48px}
 .cie-circuitos td:nth-child(3),.cie-circuitos td:nth-child(4){width:110px}
 
+/* ── Test de seguridad del cuadro ────────────────────────────────────── */
+/* Una lista para marcar con el dedo en la casa del cliente: botones grandes
+   y la nota siempre a la vista, pegada arriba mientras se baja. */
+.ts-nota{
+  position:sticky;top:-26px;z-index:2;display:flex;align-items:center;gap:16px;
+  margin:0 -28px 18px;padding:14px 28px;background:var(--ink-2);border-bottom:1px solid var(--line-2);
+}
+.ts-nota__num{
+  flex:none;min-width:74px;text-align:center;font-family:var(--ff-h);font-weight:800;
+  font-size:2.3rem;line-height:1;font-variant-numeric:tabular-nums;
+}
+.ts-nota__num small{display:block;margin-top:4px;font-family:var(--ff);font-weight:500;
+  font-size:.68rem;color:var(--muted-2);letter-spacing:.04em}
+.ts-nota__num--rojo{color:var(--rojo)} .ts-nota__num--naranja{color:#FB923C}
+.ts-nota__num--ambar{color:var(--amber)} .ts-nota__num--verde{color:var(--verde)}
+.ts-nota__num--gris{color:var(--muted-2)}
+.ts-nota__txt{min-width:0;font-size:.98rem}
+.ts-nota__cuentas{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-top:6px;
+  font-size:.78rem;color:var(--muted-2)}
+.ts-cuenta{display:inline-block;padding:2px 8px;border-radius:99px;font-size:.76rem;font-weight:600;white-space:nowrap}
+.ts-cuenta--rojo{background:var(--rojo-soft);color:var(--rojo)}
+.ts-cuenta--naranja{background:rgba(251,146,60,.14);color:#FB923C}
+.ts-cuenta--gris{background:rgba(255,255,255,.07);color:var(--muted)}
+.ts-pastilla{display:inline-block;min-width:44px;padding:3px 10px;border-radius:99px;text-align:center;
+  font-weight:700;font-variant-numeric:tabular-nums}
+.ts-pastilla--rojo{background:var(--rojo-soft);color:var(--rojo)}
+.ts-pastilla--naranja{background:rgba(251,146,60,.14);color:#FB923C}
+.ts-pastilla--ambar{background:var(--amber-soft);color:var(--amber)}
+.ts-pastilla--verde{background:var(--verde-soft);color:var(--verde)}
+.ts-pastilla--gris{background:rgba(255,255,255,.07);color:var(--muted)}
+
+.ts-ayuda,.ts-alcance{font-size:.84rem;color:var(--muted);line-height:1.55;margin:4px 0 0}
+.ts-alcance{margin-top:16px;padding:11px 13px;background:var(--amber-soft);border-radius:9px;color:#FDBA74}
+.ts-grupo{margin:0 0 14px;padding:14px 16px 6px;background:var(--ink);border:1px solid var(--line);border-radius:var(--r)}
+.ts-grupo h4{display:flex;align-items:baseline;gap:10px;margin:0 0 6px;font-size:.98rem;line-height:1.3}
+.ts-grupo h4 span{flex:none;font-size:.76rem;color:#1E2533;background:var(--amber);border-radius:6px;padding:2px 7px}
+.ts-punto{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;
+  border-top:1px solid var(--line)}
+.ts-punto__txt{min-width:0;font-size:.92rem;line-height:1.45}
+.ts-punto__res{flex:none;display:flex;gap:6px}
+.ts-grav{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:99px;font-size:.68rem;
+  font-weight:600;white-space:nowrap;vertical-align:1px}
+.ts-grav--muy_grave{background:var(--rojo-soft);color:var(--rojo)}
+.ts-grav--grave{background:rgba(251,146,60,.14);color:#FB923C}
+.ts-grav--leve{background:rgba(255,255,255,.07);color:var(--muted)}
+.ts-b{min-width:46px;padding:8px 10px;border-radius:9px;border:1.5px solid var(--line-2);background:transparent;
+  color:var(--muted);font-size:.86rem;font-weight:600;cursor:pointer}
+.ts-b:hover{border-color:var(--muted);color:var(--txt)}
+.ts-b--ok.is-on{background:var(--verde-soft);border-color:var(--verde);color:var(--verde)}
+.ts-b--fallo.is-on{background:var(--rojo-soft);border-color:var(--rojo);color:var(--rojo)}
+.ts-b--na.is-on{background:rgba(255,255,255,.1);border-color:var(--muted);color:var(--txt)}
+.ts-medidas{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:8px}
+.ts-medida{display:grid;gap:4px;font-size:.76rem;color:var(--muted)}
+.ts-medida span{display:flex;align-items:center;gap:6px}
+.ts-medida input{width:88px;background:var(--ink-3);border:1.5px solid transparent;border-radius:8px;
+  padding:7px 9px;font-size:.92rem}
+.ts-medida input:focus{outline:none;border-color:var(--amber);background:var(--ink-4)}
+.ts-medida em{font-style:normal;color:var(--muted-2);font-size:.82rem}
+.ts-auto{max-width:210px;text-align:right;font-size:.8rem;line-height:1.35;color:var(--muted-2)}
+.ts-auto--ok{color:var(--verde);font-weight:600}
+.ts-auto--fallo{color:var(--rojo);font-weight:600}
+
+.ts-informe__vacio{color:var(--muted-2);font-size:.9rem}
+.ts-informe__porque{margin-bottom:12px;padding:12px 14px;border-radius:9px;font-size:.92rem;line-height:1.55;
+  background:rgba(255,255,255,.05);border-left:3px solid var(--muted-2)}
+.ts-informe__porque--rojo{border-left-color:var(--rojo)} .ts-informe__porque--naranja{border-left-color:#FB923C}
+.ts-informe__porque--ambar{border-left-color:var(--amber)} .ts-informe__porque--verde{border-left-color:var(--verde)}
+.ts-informe__siempre{margin-top:10px;font-size:.86rem;color:var(--muted);line-height:1.55}
+.ts-defecto{margin-bottom:8px;padding:10px 13px;border-radius:9px;background:var(--ink);
+  border-left:3px solid var(--muted-2);font-size:.88rem;line-height:1.5;color:#C7CBD2}
+.ts-defecto--muy_grave{border-left-color:var(--rojo)} .ts-defecto--grave{border-left-color:#FB923C}
+.ts-defecto__tit{margin-bottom:4px;color:var(--txt);font-weight:600}
+.ts-defecto__tit span{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ts-defecto__tit i{font-weight:400;color:var(--muted)}
+.ts-defecto--muy_grave .ts-defecto__tit span{color:var(--rojo)}
+.ts-defecto--grave .ts-defecto__tit span{color:#FB923C}
+@media (max-width:640px){
+  .ts-punto{flex-direction:column;align-items:stretch;gap:8px}
+  .ts-punto__res{justify-content:flex-start}
+  .ts-b{flex:1;padding:11px 10px}
+  .ts-auto{max-width:none;text-align:left}
+  .ts-nota__num{min-width:58px;font-size:1.9rem}
+}
+
 /* ── Cronómetro de los partes de horas ───────────────────────────────── */
 .crono{
   background:var(--ink-2);border:1px solid var(--line);border-radius:var(--r-lg);
