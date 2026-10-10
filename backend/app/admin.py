@@ -153,8 +153,8 @@ _LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "coste
 
 TABLAS = {
     "clientes": Tabla("clientes",
-        ["nombre", "nif", "email", "telefono", "direccion", "cp", "ciudad",
-         "provincia", "notas", "resena_pedida", "origen"],
+        ["nombre", "apellidos", "nif", "email", "telefono", "direccion", "cp",
+         "ciudad", "ayuntamiento", "provincia", "notas", "resena_pedida", "origen"],
         obligatorios=("nombre",), validar=completar_cliente,
         modulo="clientes", lectura=_LEE_CLIENTES, responsable=True),
     "profesionales": Tabla("profesionales",
@@ -168,7 +168,7 @@ TABLAS = {
         modulo="proveedores", lectura=("proveedores", "stock", "costes")),
     "obras": Tabla("obras",
         ["codigo", "titulo", "cliente_id", "presupuesto_id", "direccion", "cp",
-         "ciudad", "provincia", "estado", "fecha_inicio", "fecha_fin_prevista",
+         "ciudad", "ayuntamiento", "provincia", "estado", "fecha_inicio", "fecha_fin_prevista",
          "fecha_fin_real", "importe_venta", "notas"],
         obligatorios=("titulo",), validar=completar_obra,
         modulo="obras", lectura=_LEE_OBRAS, responsable=True),
@@ -524,7 +524,7 @@ def notificaciones(u: dict = Depends(sesion_actual)):
     if puede(u, "presupuestos"):
         dias = DIAS_PRESUPUESTO_SIN_RESPUESTA
         for p_ in db.filas(
-                f"""SELECT p.id, p.numero, p.fecha, c.nombre AS cliente
+                f"""SELECT p.id, p.numero, p.fecha, TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente
                     FROM presupuestos p LEFT JOIN clientes c ON c.id = p.cliente_id
                     WHERE p.estado = 'enviado' AND p.firmado_el IS NULL
                       AND date(p.fecha) <= date('now', ?) AND {cond.replace('usuario_id', 'p.usuario_id')}
@@ -574,8 +574,11 @@ def _cliente_que_encaja(u: dict, email: str, nombre: str,
             return ya, "email"
     nombre = (nombre or "").strip()
     if por_nombre and nombre:
+        # Se compara contra el nombre completo: en la ficha van el nombre y
+        # los apellidos aparte, pero quien escribe en la web pone los dos.
         ya = db.fila(
-            f"SELECT * FROM clientes WHERE lower(trim(nombre)) = lower(?) AND {cond}",
+            f"SELECT * FROM clientes WHERE lower(trim({db.sql_nombre_cliente('clientes')}))"
+            f" = lower(?) AND {cond}",
             (nombre, *params))
         if ya:
             return ya, "nombre"
@@ -822,7 +825,7 @@ def informe_obras(u: dict = Depends(sesion_actual)):
     cond, params = filtro_responsable(u, "o")
     return db.filas(f"""
         SELECT o.id, o.codigo, o.titulo, o.estado, o.ciudad, o.importe_venta, o.usuario_id, o.cliente_id,
-               c.nombre AS cliente,
+               TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente,
                COALESCE((SELECT SUM(importe) FROM costes   WHERE obra_id = o.id), 0) AS costes,
                COALESCE((SELECT SUM(importe) FROM ingresos WHERE obra_id = o.id), 0) AS facturado,
                COALESCE((SELECT SUM(segundos) FROM tiempos WHERE obra_id = o.id), 0) AS segundos,
@@ -1037,7 +1040,7 @@ def dashboard(periodo: str | None = None, u: dict = Depends(sesion_actual)):
                        "gastos": (por_mes.get(m) or {}).get("gastos", 0)} for m in meses],
         "obras_recientes": db.filas(f"""
             SELECT o.id, o.titulo, o.estado, o.ciudad, o.importe_venta,
-                   c.nombre AS cliente,
+                   TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente,
                    COALESCE((SELECT SUM(importe) FROM costes WHERE obra_id=o.id),0) AS costes
             FROM obras o LEFT JOIN clientes c ON c.id=o.cliente_id
             WHERE {fo}

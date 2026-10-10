@@ -103,7 +103,7 @@ def _direccion(c: dict) -> str:
 _SQL = """
     SELECT c.*,
            p.nombre AS profesional, p.telefono AS profesional_tel,
-           cl.nombre AS cliente, cl.telefono AS cliente_tel,
+           TRIM(COALESCE(cl.nombre, '') || ' ' || COALESCE(cl.apellidos, '')) AS cliente, cl.telefono AS cliente_tel,
            cl.direccion AS cl_dir, cl.cp AS cl_cp, cl.ciudad AS cl_ciudad, cl.provincia AS cl_prov,
            o.titulo AS obra,
            o.direccion AS ob_dir, o.cp AS ob_cp, o.ciudad AS ob_ciudad, o.provincia AS ob_prov

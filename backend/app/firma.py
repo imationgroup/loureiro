@@ -262,8 +262,11 @@ def _huella(doc: dict, lineas: list[dict]) -> str:
 def _datos_publicos(doc: dict) -> dict:
     lineas = db.filas("SELECT * FROM presupuesto_lineas WHERE presupuesto_id = ? ORDER BY orden, id",
                       (doc["id"],))
-    cliente = db.fila("SELECT nombre, nif, direccion, cp, ciudad, provincia FROM clientes WHERE id = ?",
+    cliente = db.fila("SELECT nombre, apellidos, nif, direccion, cp, ciudad, ayuntamiento, provincia "
+                      "FROM clientes WHERE id = ?",
                       (doc["cliente_id"],)) if doc["cliente_id"] else None
+    if cliente:
+        cliente["nombre"] = db.nombre_cliente(cliente)
     from .documentos import totales
     return {
         "numero": doc.get("numero") or f"#{doc['id']}",

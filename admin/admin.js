@@ -302,6 +302,31 @@ var PROVINCIAS = ["Ourense", "Pontevedra", "A Coruña", "Lugo",
   "Segovia", "Sevilla", "Soria", "Tarragona", "Teruel", "Toledo", "Valencia",
   "Valladolid", "Vizcaya", "Zamora", "Zaragoza"];
 
+// Los dos primeros dígitos del código postal son la provincia. Con esto, al
+// escribir el CP la provincia se pone sola y no hay que buscarla en la lista.
+var PROVINCIA_POR_CP = {
+  "01": "Álava", "02": "Albacete", "03": "Alicante", "04": "Almería",
+  "05": "Ávila", "06": "Badajoz", "07": "Baleares", "08": "Barcelona",
+  "09": "Burgos", "10": "Cáceres", "11": "Cádiz", "12": "Castellón",
+  "13": "Ciudad Real", "14": "Córdoba", "15": "A Coruña", "16": "Cuenca",
+  "17": "Girona", "18": "Granada", "19": "Guadalajara", "20": "Guipúzcoa",
+  "21": "Huelva", "22": "Huesca", "23": "Jaén", "24": "León", "25": "Lleida",
+  "26": "La Rioja", "27": "Lugo", "28": "Madrid", "29": "Málaga",
+  "30": "Murcia", "31": "Navarra", "32": "Ourense", "33": "Asturias",
+  "34": "Palencia", "35": "Las Palmas", "36": "Pontevedra", "37": "Salamanca",
+  "38": "Santa Cruz de Tenerife", "39": "Cantabria", "40": "Segovia",
+  "41": "Sevilla", "42": "Soria", "43": "Tarragona", "44": "Teruel",
+  "45": "Toledo", "46": "Valencia", "47": "Valladolid", "48": "Vizcaya",
+  "49": "Zamora", "50": "Zaragoza", "51": "Ceuta", "52": "Melilla"
+};
+
+// La provincia de un código postal, o "" si no lo dice (CP a medio escribir
+// o inventado). Devolver "" es a propósito: así no se pisa lo que haya.
+function provinciaDeCP(cp) {
+  var cifras = String(cp || "").replace(/[^0-9]/g, "");
+  return cifras.length >= 2 ? (PROVINCIA_POR_CP[cifras.slice(0, 2)] || "") : "";
+}
+
 var MUNICIPIOS = {
   "Ourense": ["Allariz","Amoeiro","A Arnoia","Avión","Baltar","Bande",
     "Baños de Molgas","Barbadás","O Barco de Valdeorras","Beade","Beariz",
@@ -378,7 +403,7 @@ var MODULOS = {
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true, pordefecto: "miProfesional" },
       // Se escribe el cliente y el desplegable de obras se queda con las suyas.
       { c: "cliente_id", t: "Cliente", tipo: "busca", de: "clientes", mitad: true, filtraObras: "obra_id",
-        placeholder: "Escribe para buscar el cliente", etiqueta: function (c) { return c.nombre; } },
+        placeholder: "Escribe para buscar el cliente", etiqueta: function (c) { return nombreCliente(c); } },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras" },
       { c: "direccion", t: "Dirección", ayuda: "Si la dejas vacía se usa la de la obra o, si no hay obra, la del cliente" },
       { c: "cancelada_por", t: "¿Quién la cancela?", tipo: "select",
@@ -432,7 +457,7 @@ var MODULOS = {
     campos: [
       { c: "titulo", t: "Título", ayuda: "Opcional. Por ejemplo: pedido de azulejo" },
       { c: "cliente_id", t: "Cliente", tipo: "busca", de: "clientes", mitad: true, filtraObras: "obra_id",
-        placeholder: "Opcional", etiqueta: function (c) { return c.nombre; } },
+        placeholder: "Opcional", etiqueta: function (c) { return nombreCliente(c); } },
       { c: "obra_id", t: "Obra", tipo: "ref", de: "obras", mitad: true,
         ayuda: "Cliente y obra son opcionales: una nota puede no ser de nadie" },
       { c: "contenido", t: "Nota", tipo: "area", req: true,
@@ -515,19 +540,23 @@ var MODULOS = {
         fn: function (f) { abrirMaps(f); } }
     ],
     columnas: [
-      { c: "nombre", t: "Nombre" }, { c: "nif", t: "NIF" },
+      { c: "nombre", t: "Nombre", tipo: "nombreCliente" }, { c: "nif", t: "NIF" },
       { c: "telefono", t: "Teléfono" }, { c: "email", t: "Email" },
-      { c: "ciudad", t: "Ciudad" }, { c: "origen", t: "Nos conoció por" }
+      { c: "ciudad", t: "Población" }, { c: "origen", t: "Nos conoció por" }
     ],
     campos: [
-      { c: "nombre", t: "Nombre o razón social", req: true },
+      { c: "nombre", t: "Nombre o razón social", req: true, mitad: true },
+      { c: "apellidos", t: "Apellidos", mitad: true,
+        ayuda: "Si es una empresa, se deja vacío" },
       { c: "nif", t: "NIF / CIF", mitad: true },
       { c: "telefono", t: "Teléfono", mitad: true },
       { c: "email", t: "Email", tipo: "email", mitad: true },
       { c: "direccion", t: "Dirección" },
-      { c: "cp", t: "Código postal", mitad: true },
+      { c: "cp", t: "Código postal", tipo: "cp", mitad: true },
       { c: "provincia", t: "Provincia", tipo: "provincia", mitad: true },
-      { c: "ciudad", t: "Ciudad", tipo: "ciudad" },
+      { c: "ayuntamiento", t: "Ayuntamiento", tipo: "ciudad", mitad: true },
+      { c: "ciudad", t: "Población", tipo: "ciudad", mitad: true,
+        ayuda: "La aldea o el barrio, si no es el mismo nombre que el concello" },
       { c: "origen", t: "Cómo nos conoció", tipo: "lista", de: "listas/cliente-origenes",
         vacio: "Sin indicar",
         ayuda: "De aquí sale el informe de qué canal trae trabajo (Clientes > De dónde vienen)" },
@@ -584,9 +613,10 @@ var MODULOS = {
       { c: "importe_venta", t: "Importe presupuestado al cliente (sin IVA)", tipo: "eurofijo",
         placeholder: "Sale del presupuesto que elijas" },
       { c: "direccion", t: "Dirección" },
-      { c: "cp", t: "Código postal", mitad: true },
+      { c: "cp", t: "Código postal", tipo: "cp", mitad: true },
       { c: "provincia", t: "Provincia", tipo: "provincia", mitad: true },
-      { c: "ciudad", t: "Ciudad", tipo: "ciudad" },
+      { c: "ayuntamiento", t: "Ayuntamiento", tipo: "ciudad", mitad: true },
+      { c: "ciudad", t: "Población", tipo: "ciudad", mitad: true },
       { c: "fecha_inicio", t: "Inicio", tipo: "fecha", mitad: true },
       { c: "fecha_fin_prevista", t: "Fin previsto", tipo: "fecha", mitad: true },
       { c: "fecha_fin_real", t: "Fin real", tipo: "fecha", mitad: true },
@@ -788,10 +818,21 @@ function cargarRef(nombre) {
   if (cache[nombre]) return Promise.resolve(cache[nombre]);
   return api("/api/admin/" + nombre).then(function (r) { cache[nombre] = r; return r; });
 }
+// En la ficha el nombre y los apellidos se escriben aparte (para poder
+// buscar por apellido); en una lista, en un aviso o en un documento se leen
+// juntos. Esta es la única función que los une, y vale para cualquier
+// registro: lo que no tiene apellidos devuelve solo su nombre.
+function nombreCliente(c) {
+  if (!c) return "";
+  return [c.nombre, c.apellidos]
+    .map(function (x) { return String(x || "").trim(); })
+    .filter(Boolean).join(" ");
+}
+
 function nombreDe(lista, id) {
   if (!id) return "";
   var f = (cache[lista] || []).filter(function (x) { return x.id === id; })[0];
-  return f ? (f.titulo || f.nombre) : "#" + id;
+  return f ? (f.titulo || nombreCliente(f)) : "#" + id;
 }
 function invalidar() { cache = {}; }
 
@@ -848,7 +889,9 @@ function clientePorNombre(lista, nombre) {
   var q = llano(nombre);
   if (!q) return null;
   return (cache[lista] || []).filter(function (o) {
-    return llano(o.nombre) === q;
+    // Por el nombre completo, que es lo que ofrece el desplegable; también
+    // por el de pila a secas, para lo que se escribió antes de los apellidos.
+    return llano(nombreCliente(o)) === q || llano(o.nombre) === q;
   })[0] || null;
 }
 
@@ -977,7 +1020,7 @@ function verTabla(clave) {
           ? '<input id="filtro-cliente" list="lista-filtro-cliente" autocomplete="off" class="herr__cliente"' +
             ' placeholder="Cliente: escribe para filtrar…" value="' + esc(est.cliente) + '">' +
             '<datalist id="lista-filtro-cliente">' + (cache[fil ? fil.cliente : propio] || []).map(function (c) {
-              return '<option value="' + esc(c.nombre) + '"></option>';
+              return '<option value="' + esc(nombreCliente(c)) + '"></option>';
             }).join("") + "</datalist>"
           : "") +
         (fil ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"></select>' : "") +
@@ -1006,7 +1049,7 @@ function verTabla(clave) {
                        esc(fil.vacio) + "</option>") +
           obras.map(function (o) {
             return '<option value="' + o.id + '"' + (String(o.id) === est.obra ? " selected" : "") + ">" +
-                   esc(o.titulo || o.nombre) + "</option>";
+                   esc(o.titulo || nombreCliente(o)) + "</option>";
           }).join("");
       }
 
@@ -1056,8 +1099,9 @@ function clientesQueEncajan(lista, texto) {
   var q = llano(texto);
   if (!q) return null;
   var todos = cache[lista] || [];
-  var exacto = todos.filter(function (c) { return llano(c.nombre) === q; });
-  var caben = exacto.length ? exacto : todos.filter(function (c) { return llano(c.nombre).indexOf(q) >= 0; });
+  var exacto = todos.filter(function (c) { return llano(nombreCliente(c)) === q; });
+  var caben = exacto.length ? exacto
+    : todos.filter(function (c) { return llano(nombreCliente(c)).indexOf(q) >= 0; });
   return caben.map(function (c) { return String(c.id); });
 }
 
@@ -1125,6 +1169,7 @@ function celda(col, fila) {
         return "<option" + (o === v ? " selected" : "") + ">" + esc(o) + "</option>";
       }).join("") + "</select>";
   }
+  if (col.tipo === "nombreCliente") return esc(nombreCliente(fila)) || "—";
   if (col.tipo === "tag") {
     var clase = "";
     if (v === "en curso" || v === "atendida" || v === "terminada") clase = " tag--verde";
@@ -1260,6 +1305,11 @@ function campoHTML(campo, valor, esNuevo) {
       h += '<option value="' + esc(o) + '"' + (o === prov ? " selected" : "") + ">" + esc(o) + "</option>";
     });
     h += "</select>";
+  } else if (campo.tipo === "cp") {
+    // Al escribirlo se pone la provincia sola (ver abrirFormulario).
+    h += '<input id="c-' + campo.c + '" data-c="' + campo.c + '" data-cp' +
+         ' inputmode="numeric" maxlength="5" autocomplete="off"' +
+         ' placeholder="32001" value="' + esc(v) + '">';
   } else if (campo.tipo === "ciudad") {
     // input + datalist: se escribe y va filtrando, pero admite cualquier
     // valor. Un <select> obligaría a tener TODOS los municipios de España.
@@ -1356,7 +1406,7 @@ function campoHTML(campo, valor, esNuevo) {
     }
     (cache[campo.de] || []).forEach(function (o) {
       h += '<option value="' + o.id + '"' + (String(o.id) === String(v) ? " selected" : "") + ">" +
-           esc(o.titulo || o.nombre) + "</option>";
+           esc(o.titulo || nombreCliente(o)) + "</option>";
     });
     h += "</select>";
   } else if (campo.tipo === "ref") {
@@ -1371,7 +1421,7 @@ function campoHTML(campo, valor, esNuevo) {
     }
     (cache[campo.de] || []).forEach(function (o) {
       h += '<option value="' + o.id + '"' + (String(o.id) === String(v) ? " selected" : "") + ">" +
-           esc(o.titulo || o.nombre) + "</option>";
+           esc(o.titulo || nombreCliente(o)) + "</option>";
     });
     h += "</select>";
   } else {
@@ -1472,6 +1522,19 @@ function abrirFormulario(clave, registro, inicial) {
       });
     }
     refrescarCiudades();
+
+    // El código postal dice la provincia: en cuanto hay dos cifras se pone
+    // sola. Si el CP no dice nada (a medio escribir), se deja lo que haya.
+    var inpCP = $("#f-form [data-cp]");
+    if (inpCP && selProv) {
+      inpCP.addEventListener("input", function () {
+        var prov = provinciaDeCP(inpCP.value);
+        if (!prov || prov === selProv.value) return;
+        selProv.value = prov;
+        // Como si se hubiese elegido a mano: rehace la lista de concellos.
+        selProv.dispatchEvent(new Event("change"));
+      });
+    }
     if (selProv) {
       selProv.addEventListener("change", function () {
         // Si la ciudad escrita no es de la provincia nueva, se limpia:
@@ -1503,7 +1566,7 @@ function abrirFormulario(clave, registro, inicial) {
         pegado[c] = el.value;
         if (el.value) traido = true;
       });
-      if (cli && traido) avisar("Datos de contacto de " + cli.nombre);
+      if (cli && traido) avisar("Datos de contacto de " + nombreCliente(cli));
     });
 
     // Con un cliente elegido, el buscador solo sugiere lo suyo: buscar el
@@ -1640,18 +1703,21 @@ function abrirFormulario(clave, registro, inicial) {
           return String(x.id) === selCli.value;
         })[0];
         if (!cli) return;
-        var ciudadLibre = libre("ciudad"), copiado = false;
+        // Lo que depende de la provincia se mira ANTES de cambiarla: al
+        // cambiarla se vacía, y entonces ya parecería libre siempre.
+        var deProvincia = { ciudad: libre("ciudad"), ayuntamiento: libre("ayuntamiento") };
+        var copiado = false;
         // La provincia va primero: al cambiarla se rehace la lista de
         // municipios y se vacía una ciudad que no sea de esa provincia.
         var prov = $("#c-provincia");
-        if (prov && cli.provincia && ciudadLibre && prov.value !== cli.provincia) {
+        if (prov && cli.provincia && deProvincia.ciudad && prov.value !== cli.provincia) {
           prov.value = cli.provincia;
           prov.dispatchEvent(new Event("change"));
           copiado = true;
         }
-        ["direccion", "cp", "ciudad"].forEach(function (c) {
+        ["direccion", "cp", "ciudad", "ayuntamiento"].forEach(function (c) {
           var el = $("#c-" + c);
-          if (!el || !(c === "ciudad" ? ciudadLibre : libre(c))) return;
+          if (!el || !(c in deProvincia ? deProvincia[c] : libre(c))) return;
           // Si el cliente nuevo no tiene ese dato, se vacía el que se rellenó
           // con el anterior: mejor un hueco que el código postal de otra ciudad.
           var valor = cli[c] || "";
@@ -1659,7 +1725,7 @@ function abrirFormulario(clave, registro, inicial) {
           el.value = valor;
           puesto[c] = valor;
         });
-        if (copiado) avisar("Dirección copiada de la ficha de " + cli.nombre);
+        if (copiado) avisar("Dirección copiada de la ficha de " + nombreCliente(cli));
       });
     }
     $$("#f-form [data-duracion]").forEach(function (caja) {
@@ -1779,9 +1845,9 @@ function pasarACliente(s) {
         // El aviso va ANTES de repintar: si ir() falla por lo que sea, el
         // catch se lo tragaba y el usuario no llegaba a ver la confirmación.
         avisar(r.creado
-          ? "Cliente creado: " + r.cliente.nombre
+          ? "Cliente creado: " + nombreCliente(r.cliente)
           : "Ya existía un cliente con ese correo. Solicitud enlazada con " +
-            r.cliente.nombre + ".");
+            nombreCliente(r.cliente) + ".");
         ir("solicitudes");
       })
       .catch(function (e) { cerrarModal(); error(e); });
@@ -2060,7 +2126,7 @@ function verObras() {
           '<input id="filtro-cliente" list="lista-filtro-cliente" autocomplete="off" class="herr__cliente"' +
           ' placeholder="Cliente: escribe para filtrar…" value="' + esc(est.cliente) + '">' +
           '<datalist id="lista-filtro-cliente">' + (cache.clientes || []).map(function (c) {
-            return '<option value="' + esc(c.nombre) + '"></option>';
+            return '<option value="' + esc(nombreCliente(c)) + '"></option>';
           }).join("") + "</datalist>" +
           '<select id="filtro-estado" aria-label="Estado"><option value="">Todos los estados</option>' +
           res[5].map(function (e) {
@@ -2501,7 +2567,14 @@ function desdeFicha(fn) {
 }
 
 function direccionCompleta(c) {
-  return [c.direccion, [c.cp, c.ciudad].filter(Boolean).join(" "), c.provincia]
+  // El concello se pone entre paréntesis cuando no es el nombre de la
+  // población: «Sobrado (Barbadás)» es la dirección de verdad.
+  var poblacion = [c.cp, c.ciudad].filter(Boolean).join(" ");
+  var ayto = String(c.ayuntamiento || "").trim();
+  if (ayto && llano(ayto) !== llano(c.ciudad || "")) {
+    poblacion = poblacion ? poblacion + " (" + ayto + ")" : ayto;
+  }
+  return [c.direccion, poblacion, c.provincia]
     .map(function (x) { return String(x || "").trim(); }).filter(Boolean).join(", ");
 }
 
@@ -2511,7 +2584,7 @@ function verFichaCliente() {
                puedeVer("obras") ? cargarRef("listas/obra-estados") : null, esAdmin() ? cargarRef("equipo") : null])
     .then(function (res) {
       var d = res[0], c = d.cliente;
-      $("#vista-titulo").textContent = c.nombre;
+      $("#vista-titulo").textContent = nombreCliente(c);
       $("#vista-sub").textContent = ["Ficha de cliente", c.nif, c.ciudad].filter(Boolean).join(" · ");
 
       // Acciones de arriba.
@@ -3341,7 +3414,7 @@ function verDocumentos(clave) {
           '<input id="filtro-cliente" list="lista-filtro-cliente" autocomplete="off" class="herr__cliente"' +
           ' placeholder="Cliente: escribe para filtrar…" value="' + esc(est.cliente) + '">' +
           '<datalist id="lista-filtro-cliente">' + (cache.clientes || []).map(function (c) {
-            return '<option value="' + esc(c.nombre) + '"></option>';
+            return '<option value="' + esc(nombreCliente(c)) + '"></option>';
           }).join("") + "</datalist>" +
           '<select id="filtro-obra" aria-label="Obra"></select>' +
           '<select id="filtro-estado" aria-label="Estado"><option value="">Todos los estados</option>' +
@@ -3847,7 +3920,7 @@ function editarDocumento(tipo, id, inicial) {
         "</option>" + (ajeno ? '<option value="' + esc(sel) + '" selected>(lo lleva otra persona)</option>' : "") +
         soloDelCliente(cache[lista] || [], deCliente, sel).map(function (o) {
         return '<option value="' + o.id + '"' + (String(o.id) === String(sel) ? " selected" : "") + ">" +
-               esc(o.titulo || o.nombre) + "</option>";
+               esc(o.titulo || nombreCliente(o)) + "</option>";
       }).join("");
     }
 
@@ -4351,7 +4424,7 @@ function empezarParte(recargar) {
     '<div class="campo"><label for="cr-cli">Cliente <span class="opt">(para encontrar la obra)</span></label>' +
     '<input id="cr-cli" list="cr-clientes" autocomplete="off" placeholder="Escribe para filtrar…">' +
     '<datalist id="cr-clientes">' + (cache.clientes || []).map(function (c) {
-      return '<option value="' + esc(c.nombre) + '"></option>';
+      return '<option value="' + esc(nombreCliente(c)) + '"></option>';
     }).join("") + "</datalist></div>" +
     '<div class="campo"><label for="cr-obra">A qué obra va</label><select id="cr-obra"></select></div>' +
     '<div class="campo"><label for="cr-que">Qué vas a hacer <span class="opt">(opcional)</span></label>' +
@@ -4366,7 +4439,7 @@ function empezarParte(recargar) {
     });
     $("#cr-obra").innerHTML = suyas.length
       ? suyas.map(function (o) {
-          return '<option value="' + o.id + '">' + esc(o.titulo || o.nombre) + "</option>";
+          return '<option value="' + o.id + '">' + esc(o.titulo || nombreCliente(o)) + "</option>";
         }).join("")
       : '<option value="">No hay obras de ese cliente</option>';
   }
@@ -4523,7 +4596,7 @@ function editarCie(id) {
         '<select id="k-' + clave + '" data-k="' + clave + '" data-num="1"><option value="">— ninguno —</option>' +
         (cache[lista] || []).map(function (o) {
           return '<option value="' + o.id + '"' + (String(c[clave] || "") === String(o.id) ? " selected" : "") +
-                 ">" + esc(o.titulo || o.nombre) + "</option>";
+                 ">" + esc(o.titulo || nombreCliente(o)) + "</option>";
         }).join("") + "</select></div>";
     }
 
@@ -4588,6 +4661,33 @@ function editarCie(id) {
         });
       });
     });
+    // Al elegir el cliente se trae lo que ya está en su ficha: titular, NIF
+    // y el emplazamiento. Solo se rellena lo que está vacío, que lo escrito
+    // a mano manda (el titular del boletín no siempre es el cliente).
+    var selCli = $("#k-cliente_id");
+    if (selCli) selCli.addEventListener("change", function () {
+      var cli = (cache.clientes || []).filter(function (x) {
+        return String(x.id) === selCli.value;
+      })[0];
+      if (!cli) return;
+      var mayus = function (x) { return String(x || "").trim().toUpperCase(); };
+      var datos = {
+        titular: nombreCliente(cli),
+        titular_nif: cli.nif || "",
+        emplazamiento: cli.direccion || "",
+        provincia: mayus(cli.provincia),
+        ayuntamiento: mayus(cli.ayuntamiento || cli.ciudad)
+      };
+      var traido = false;
+      Object.keys(datos).forEach(function (k) {
+        var el = $("#k-" + k);
+        if (!el || el.value.trim() || !datos[k]) return;
+        el.value = datos[k];
+        traido = true;
+      });
+      if (traido) avisar("Datos tomados de la ficha de " + nombreCliente(cli));
+    });
+
     $("#cie-no").addEventListener("click", cerrarModal);
     if (id) $("#cie-pdf").addEventListener("click", function () {
       bajarPdf("/api/admin/cie/" + id + "/pdf", (c.numero || "CIE-" + id) + ".pdf");

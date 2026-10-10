@@ -57,13 +57,15 @@ CREATE TABLE IF NOT EXISTS sesiones (
 -- ── Clientes ─────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS clientes (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  nombre      TEXT NOT NULL,
+  nombre      TEXT NOT NULL,     -- el de pila, o la razón social
+  apellidos   TEXT,
   nif         TEXT,
   email       TEXT,
   telefono    TEXT,
   direccion   TEXT,
   cp          TEXT,
-  ciudad      TEXT,
+  ciudad      TEXT,              -- la población: puede ser una aldea
+  ayuntamiento TEXT,             -- el concello al que pertenece
   provincia   TEXT DEFAULT 'Ourense',
   notas       TEXT,
   creado      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -107,6 +109,7 @@ CREATE TABLE IF NOT EXISTS obras (
   direccion         TEXT,
   cp                TEXT,
   ciudad            TEXT,
+  ayuntamiento      TEXT,
   provincia         TEXT DEFAULT 'Ourense',
   estado            TEXT NOT NULL DEFAULT 'presupuesto',
   fecha_inicio      TEXT,
@@ -577,6 +580,25 @@ CREATE INDEX IF NOT EXISTS idx_tiempos_fecha      ON tiempos(fecha);
 """
 
 
+def nombre_cliente(fila) -> str:
+    """Nombre y apellidos juntos: como se llama al cliente fuera del panel.
+
+    Dentro del panel se escriben aparte, para poder ordenar y buscar por
+    apellido; en una factura, en un certificado o en un correo lo que tiene
+    que salir es el nombre completo de una pieza.
+    """
+    if not fila:
+        return ""
+    partes = [(fila.get("nombre") or "").strip(), (fila.get("apellidos") or "").strip()]
+    return " ".join(p for p in partes if p)
+
+
+def sql_nombre_cliente(alias: str = "c") -> str:
+    """Lo mismo que nombre_cliente(), pero para hacerlo en el SELECT."""
+    return ("TRIM(COALESCE({0}.nombre, '') || ' ' || COALESCE({0}.apellidos, ''))"
+            .format(alias))
+
+
 # Columnas añadidas después de la primera versión. CREATE TABLE IF NOT
 # EXISTS no toca una tabla que ya existe, así que hay que añadirlas a mano.
 MIGRACIONES = [
@@ -627,6 +649,15 @@ MIGRACIONES = [
     # solicitud: al convertirla en cliente se lleva consigo.
     ("clientes", "origen", "TEXT"),
     ("solicitudes", "origen", "TEXT"),
+    # El nombre del cliente, partido: `nombre` es el de pila (o la razón
+    # social de una empresa) y los apellidos van aparte. Lo que había escrito
+    # hasta ahora se queda entero en `nombre`, que es como se escribía.
+    ("clientes", "apellidos", "TEXT"),
+    # El concello, que no siempre es la población: en Ourense mucha gente
+    # vive en una aldea de un concello con otro nombre, y el boletín
+    # eléctrico y los documentos piden el concello.
+    ("clientes", "ayuntamiento", "TEXT"),
+    ("obras", "ayuntamiento", "TEXT"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la

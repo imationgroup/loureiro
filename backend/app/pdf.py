@@ -78,15 +78,19 @@ def _fecha(iso: str | None) -> str:
 
 
 def _localidad(cliente) -> str | None:
-    """CP, ciudad y provincia en una línea, sin repetir.
+    """CP, población, concello y provincia en una línea, sin repetir.
 
     En Ourense capital la ciudad y la provincia se llaman igual, y la línea
-    salía como "32003 Ourense Ourense".
+    salía como "32003 Ourense Ourense". Lo mismo pasa con el concello: solo
+    se pone cuando no es el nombre de la población («Sobrado · Barbadás»).
     """
     ciudad = (cliente.get("ciudad") or "").strip()
+    ayuntamiento = (cliente.get("ayuntamiento") or "").strip()
     provincia = (cliente.get("provincia") or "").strip()
     partes = [(cliente.get("cp") or "").strip(), ciudad]
-    if provincia and provincia.lower() != ciudad.lower():
+    if ayuntamiento and ayuntamiento.lower() != ciudad.lower():
+        partes.append(("· " + ayuntamiento) if ciudad else ayuntamiento)
+    if provincia and provincia.lower() not in (ciudad.lower(), ayuntamiento.lower()):
         partes.append(f"({provincia})")
     linea = " ".join(x for x in partes if x)
     return linea or None
@@ -500,6 +504,9 @@ def documento_pdf(tipo: str, id_: int, firma: dict | None = None,
         f"SELECT * FROM {t['lineas']} WHERE {t['fk']} = ? ORDER BY orden, id", (id_,))
     cliente = db.fila("SELECT * FROM clientes WHERE id = ?",
                       (doc["cliente_id"],)) if doc["cliente_id"] else None
+    if cliente:
+        # En el documento el cliente va con nombre y apellidos de una pieza.
+        cliente["nombre"] = db.nombre_cliente(cliente)
     obra = db.fila("SELECT * FROM obras WHERE id = ?",
                    (doc["obra_id"],)) if doc["obra_id"] else None
 

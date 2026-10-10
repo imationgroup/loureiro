@@ -131,7 +131,7 @@ def listar(u: dict = Depends(sesion_actual)):
     exigir(u, MODULO)
     cond, params = filtro_responsable(u, "c")
     return db.filas(f"""
-        SELECT c.*, cl.nombre AS cliente,
+        SELECT c.*, TRIM(COALESCE(cl.nombre, '') || ' ' || COALESCE(cl.apellidos, '')) AS cliente,
                (SELECT COUNT(*) FROM certificado_circuitos x WHERE x.certificado_id = c.id) AS n_circuitos
         FROM certificados c
         LEFT JOIN clientes cl ON cl.id = c.cliente_id
