@@ -62,7 +62,9 @@ CREATE TABLE IF NOT EXISTS clientes (
   nif         TEXT,
   email       TEXT,
   telefono    TEXT,
-  direccion   TEXT,
+  direccion   TEXT,              -- la calle, sin el número
+  numero      TEXT,              -- número de la vía («12», «s/n»)
+  piso        TEXT,              -- piso y puerta («3º B»)
   cp          TEXT,
   ciudad      TEXT,              -- la población: puede ser una aldea
   ayuntamiento TEXT,             -- el concello al que pertenece
@@ -107,6 +109,8 @@ CREATE TABLE IF NOT EXISTS obras (
   titulo            TEXT NOT NULL,
   cliente_id        INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
   direccion         TEXT,
+  numero            TEXT,
+  piso              TEXT,
   cp                TEXT,
   ciudad            TEXT,
   ayuntamiento      TEXT,
@@ -593,6 +597,21 @@ def nombre_cliente(fila) -> str:
     return " ".join(p for p in partes if p)
 
 
+def direccion_cliente(fila) -> str:
+    """La calle con su número y piso: «Rúa do Souto 12, 3º B».
+
+    En la ficha se escriben en campos distintos porque el impreso del
+    boletín eléctrico los pide por separado; en una factura o en una carta
+    la dirección es una sola línea.
+    """
+    if not fila:
+        return ""
+    calle = " ".join(p for p in ((fila.get("direccion") or "").strip(),
+                                 (fila.get("numero") or "").strip()) if p)
+    piso = (fila.get("piso") or "").strip()
+    return ", ".join(p for p in (calle, piso) if p)
+
+
 def sql_nombre_cliente(alias: str = "c") -> str:
     """Lo mismo que nombre_cliente(), pero para hacerlo en el SELECT."""
     return ("TRIM(COALESCE({0}.nombre, '') || ' ' || COALESCE({0}.apellidos, ''))"
@@ -658,6 +677,13 @@ MIGRACIONES = [
     # eléctrico y los documentos piden el concello.
     ("clientes", "ayuntamiento", "TEXT"),
     ("obras", "ayuntamiento", "TEXT"),
+    # La dirección, en trozos: el número de la vía y el piso van aparte de
+    # la calle. El impreso del boletín eléctrico los pide en casillas
+    # distintas, y así no hay que recortar un texto a ojo.
+    ("clientes", "numero", "TEXT"),
+    ("clientes", "piso", "TEXT"),
+    ("obras", "numero", "TEXT"),
+    ("obras", "piso", "TEXT"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la
