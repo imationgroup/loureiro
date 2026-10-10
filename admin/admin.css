@@ -234,6 +234,27 @@ a{color:var(--amber);text-underline-offset:3px}
 .paneles{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
 .paneles--3{grid-template-columns:2fr 1fr}
 
+/* ── Certificado de instalación eléctrica ───────────────────────────── */
+.cie-tit{
+  font-size:.82rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--amber);margin:22px 0 12px;padding-top:14px;border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;
+}
+.cie-tit:first-child{margin-top:0;padding-top:0;border-top:0}
+.cie-circuitos{width:100%;border-collapse:collapse;margin-bottom:16px}
+.cie-circuitos th{
+  text-align:left;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted-2);font-weight:600;padding:0 6px 6px;
+}
+.cie-circuitos td{padding:2px 3px}
+.cie-circuitos input{
+  width:100%;background:var(--ink-3);border:1.5px solid transparent;border-radius:8px;
+  padding:8px 10px;font-size:.9rem;
+}
+.cie-circuitos input:focus{outline:none;border-color:var(--amber);background:var(--ink-4)}
+.cie-circuitos td:first-child{width:48px}
+.cie-circuitos td:nth-child(3),.cie-circuitos td:nth-child(4){width:110px}
+
 /* ── Cronómetro de los partes de horas ───────────────────────────────── */
 .crono{
   background:var(--ink-2);border:1px solid var(--line);border-radius:var(--r-lg);

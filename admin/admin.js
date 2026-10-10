@@ -734,6 +734,9 @@ var MODULOS = {
   facturas: { titulo: "Facturas", sub: "Lo que has facturado",
               icono: ico.recibo, especial: "documento", tipo: "facturas" },
 
+  certificados: { titulo: "Certificados", sub: "Boletines eléctricos (CIE) para la Xunta",
+                  icono: ico.firma, especial: "cie", permiso: "certificados" },
+
   contabilidad: { titulo: "Contabilidad", sub: "Resultado, IVA y pendientes", icono: ico.libro, especial: "contabilidad" }
 };
 
@@ -773,7 +776,7 @@ var ORDEN_MENU = [
   { sep: "Gestión", items: [{ k: "obras", hijos: ["obras_estados"] }, "tiempos", "notas",
                             { k: "clientes", hijos: ["clientes_origen", "clientes_origenes"] },
                             "profesionales"] },
-  { sep: "Economía", items: ["presupuestos", "proformas", "facturas",
+  { sep: "Economía", items: ["presupuestos", "proformas", "facturas", "certificados",
                              { k: "costes", hijos: ["gastos_categorias", "gastos_estados"] }, "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
   { sep: "Empresa", items: ["estatutos", "equipo"] }
@@ -922,6 +925,7 @@ function ir(k) {
   if (m.especial === "listaEditable") return verListaEditable(k);
   if (m.especial === "origenes") return verOrigenes();
   if (m.especial === "documento") return verDocumentos(k);
+  if (m.especial === "cie") return verCie();
   return verTabla(k);
 }
 
@@ -4385,6 +4389,247 @@ function empezarParte(recargar) {
   });
 }
 
+/* ── Certificados de instalación eléctrica (CIE) ──────────────────────── */
+// El boletín eléctrico. Los campos son los del impreso IN614C de la Xunta,
+// y el PDF que se descarga ES ese impreso con los datos escritos encima, no
+// una imitación: es lo que hay que presentar.
+var CIE_TIPOS = [
+  { v: "nueva", t: "Nueva" }, { v: "reforma", t: "Reforma" },
+  { v: "cambio_tension", t: "Cambio de tensión" }, { v: "cambio_titular", t: "Cambio de titular" },
+  { v: "ampliacion", t: "Ampliación" }, { v: "otras", t: "Otras modificaciones" }
+];
+var CIE_GRADOS = ["BÁSICO", "ELEVADO", "ESPECIAL"];
+var CIE_FILAS = 8;     // las que tiene el impreso, ni una más
+
+// Los circuitos de una vivienda normal, que son casi siempre los mismos.
+var CIE_TIPICOS = [
+  { designacion: "C1 - Iluminación", seccion: "1,5", interruptor: "10" },
+  { designacion: "C2 - Tomas de uso general y frigorífico", seccion: "2,5", interruptor: "16" },
+  { designacion: "C3 - Cocina y horno", seccion: "6", interruptor: "25" },
+  { designacion: "C4.1 - Lavadora", seccion: "2,5", interruptor: "16" },
+  { designacion: "C4.2 - Lavavajillas", seccion: "2,5", interruptor: "16" },
+  { designacion: "C4.3 - Termo eléctrico", seccion: "2,5", interruptor: "16" },
+  { designacion: "C5 - Tomas de baños y auxiliares de cocina", seccion: "2,5", interruptor: "16" }
+];
+
+function verCie() {
+  $("#vista-acciones").innerHTML =
+    '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nuevo certificado</button>";
+  $("#btn-nuevo").addEventListener("click", function () { editarCie(null); });
+
+  Promise.all([api("/api/admin/cie"), cargarRef("clientes")]).then(function (res) {
+    var filas = res[0];
+    $("#vista").innerHTML =
+      '<div class="herr"><input type="search" id="buscar" placeholder="Buscar por titular o dirección…"></div>' +
+      '<div class="tabla-caja"><div class="tabla-scroll" id="caja-cie"></div></div>';
+
+    function pintar() {
+      var q = llano($("#buscar").value);
+      var vistas = filas.filter(function (f) {
+        return !q || llano([f.numero, f.titular, f.titular_nif, f.emplazamiento,
+                            f.ayuntamiento, f.cliente].join(" ")).indexOf(q) >= 0;
+      });
+      var caja = $("#caja-cie");
+      if (!vistas.length) {
+        caja.innerHTML = '<div class="vacia">Todavía no hay certificados. Pulsa «Nuevo certificado».</div>';
+        return;
+      }
+      caja.innerHTML = "<table><thead><tr><th>Número</th><th>Fecha</th><th>Titular</th>" +
+        "<th>Emplazamiento</th><th>Cliente</th><th class=\"num\">Circuitos</th>" +
+        "<th class=\"num\">Acciones</th></tr></thead><tbody>" +
+        vistas.map(function (f) {
+          var sitio = [f.emplazamiento, f.numero_via, f.ayuntamiento].filter(Boolean).join(" ");
+          return "<tr><td><b>" + (esc(f.numero) || "—") + "</b></td>" +
+            "<td>" + esc(fecha(f.fecha)) + "</td>" +
+            "<td>" + (esc(f.titular) || "—") +
+            (f.titular_nif ? '<div style="font-size:.78rem;color:var(--muted-2)">' + esc(f.titular_nif) + "</div>" : "") +
+            "</td><td>" + (esc(sitio) || "—") + "</td>" +
+            "<td>" + (esc(f.cliente) || "—") + '</td><td class="num">' + f.n_circuitos + "</td>" +
+            '<td class="acciones">' +
+              '<button data-pdf="' + f.id + '" title="Descargar el impreso oficial relleno">' + svg(ico.descarga) + "</button>" +
+              '<button data-editar="' + f.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
+              '<button class="borrar" data-borrar="' + f.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
+            "</td></tr>";
+        }).join("") + "</tbody></table>";
+
+      $$("[data-pdf]", caja).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var f = filas.filter(function (x) { return String(x.id) === b.dataset.pdf; })[0];
+          bajarPdf("/api/admin/cie/" + f.id + "/pdf", (f.numero || "CIE-" + f.id) + ".pdf");
+        });
+      });
+      $$("[data-editar]", caja).forEach(function (b) {
+        b.addEventListener("click", function () { editarCie(b.dataset.editar); });
+      });
+      $$("[data-borrar]", caja).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var cual = b.dataset.borrar;
+          modal("Confirmar borrado",
+            "<p style='color:var(--muted)'>Se va a borrar este certificado y sus circuitos. " +
+            "No se puede deshacer.</p>",
+            '<button class="btn btn--fant" id="b-no">Cancelar</button>' +
+            '<button class="btn btn--peligro" id="b-si">Borrar</button>');
+          $("#b-no").addEventListener("click", cerrarModal);
+          $("#b-si").addEventListener("click", function () {
+            api("/api/admin/cie/" + cual, { metodo: "DELETE" })
+              .then(function () { cerrarModal(); avisar("Certificado borrado"); ir("certificados"); })
+              .catch(function (e) { avisar(e.message, "err"); });
+          });
+        });
+      });
+    }
+    pintar();
+    $("#buscar").addEventListener("input", pintar);
+  }).catch(error);
+}
+
+function editarCie(id) {
+  Promise.all([
+    id ? api("/api/admin/cie/" + id) : Promise.resolve(null),
+    cargarRef("clientes"), cargarRef("obras"),
+    // El NIF de la empresa lo sirve el propio servidor, que es donde vive.
+    fetch(API + "/api/empresa").then(function (r) { return r.json(); }).catch(function () { return {}; })
+  ]).then(function (res) {
+    var c = res[0] || {
+      fecha: new Date().toISOString().slice(0, 10),
+      provincia: "OURENSE", grado: "BÁSICO", tipo_instalacion: "nueva",
+      di_tension: "230", circuitos: [],
+      empresa_nif: (res[3] || {}).nif || "",
+      instalador: (YO && YO.nombre) || "", usuario_id: YO && YO.id
+    };
+    var circuitos = (c.circuitos || []).slice(0, CIE_FILAS);
+    while (circuitos.length < CIE_FILAS) circuitos.push({});
+
+    function campo(clave, etiqueta, ayuda, tipo) {
+      var v = c[clave] === null || c[clave] === undefined ? "" : c[clave];
+      return '<div class="campo"><label for="k-' + clave + '">' + esc(etiqueta) + "</label>" +
+        '<input id="k-' + clave + '" data-k="' + clave + '" type="' + (tipo || "text") +
+        '" value="' + esc(v) + '">' +
+        (ayuda ? '<small style="color:var(--muted-2);font-size:.78rem">' + esc(ayuda) + "</small>" : "") +
+        "</div>";
+    }
+    function dos(a, b) { return '<div class="rejilla-2">' + a + b + "</div>"; }
+    function seleccion(clave, etiqueta, opciones) {
+      return '<div class="campo"><label for="k-' + clave + '">' + esc(etiqueta) + "</label>" +
+        '<select id="k-' + clave + '" data-k="' + clave + '">' +
+        opciones.map(function (o) {
+          var v = o.v === undefined ? o : o.v, t = o.t === undefined ? o : o.t;
+          return '<option value="' + esc(v) + '"' + (String(c[clave] || "") === String(v) ? " selected" : "") +
+                 ">" + esc(t) + "</option>";
+        }).join("") + "</select></div>";
+    }
+    function refer(clave, etiqueta, lista) {
+      return '<div class="campo"><label for="k-' + clave + '">' + esc(etiqueta) + "</label>" +
+        '<select id="k-' + clave + '" data-k="' + clave + '" data-num="1"><option value="">— ninguno —</option>' +
+        (cache[lista] || []).map(function (o) {
+          return '<option value="' + o.id + '"' + (String(c[clave] || "") === String(o.id) ? " selected" : "") +
+                 ">" + esc(o.titulo || o.nombre) + "</option>";
+        }).join("") + "</select></div>";
+    }
+
+    var cuerpo = '<div class="aviso aviso--err" id="cie-err" hidden></div><form id="cie-form">' +
+      '<h3 class="cie-tit">Titular y emplazamiento</h3>' +
+      dos(refer("cliente_id", "Cliente (opcional)", "clientes"), refer("obra_id", "Obra (opcional)", "obras")) +
+      dos(campo("titular", "Titular"), campo("titular_nif", "NIF")) +
+      campo("emplazamiento", "Emplazamiento") +
+      dos(campo("numero_via", "Número"), campo("piso", "Piso")) +
+      dos(campo("provincia", "Provincia"), campo("ayuntamiento", "Ayuntamiento")) +
+      campo("distribuidora", "Empresa distribuidora", "Si no la hay, se pone «NO DISPONE»") +
+      dos(campo("uso", "Uso al que se destina", "Vivienda, local, garaje…"),
+          campo("superficie", "Superficie (m²)")) +
+      dos(seleccion("tipo_instalacion", "Tipo de instalación", CIE_TIPOS),
+          seleccion("grado", "Grado de electrificación", CIE_GRADOS)) +
+
+      '<h3 class="cie-tit">Derivación individual</h3>' +
+      dos(campo("di_longitud", "Longitud (m)"), campo("di_seccion", "Sección (mm²)")) +
+      dos(campo("di_tension", "Tensión (V)"), campo("di_potencia", "Potencia máxima admisible (W)")) +
+
+      '<h3 class="cie-tit">Protecciones</h3>' +
+      dos(campo("prot_iga", "Interruptor general automático (A)"),
+          campo("prot_resistencia", "Resistencia a tierra (Ω)")) +
+      dos(campo("prot_dif1_int", "Diferencial 1 · intensidad (A)"),
+          campo("prot_dif1_sens", "Diferencial 1 · sensibilidad (A)")) +
+      dos(campo("prot_dif2_int", "Diferencial 2 · intensidad (A)"),
+          campo("prot_dif2_sens", "Diferencial 2 · sensibilidad (A)")) +
+
+      '<h3 class="cie-tit">Circuitos <button type="button" class="btn btn--fant btn--sm" id="cie-tipicos">Poner los típicos</button></h3>' +
+      '<div class="tabla-scroll"><table class="cie-circuitos"><thead><tr><th>Nº</th><th>Designación</th>' +
+      '<th>Sección mm²</th><th>Interruptor (A)</th></tr></thead><tbody>' +
+      circuitos.map(function (ci, i) {
+        return "<tr>" +
+          '<td><input data-ci="numero" data-fila="' + i + '" value="' + esc(ci.numero || (i + 1)) + '"></td>' +
+          '<td><input data-ci="designacion" data-fila="' + i + '" value="' + esc(ci.designacion || "") + '"></td>' +
+          '<td><input data-ci="seccion" data-fila="' + i + '" value="' + esc(ci.seccion || "") + '"></td>' +
+          '<td><input data-ci="interruptor" data-fila="' + i + '" value="' + esc(ci.interruptor || "") + '"></td>' +
+          "</tr>";
+      }).join("") + "</tbody></table></div>" +
+      '<div class="campo"><label for="k-observaciones">Observaciones</label>' +
+      '<textarea id="k-observaciones" data-k="observaciones" rows="3">' + esc(c.observaciones || "") + "</textarea></div>" +
+
+      '<h3 class="cie-tit">Inspección inicial</h3>' +
+      dos(campo("organismo_control", "Organismo de control"), campo("acta_numero", "Acta nº")) +
+
+      '<h3 class="cie-tit">Quién lo firma</h3>' +
+      dos(campo("empresa_nif", "NIF de la empresa instaladora"), campo("fecha", "Fecha", "", "date")) +
+      dos(campo("instalador", "Instalador/a"), campo("instalador_nif", "DNI del instalador/a")) +
+      "</form>";
+
+    modal("Certificado de instalación eléctrica" + (c.numero ? " · " + c.numero : ""), cuerpo,
+      '<button class="btn btn--fant" id="cie-no">Cancelar</button>' +
+      '<button class="btn btn--fant" id="cie-pdf"' + (id ? "" : " disabled title=\"Guarda primero\"") + ">" +
+      svg(ico.descarga) + "PDF</button>" +
+      '<button class="btn btn--amber" id="cie-si">Guardar</button>', true);
+
+    $("#cie-tipicos").addEventListener("click", function () {
+      CIE_TIPICOS.forEach(function (t, i) {
+        $$('[data-fila="' + i + '"]').forEach(function (inp) {
+          if (inp.dataset.ci === "numero") inp.value = i + 1;
+          else if (t[inp.dataset.ci] !== undefined) inp.value = t[inp.dataset.ci];
+        });
+      });
+    });
+    $("#cie-no").addEventListener("click", cerrarModal);
+    if (id) $("#cie-pdf").addEventListener("click", function () {
+      bajarPdf("/api/admin/cie/" + id + "/pdf", (c.numero || "CIE-" + id) + ".pdf");
+    });
+
+    $("#cie-si").addEventListener("click", function () {
+      var datos = { circuitos: [] };
+      $$("#cie-form [data-k]").forEach(function (el) {
+        var v = el.value.trim();
+        datos[el.dataset.k] = el.dataset.num ? (v === "" ? null : Number(v)) : v;
+      });
+      for (var i = 0; i < CIE_FILAS; i++) {
+        var fila = {};
+        $$('#cie-form [data-fila="' + i + '"]').forEach(function (inp) { fila[inp.dataset.ci] = inp.value.trim(); });
+        if (fila.designacion || fila.seccion || fila.interruptor) datos.circuitos.push(fila);
+      }
+      if (!datos.titular) {
+        var e = $("#cie-err");
+        e.textContent = "Falta el titular.";
+        e.hidden = false;
+        return;
+      }
+      var btn = $("#cie-si");
+      btn.disabled = true;
+      btn.textContent = "Guardando…";
+      api("/api/admin/cie" + (id ? "/" + id : ""), { metodo: id ? "PUT" : "POST", datos: datos })
+        .then(function (r) {
+          cerrarModal();
+          avisar("Certificado " + (r.numero || "") + " guardado");
+          ir("certificados");
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = "Guardar";
+          var e = $("#cie-err");
+          e.textContent = err.message;
+          e.hidden = false;
+        });
+    });
+  }).catch(error);
+}
+
 /* ── Agenda ───────────────────────────────────────────────────────────── */
 // Estado de la vista. Se conserva al volver de guardar una cita, para no
 // saltar al mes actual cada vez que se toca algo.
@@ -4843,8 +5088,8 @@ function formSeccion(s) {
 /* ── Equipo: quién entra al panel y a qué ─────────────────────────────── */
 // Módulos que se pueden dar a un miembro, en el orden del menú.
 var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "tiempos", "notas", "clientes",
-  "profesionales", "presupuestos", "proformas", "facturas", "costes", "contabilidad",
-  "stock", "proveedores"];
+  "profesionales", "presupuestos", "proformas", "facturas", "certificados", "costes",
+  "contabilidad", "stock", "proveedores"];
 
 function verMiembros() {
   $("#vista-acciones").innerHTML =

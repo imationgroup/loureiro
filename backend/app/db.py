@@ -378,6 +378,61 @@ CREATE TABLE IF NOT EXISTS cliente_origenes (
   orden   INTEGER NOT NULL DEFAULT 0
 );
 
+-- ── Certificados de instalación eléctrica (CIE) ─────────────────────
+-- El boletín eléctrico. Los campos son los del impreso IN614C de la Xunta,
+-- uno por uno: lo que se guarda aquí es lo que después se escribe sobre el
+-- formulario oficial (ver cie_pdf.py). Por eso los nombres son los suyos y
+-- no los que habríamos elegido nosotros.
+CREATE TABLE IF NOT EXISTS certificados (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero           TEXT,
+  cliente_id       INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  obra_id          INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  titular          TEXT,
+  titular_nif      TEXT,
+  emplazamiento    TEXT,
+  numero_via       TEXT,
+  piso             TEXT,
+  provincia        TEXT DEFAULT 'OURENSE',
+  ayuntamiento     TEXT,
+  distribuidora    TEXT,
+  uso              TEXT,
+  superficie       TEXT,
+  tipo_instalacion TEXT,      -- nueva|reforma|cambio_tension|cambio_titular|ampliacion|otras
+  grado            TEXT,      -- BÁSICO|ELEVADO|ESPECIAL
+  di_longitud      TEXT,
+  di_seccion       TEXT,
+  di_tension       TEXT,
+  di_potencia      TEXT,
+  prot_iga         TEXT,
+  prot_dif1_int    TEXT,
+  prot_dif1_sens   TEXT,
+  prot_iga2        TEXT,
+  prot_dif2_int    TEXT,
+  prot_dif2_sens   TEXT,
+  prot_resistencia TEXT,
+  observaciones    TEXT,
+  organismo_control TEXT,
+  acta_numero      TEXT,
+  empresa_nif      TEXT,
+  instalador       TEXT,
+  instalador_nif   TEXT,
+  fecha            TEXT NOT NULL DEFAULT (date('now')),
+  usuario_id       INTEGER,
+  creado           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Los circuitos del cuadro: el impreso tiene ocho filas.
+CREATE TABLE IF NOT EXISTS certificado_circuitos (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  certificado_id INTEGER NOT NULL REFERENCES certificados(id) ON DELETE CASCADE,
+  orden          INTEGER NOT NULL DEFAULT 0,
+  numero         TEXT,
+  designacion    TEXT,
+  seccion        TEXT,
+  interruptor    TEXT
+);
+
 -- ── Partes de tiempo ──────────────────────────────────
 -- Las horas que se le echan a una obra. Se pueden escribir a mano o contarlas
 -- con el cronómetro, que admite pausas: `segundos` guarda lo acumulado de los
@@ -517,6 +572,7 @@ CREATE INDEX IF NOT EXISTS idx_notas_obra         ON notas(obra_id);
 CREATE INDEX IF NOT EXISTS idx_nota_fotos         ON nota_fotos(nota_id);
 CREATE INDEX IF NOT EXISTS idx_nota_archivos      ON nota_archivos(nota_id);
 CREATE INDEX IF NOT EXISTS idx_tiempos_obra       ON tiempos(obra_id);
+CREATE INDEX IF NOT EXISTS idx_cie_circuitos     ON certificado_circuitos(certificado_id);
 CREATE INDEX IF NOT EXISTS idx_tiempos_fecha      ON tiempos(fecha);
 """
 
@@ -590,7 +646,7 @@ ORIGENES_CLIENTE = ["Google", "Recomendación", "Ya era cliente", "Redes sociale
 # administrador: nadie más lo ve hasta que él lo reparta.
 TABLAS_CON_RESPONSABLE = ("clientes", "obras", "citas", "presupuestos", "proformas",
                           "facturas", "costes", "ingresos", "solicitudes", "visitas",
-                          "notas", "tiempos")
+                          "notas", "tiempos", "certificados")
 MIGRACIONES += [(t, "usuario_id", "INTEGER") for t in TABLAS_CON_RESPONSABLE]
 
 
