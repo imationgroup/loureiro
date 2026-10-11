@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Reparto del trabajo: a la izquierda lo que monta el cliente (canaletas, tubos, conexiones eléctricas y desagüe); a la derecha la unidad exterior con la válvula cerrada y lo que hace la empresa instaladora: pruebas de presión, vacío, puesta en marcha y boletín">
+  <defs>
+    <linearGradient id="it-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#it-bg)"/>
+
+  <!-- Lo que monta el cliente -->
+  <rect x="56" y="56" width="320" height="338" rx="12" fill="#FFFFFF"/>
+  <rect x="56" y="56" width="320" height="338" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+  <text x="80" y="100" font-family="Inter, sans-serif" font-size="20" fill="#1E2533" font-weight="bold">Lo haces tú</text>
+
+  <g>
+    <circle cx="92" cy="150" r="11" fill="#4ADE80"/>
+    <circle cx="92" cy="200" r="11" fill="#4ADE80"/>
+    <circle cx="92" cy="250" r="11" fill="#4ADE80"/>
+    <circle cx="92" cy="300" r="11" fill="#4ADE80"/>
+    <g fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M87 150l4 4 7-8M87 200l4 4 7-8M87 250l4 4 7-8M87 300l4 4 7-8"/>
+    </g>
+    <g font-family="Inter, sans-serif" font-size="15" fill="#3A3E46">
+      <text x="116" y="155">Pasar las canaletas</text>
+      <text x="116" y="205">Abocardar y conectar los tubos</text>
+      <text x="116" y="255">Conexiones eléctricas</text>
+      <text x="116" y="305">Desagüe y bomba de condensados</text>
+    </g>
+  </g>
+  <text x="80" y="362" font-family="Inter, sans-serif" font-size="14" fill="#8A8E96">Todo, menos abrir el gas</text>
+
+  <!-- Línea frigorífica hasta la exterior -->
+  <path d="M376 145h120" stroke="#C8C3BA" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- Válvula cerrada -->
+  <circle cx="436" cy="145" r="15" fill="#FFFFFF"/>
+  <circle cx="436" cy="145" r="15" fill="none" stroke="#F2A81C" stroke-width="4"/>
+  <path d="M436 136v18" stroke="#F2A81C" stroke-width="5" stroke-linecap="round"/>
+  <rect x="384" y="84" width="104" height="30" rx="8" fill="#FDEBD9"/>
+  <text x="436" y="104" font-family="Inter, sans-serif" font-size="13" fill="#C2410C" text-anchor="middle">Válvula cerrada</text>
+
+  <!-- Unidad exterior -->
+  <rect x="496" y="80" width="188" height="130" rx="14" fill="#FFFFFF"/>
+  <rect x="496" y="80" width="188" height="130" rx="14" fill="none" stroke="#C8C3BA" stroke-width="4"/>
+  <circle cx="590" cy="145" r="44" fill="#F4F1EC"/>
+  <circle cx="590" cy="145" r="44" fill="none" stroke="#D6D1C8" stroke-width="3"/>
+  <g fill="#9FC0D0">
+    <path d="M590 145c0-24 6-36 16-36s14 22 0 32z"/>
+    <path d="M590 145c20-13 33-12 38-3s-13 22-26 11z"/>
+    <path d="M590 145c20 13 24 25 17 32s-24-6-20-23z"/>
+    <path d="M590 145c-20 13-33 12-38 3s13-22 26-11z"/>
+  </g>
+  <circle cx="590" cy="145" r="8" fill="#8B93A0"/>
+  <rect x="516" y="92" width="60" height="8" rx="4" fill="#E8E3DA"/>
+  <path d="M520 222v18M660 222v18" stroke="#8B93A0" stroke-width="7" stroke-linecap="round"/>
+  <rect x="496" y="210" width="188" height="12" rx="4" fill="#E8E3DA"/>
+
+  <!-- Lo que hace la empresa instaladora -->
+  <rect x="420" y="268" width="264" height="42" rx="10" fill="#1E2533"/>
+  <text x="552" y="295" font-family="Inter, sans-serif" font-size="18" fill="#FFFFFF" text-anchor="middle" font-weight="bold">Lo hacemos nosotros</text>
+
+  <g>
+    <circle cx="430" cy="340" r="5" fill="#F2A81C"/>
+    <circle cx="430" cy="370" r="5" fill="#F2A81C"/>
+    <circle cx="430" cy="400" r="5" fill="#F2A81C"/>
+    <g font-family="Inter, sans-serif" font-size="15" fill="#3A3E46">
+      <text x="446" y="345">Pruebas de presión y vacío</text>
+      <text x="446" y="375">Apertura del gas y arranque</text>
+      <text x="446" y="405">Boletín de la instalación</text>
+    </g>
+  </g>
+</svg>
