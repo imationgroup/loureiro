@@ -115,7 +115,7 @@ GRUPOS = [
                 "Hay más de cinco circuitos colgando de un mismo diferencial.",
                 "Añadir diferenciales y repartir los circuitos, cinco como mucho en cada uno.",
                 "Con demasiados circuitos en un diferencial se suman las fugas de todos y "
-                "salta sin avería, y cuando salta deja media casa sin luz.",
+                "salta sin avería, y cuando salta deja media casa sin energía.",
                 medidas=[("n_circuitos", "Circuitos", ""), ("n_diferenciales", "Diferenciales", "")],
                 auto=True),
          _punto("a1_pia", "Cada circuito sale de su propio automático",
@@ -596,8 +596,10 @@ def _automatico(clave: str, valores: dict) -> tuple[str | None, str]:
     if clave == "a1_circ_dif" and v["n_circuitos"] is not None and v["n_diferenciales"]:
         hacen_falta = -(-int(v["n_circuitos"]) // 5)      # uno por cada cinco, hacia arriba
         return ((OK if v["n_diferenciales"] >= hacen_falta else FALLO),
-                "%d circuitos y %d diferenciales (hacen falta %d)"
-                % (v["n_circuitos"], v["n_diferenciales"], hacen_falta))
+                "%d circuitos y %d %s (%s %d)"
+                % (v["n_circuitos"], v["n_diferenciales"],
+                   "diferencial" if v["n_diferenciales"] == 1 else "diferenciales",
+                   "hace falta" if hacen_falta == 1 else "hacen falta", hacen_falta))
 
     if clave == "b1_fn" and v["v_fn"] is not None:
         # 230 V ± 7 %: de 213,9 a 246,1 V.
@@ -639,6 +641,20 @@ def _automatico(clave: str, valores: dict) -> tuple[str | None, str]:
     return None, ""
 
 
+# Con un solo diferencial en la vivienda el daño es otro: no se queda sin
+# energía media casa, sino toda, y no hay forma de acotar dónde está la avería.
+UN_DIFERENCIAL = ("Con todos los circuitos en un único diferencial se suman las fugas de todos y "
+                  "salta sin avería, y cuando salta deja toda la casa sin energía, dificultando "
+                  "además la localización de la avería.")
+
+
+def _porque(p: dict, valores: dict) -> str:
+    """El porqué de un defecto, ajustado a lo medido cuando cambia lo que se dice."""
+    if p["clave"] == "a1_circ_dif" and _num(valores.get("n_diferenciales")) == 1:
+        return UN_DIFERENCIAL
+    return p["porque"]
+
+
 def _siempre(estados: dict) -> str:
     """Qué ensayos del bloque C quedan por hacer, dicho como recomendación."""
     faltan = [g["falta"] for g in GRUPOS if g["bloque"] in OPCIONAL
@@ -675,7 +691,7 @@ def evaluar(respuestas) -> dict:
                 defectos[p["gravedad"]].append({
                     "clave": p["clave"], "numero": g["numero"], "gravedad": p["gravedad"],
                     "defecto": p["defecto"], "recomendacion": p["recomendacion"],
-                    "porque": p["porque"], "fuente": g["fuente"],
+                    "porque": _porque(p, r["valores"]), "fuente": g["fuente"],
                     "detalle": detalles.get(p["clave"], ""),
                 })
 
