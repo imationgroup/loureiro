@@ -757,6 +757,19 @@ def migrar():
     con.execute("CREATE INDEX IF NOT EXISTS idx_presupuestos_firma ON presupuestos(firma_token)")
     for viejo, nuevo in ESTADOS_SOLICITUD_ANTIGUOS.items():
         con.execute("UPDATE solicitudes SET estado = ? WHERE estado = ?", (nuevo, viejo))
+    # Los tests de seguridad de 2026 que salieron numerados desde el 001 pasan
+    # a la serie que empieza en el 032: el 001 es el 032, el 002 el 033… Solo
+    # mientras todos estén por debajo del 032; después no queda nada que mover.
+    tests = con.execute(
+        "SELECT id, numero FROM tests_seguridad WHERE numero LIKE 'TS-2026-%'").fetchall()
+    orden = {r["id"]: int(r["numero"][8:]) for r in tests if r["numero"][8:].isdigit()}
+    if orden and max(orden.values()) < 32:
+        for id_, n in orden.items():
+            con.execute("UPDATE tests_seguridad SET numero = ? WHERE id = ?",
+                        ("TS-2026-%03d" % (n + 31), id_))
+        con.execute("UPDATE contadores SET ultimo = MAX(ultimo, ?) "
+                    "WHERE serie = 'tests_seguridad' AND anio = 2026",
+                    (max(orden.values()) + 31,))
     # Enlace obra ↔ presupuesto en los dos lados. Antes se escribía solo el de
     # donde se elegía, y la otra pantalla no lo veía. El presupuesto elegido en
     # una obra apunta a ella; y una obra sin presupuesto toma el único (no
@@ -820,7 +833,10 @@ def migrar():
 # Se aplica como mínimo, no como valor fijo: sube el contador si va por
 # detrás, pero nunca lo baja. Si ya se han hecho presupuestos por encima del
 # 086, la serie sigue desde el último y no repite números.
-SEMILLAS_CONTADOR = [("presupuestos", 2026, 86)]
+#
+# Los tests de seguridad de 2026 empiezan en el 032 (pedido el 2026-10-12;
+# salían desde el 001).
+SEMILLAS_CONTADOR = [("presupuestos", 2026, 86), ("tests_seguridad", 2026, 31)]
 
 
 def inicializar():

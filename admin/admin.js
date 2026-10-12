@@ -4902,7 +4902,7 @@ function tsInformeHTML(r) {
         "<p><b>Por qué:</b> " + esc(d.porque) + "</p></div>";
     });
   });
-  h += '<p class="ts-informe__siempre"><b>Además:</b> ' + esc(r.siempre) + "</p>";
+  if (r.siempre) h += '<p class="ts-informe__siempre"><b>Además:</b> ' + esc(r.siempre) + "</p>";
   if (r.pendientes) {
     h += '<p class="ts-informe__siempre">Quedan ' + r.pendientes +
          " puntos sin comprobar: la puntuación solo cuenta lo revisado.</p>";
@@ -4975,6 +4975,7 @@ function editarTest(id) {
       "el resultado sale solo.</p>" +
       plantilla.bloques.map(function (b) {
         return '<h3 class="cie-tit">' + esc(b.titulo) + "</h3>" +
+          (b.nota ? '<p class="ts-ayuda">' + esc(b.nota) + "</p>" : "") +
           b.grupos.map(function (g) {
             return '<section class="ts-grupo"><h4><span>' + esc(g.numero) + "</span>" + esc(g.titulo) + "</h4>" +
               g.puntos.map(puntoHTML).join("") + "</section>";
