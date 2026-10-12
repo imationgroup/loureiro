@@ -2,7 +2,11 @@
 
 Es la guía «Pruebas de seguridad en un cuadro de vivienda»
 (guia_pruebas_cuadro.py) puesta en forma de lista para ir marcando en la
-vivienda: los mismos grupos A1…B7, con sus mismas fuentes.
+vivienda: los mismos grupos A1…B7, con sus mismas fuentes. El bloque C son
+los ensayos que la guía deja fuera porque piden otro equipo (megóhmetro,
+telurómetro, medidor de bucle y comprobador de diferenciales): se apuntan
+cuando se han hecho, y lo que no se haya hecho sale en el informe como
+pendiente de completar.
 
 Cada punto está escrito en positivo —lo que tiene que cumplirse— y lleva la
 gravedad del defecto si no se cumple, con las tres clases del reglamento
@@ -32,7 +36,19 @@ TOPES = {MUY_GRAVE: 25, GRAVE: 60}
 BLOQUES = [
     ("A", "Bloque A · Con el cuadro sin tensión"),
     ("B", "Bloque B · Con el cuadro en tensión"),
+    ("C", "Bloque C · Ensayos con comprobador de instalaciones"),
 ]
+
+# El bloque C es opcional: sin el equipo no se puede hacer, así que un punto
+# suyo sin marcar no cuenta como pendiente. Lo que falte se dice en las
+# recomendaciones del informe.
+OPCIONAL = {"C"}
+
+NOTAS_BLOQUE = {
+    "C": "Estos ensayos no se pueden hacer con polímetro y pinza. Apunta aquí los que hayas "
+         "hecho con el equipo de medida; los que dejes en blanco no bajan la nota y salen en "
+         "el informe como ensayos por completar.",
+}
 
 
 def _punto(clave, texto, gravedad, defecto, recomendacion, porque, na=False, medidas=None,
@@ -417,21 +433,98 @@ GRUPOS = [
                 medidas=[("v_cuadro", "En el cuadro", "V"), ("v_lejos", "En el punto más lejano", "V")],
                 auto=True),
      ]},
+
+    # ── Bloque C: con comprobador de instalaciones ───────────────────────
+    {"bloque": "C", "numero": "C1", "titulo": "Resistencia de aislamiento",
+     "falta": "la resistencia de aislamiento",
+     "fuente": "REBT, ITC-BT-19, apartado 2.9, tabla 3; ITC-BT-05, apartado 6.2",
+     "puntos": [
+         _punto("c1_aislamiento", "La resistencia de aislamiento es de 0,5 MΩ como mínimo "
+                                  "(megóhmetro, 500 V cc)",
+                GRAVE,
+                "La resistencia de aislamiento está por debajo de 0,5 MΩ.",
+                "Medir circuito por circuito, con los receptores desconectados, hasta dar con "
+                "el tramo o el aparato que baja el aislamiento, y sustituirlo.",
+                "Un aislamiento bajo es corriente que se escapa por donde no debe: acaba en "
+                "una derivación, en disparos del diferencial o en un calentamiento.",
+                medidas=[("aisl_mohm", "Peor medida", "MΩ")], auto=True),
+     ]},
+
+    {"bloque": "C", "numero": "C2", "titulo": "Resistencia de puesta a tierra",
+     "falta": "la resistencia de puesta a tierra",
+     "fuente": "REBT, ITC-BT-24, apartado 4.1.2; ITC-BT-18, apartados 9 y 12; "
+               "ITC-BT-05, apartado 6.2",
+     "puntos": [
+         _punto("c2_tierra", "La resistencia de tierra cumple RA × Ia ≤ 50 V con el "
+                             "diferencial instalado (telurómetro)",
+                GRAVE,
+                "La resistencia de puesta a tierra es demasiado alta para el diferencial "
+                "instalado.",
+                "Mejorar la puesta a tierra (más picas o más conductor enterrado) y revisar "
+                "la línea principal de tierra, hasta bajar la resistencia.",
+                "Con una tierra alta, la carcasa de un aparato averiado puede quedar a una "
+                "tensión peligrosa sin que el diferencial llegue a saltar.",
+                medidas=[("tierra_ohm", "Resistencia de tierra", "Ω")], auto=True),
+     ]},
+
+    {"bloque": "C", "numero": "C3",
+     "titulo": "Impedancia de bucle y corriente de cortocircuito presunta",
+     "falta": "la impedancia de bucle",
+     "fuente": "REBT, ITC-BT-24, apartado 4.1; ITC-BT-22, apartado 1.1; ITC-BT-05, apartado 6.2",
+     "puntos": [
+         _punto("c3_bucle", "La impedancia de bucle medida asegura el disparo de las "
+                            "protecciones, y su poder de corte cubre el cortocircuito presunto",
+                GRAVE,
+                "La impedancia de bucle o la corriente de cortocircuito presunta no son "
+                "compatibles con las protecciones instaladas.",
+                "Revisar las conexiones y la sección de ese circuito, y adecuar las "
+                "protecciones a la corriente de cortocircuito medida.",
+                "Si el bucle tiene demasiada impedancia, un defecto no hace saltar la "
+                "protección a tiempo; si el cortocircuito supera el poder de corte, el "
+                "automático no es capaz de abrirlo.",
+                medidas=[("zs_ohm", "Impedancia de bucle", "Ω"),
+                         ("icc_a", "Cortocircuito presunto", "A")]),
+     ]},
+
+    {"bloque": "C", "numero": "C4", "titulo": "Tiempo y corriente de disparo de los diferenciales",
+     "falta": "el tiempo y la corriente de disparo de los diferenciales",
+     "fuente": "REBT, ITC-BT-24, apartado 4.1; ITC-BT-25, apartado 2.1; ITC-BT-05, apartado 6.2. "
+               "Tiempos de disparo: UNE-EN 61008-1",
+     "puntos": [
+         _punto("c4_corriente", "Cada diferencial dispara sin superar su sensibilidad",
+                GRAVE,
+                "Hay diferenciales que necesitan más corriente que su sensibilidad para disparar.",
+                "Sustituir el diferencial.",
+                "Un diferencial de 30 mA que no salta hasta pasados los 30 mA ya no protege "
+                "a una persona, aunque el botón de test lo haga disparar.",
+                medidas=[("disparo_ma", "Corriente de disparo (la mayor)", "mA")], auto=True),
+         _punto("c4_tiempo", "Cada diferencial dispara en el tiempo debido (300 ms como máximo "
+                             "a su sensibilidad, en los de tipo general)",
+                GRAVE,
+                "Hay diferenciales que tardan demasiado en disparar.",
+                "Sustituir el diferencial.",
+                "La protección de una persona depende de cuánto dura la descarga: un "
+                "diferencial lento corta, pero tarde.",
+                medidas=[("disparo_ms", "Tiempo de disparo (el mayor)", "ms")]),
+     ]},
 ]
 
 PUNTOS = {p["clave"]: p for g in GRUPOS for p in g["puntos"]}
 MEDIDAS = {m["clave"] for p in PUNTOS.values() for m in p["medidas"]}
 
-# Lo que este test no cubre, dicho siempre: es el bloque C de la guía.
+OPCIONALES = {p["clave"] for g in GRUPOS if g["bloque"] in OPCIONAL for p in g["puntos"]}
+
+# Con qué se hacen los bloques A y B y qué pide otro equipo (el bloque C). Se
+# lee en el panel, al pie del formulario; en el informe del cliente no sale.
 ALCANCE = ("Revisión hecha con polímetro y pinza amperimétrica. Las medidas son indicativas: "
            "sirven para detectar un problema, no para certificar la instalación, y no sustituyen "
            "a la verificación reglamentaria (REBT, ITC-BT-05). Quedan fuera los ensayos que "
            "necesitan otro equipo: resistencia de aislamiento, resistencia de puesta a tierra, "
            "impedancia de bucle y tiempo y corriente de disparo de los diferenciales.")
 
-SIEMPRE = ("Completar la revisión con un comprobador de instalaciones: medir la resistencia de "
-           "puesta a tierra, el aislamiento y el tiempo de disparo de los diferenciales. Son los "
-           "ensayos que este test no puede hacer.")
+# La recomendación que cierra el informe mientras quede algún ensayo del
+# bloque C sin hacer; lleva dentro cuáles.
+COMPLETAR = "Completar la revisión con un comprobador de instalaciones: falta por medir %s."
 
 NIVELES = {
     "peligro": (
@@ -462,7 +555,7 @@ NIVELES = {
 def plantilla() -> dict:
     """La lista tal como la pinta el panel: bloques, grupos y puntos."""
     return {
-        "bloques": [{"clave": clave, "titulo": titulo,
+        "bloques": [{"clave": clave, "titulo": titulo, "nota": NOTAS_BLOQUE.get(clave, ""),
                      "grupos": [g for g in GRUPOS if g["bloque"] == clave]}
                     for clave, titulo in BLOQUES],
         "gravedades": GRAVEDADES,
@@ -531,7 +624,38 @@ def _automatico(clave: str, valores: dict) -> tuple[str | None, str]:
         return ((OK if caida < 6.9 else FALLO),
                 "caen %s V, el %s %%" % (_es(caida), _es(caida / 230 * 100)))
 
+    if clave == "c1_aislamiento":
+        # El megóhmetro da «>200» cuando se sale de escala: vale como ese valor.
+        escrito = str(valores.get("aisl_mohm") or "").strip()
+        aisl = _num(escrito.lstrip(">≥ "))
+        if aisl is not None:
+            return ((OK if aisl >= 0.5 else FALLO),
+                    "%s%s MΩ" % ("más de " if escrito[:1] in (">", "≥") else "", _es(aisl)))
+
+    if clave == "c2_tierra" and v["tierra_ohm"] is not None:
+        # RA × Ia ≤ 50 V, con la sensibilidad apuntada en A1; si no, 30 mA.
+        ia = v["dif_ma"] if v["dif_ma"] and v["dif_ma"] > 0 else 30
+        limite = 50 / (ia / 1000)
+        return ((OK if v["tierra_ohm"] <= limite else FALLO),
+                "%s Ω con diferencial de %s mA (máximo %s Ω)"
+                % (_es(v["tierra_ohm"]), _es(ia), _es(int(limite))))
+
+    if clave == "c4_corriente" and v["disparo_ma"] is not None:
+        limite = v["dif_ma"] if v["dif_ma"] and v["dif_ma"] > 0 else 30
+        return ((OK if v["disparo_ma"] <= limite else FALLO),
+                "dispara a %s mA un diferencial de %s mA" % (_es(v["disparo_ma"]), _es(limite)))
+
     return None, ""
+
+
+def _siempre(estados: dict) -> str:
+    """Qué ensayos del bloque C quedan por hacer, dicho como recomendación."""
+    faltan = [g["falta"] for g in GRUPOS if g["bloque"] in OPCIONAL
+              and any(p["clave"] not in estados for p in g["puntos"])]
+    if not faltan:
+        return ""
+    lista = faltan[0] if len(faltan) == 1 else ", ".join(faltan[:-1]) + " y " + faltan[-1]
+    return COMPLETAR % lista
 
 
 def evaluar(respuestas) -> dict:
@@ -564,7 +688,9 @@ def evaluar(respuestas) -> dict:
                     "detalle": detalles.get(p["clave"], ""),
                 })
 
-    total = len(PUNTOS)
+    # Los ensayos del bloque C cuentan cuando se han hecho; sin hacer no son
+    # un punto pendiente, sino una recomendación.
+    total = sum(1 for k in PUNTOS if k not in OPCIONALES or k in estados)
     hechas = len(estados)
     aplican = sum(1 for e in estados.values() if e != NA)
 
@@ -591,5 +717,5 @@ def evaluar(respuestas) -> dict:
         "defectos": defectos,
         "n": {k: len(v) for k, v in defectos.items()},
         "estados": estados, "detalles": detalles,
-        "siempre": SIEMPRE, "alcance": ALCANCE,
+        "siempre": _siempre(estados), "alcance": ALCANCE,
     }

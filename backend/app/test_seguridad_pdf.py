@@ -20,8 +20,8 @@ from reportlab.platypus import (BaseDocTemplate, Frame, KeepTogether, PageTempla
                                 Paragraph, Spacer, Table, TableStyle)
 
 from . import test_seguridad_puntos as puntos
-from .documentacion_pdf import (ALTO, AMBER, ANCHO, AVISO, GRIS, INK, LINEA, MARGEN, SUAVE,
-                                UTIL, _caja, _estilos, _fecha, _texto)
+from .documentacion_pdf import (ALTO, AMBER, ANCHO, GRIS, INK, LINEA, MARGEN, SUAVE,
+                                UTIL, _estilos, _fecha, _texto)
 from .empresa import EMPRESA
 
 ROJO = colors.HexColor("#C62828")
@@ -134,7 +134,8 @@ def _detalle(respuestas: dict, resultado: dict, est: dict) -> list:
                     for m in p["medidas"] if respuestas["valores"].get(m["clave"]))
                 if medido:
                     texto += " <font color='#6B7180'>· %s</font>" % _texto(medido)
-                sale = RESULTADO.get(estado, "Sin comprobar")
+                sale = RESULTADO.get(estado, "No realizado" if p["clave"] in puntos.OPCIONALES
+                                     else "Sin comprobar")
                 if estado == puntos.FALLO:
                     sale = "<font color='%s'><b>%s</b></font>" % (HEX_GRAVEDAD[p["gravedad"]], sale)
                 filas.append([Paragraph(_texto(g["numero"]), est["celda"]),
@@ -222,9 +223,14 @@ def generar(test: dict, respuestas: dict, resultado: dict) -> bytes:
     if orden:
         hist.append(Paragraph("Por orden de urgencia:", est["base"]))
         hist.append(Spacer(1, 3))
+    # Cierra la lista lo que quede por medir del bloque C, si queda algo.
     recomendaciones = [d["recomendacion"] for d in orden] + [resultado["siempre"]]
+    recomendaciones = [r for r in recomendaciones if r]
     for i, r in enumerate(recomendaciones, 1):
         hist.append(Paragraph(_texto(r), est["li"], bulletText="%d." % i))
+    if not recomendaciones:
+        hist.append(Paragraph("Ninguna: no hay defectos que corregir ni ensayos por completar.",
+                              est["base"]))
     hist.append(Spacer(1, 6))
 
     if (test.get("observaciones") or "").strip():
@@ -236,11 +242,8 @@ def generar(test: dict, respuestas: dict, resultado: dict) -> bytes:
     hist.append(Paragraph("Detalle de las comprobaciones", est["h2"]))
     hist += _detalle(respuestas, resultado, est)
 
-    hist.append(Paragraph("Alcance de esta revisión", est["h2"]))
-    hist += [_caja([Paragraph(_texto(resultado["alcance"]), est["ficha"])], AVISO, AMBER, est),
-             Spacer(1, 6),
-             Paragraph("La clasificación de los defectos en muy graves, graves y leves sigue la del "
-                       "REBT, ITC-BT-05, apartado 6.", est["pie"])]
+    hist.append(Paragraph("La clasificación de los defectos en muy graves, graves y leves sigue "
+                          "la del REBT, ITC-BT-05, apartado 6.", est["pie"]))
 
     plantilla.build(hist)
     return buffer.getvalue()

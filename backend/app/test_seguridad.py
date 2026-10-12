@@ -5,9 +5,10 @@ marcando en la casa del cliente. De lo marcado sale una puntuación, los
 defectos clasificados como en el reglamento (muy graves, graves y leves) y
 qué hacer con cada uno, y todo eso se entrega en un PDF.
 
-No es un certificado: es una revisión con polímetro y pinza, y el propio
-informe lo dice. Vive junto a los certificados porque lo hace la misma gente
-en la misma visita, y por eso comparte su permiso.
+No es un certificado: es una revisión con polímetro y pinza, a la que se
+pueden sumar los ensayos hechos con comprobador de instalaciones (bloque C).
+Vive junto a los certificados porque lo hace la misma gente en la misma
+visita, y por eso comparte su permiso.
 
 Lo marcado se guarda como JSON en una sola columna: son cuarenta puntos que
 siempre van juntos y que nadie va a consultar de uno en uno. La nota y el
