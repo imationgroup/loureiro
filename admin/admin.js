@@ -4984,7 +4984,6 @@ function editarTest(id) {
       '<div class="campo" style="margin-top:16px"><label for="k-observaciones">Observaciones</label>' +
       '<textarea id="k-observaciones" data-k="observaciones" rows="3">' + esc(t.observaciones || "") + "</textarea></div>" +
       '<h3 class="cie-tit">Resultado y recomendaciones</h3><div id="ts-informe"></div>' +
-      '<p class="ts-alcance">' + esc(plantilla.alcance) + "</p>" +
       "</form>";
 
     modal("Test de seguridad" + (t.numero ? " · " + t.numero : ""), cuerpo,

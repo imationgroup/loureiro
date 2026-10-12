@@ -514,14 +514,6 @@ MEDIDAS = {m["clave"] for p in PUNTOS.values() for m in p["medidas"]}
 
 OPCIONALES = {p["clave"] for g in GRUPOS if g["bloque"] in OPCIONAL for p in g["puntos"]}
 
-# Con qué se hacen los bloques A y B y qué pide otro equipo (el bloque C). Se
-# lee en el panel, al pie del formulario; en el informe del cliente no sale.
-ALCANCE = ("Revisión hecha con polímetro y pinza amperimétrica. Las medidas son indicativas: "
-           "sirven para detectar un problema, no para certificar la instalación, y no sustituyen "
-           "a la verificación reglamentaria (REBT, ITC-BT-05). Quedan fuera los ensayos que "
-           "necesitan otro equipo: resistencia de aislamiento, resistencia de puesta a tierra, "
-           "impedancia de bucle y tiempo y corriente de disparo de los diferenciales.")
-
 # La recomendación que cierra el informe mientras quede algún ensayo del
 # bloque C sin hacer; lleva dentro cuáles.
 COMPLETAR = "Completar la revisión con un comprobador de instalaciones: falta por medir %s."
@@ -559,7 +551,6 @@ def plantilla() -> dict:
                      "grupos": [g for g in GRUPOS if g["bloque"] == clave]}
                     for clave, titulo in BLOQUES],
         "gravedades": GRAVEDADES,
-        "alcance": ALCANCE,
     }
 
 
@@ -717,5 +708,5 @@ def evaluar(respuestas) -> dict:
         "defectos": defectos,
         "n": {k: len(v) for k, v in defectos.items()},
         "estados": estados, "detalles": detalles,
-        "siempre": _siempre(estados), "alcance": ALCANCE,
+        "siempre": _siempre(estados),
     }
