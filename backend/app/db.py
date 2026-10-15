@@ -440,6 +440,28 @@ CREATE TABLE IF NOT EXISTS certificado_circuitos (
   interruptor    TEXT
 );
 
+-- Lo que vuelve del técnico cuando el boletín ya está tramitado: el CIE
+-- oficial firmado y la memoria técnica. Uno de cada por certificado (`clase`
+-- es boletin|memoria); subir otro sustituye al anterior. Llegan por trozos,
+-- igual que los archivos de las notas, porque Nginx no deja pasar más de 1 MB.
+CREATE TABLE IF NOT EXISTS certificado_archivos (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  certificado_id INTEGER NOT NULL REFERENCES certificados(id) ON DELETE CASCADE,
+  clase          TEXT NOT NULL,
+  nombre         TEXT NOT NULL,
+  tipo           TEXT NOT NULL,
+  tamano         INTEGER NOT NULL,
+  completo       INTEGER NOT NULL DEFAULT 0,
+  creado         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS certificado_archivo_trozos (
+  archivo_id INTEGER NOT NULL REFERENCES certificado_archivos(id) ON DELETE CASCADE,
+  indice     INTEGER NOT NULL,
+  datos      BLOB NOT NULL,
+  PRIMARY KEY (archivo_id, indice)
+);
+
 -- ── Tests de seguridad del cuadro ───────────────────────────────────
 -- La lista de comprobaciones de una vivienda, marcada (ver
 -- test_seguridad.py). Lo marcado va entero en `respuestas`, como JSON; la
@@ -605,6 +627,7 @@ CREATE INDEX IF NOT EXISTS idx_nota_fotos         ON nota_fotos(nota_id);
 CREATE INDEX IF NOT EXISTS idx_nota_archivos      ON nota_archivos(nota_id);
 CREATE INDEX IF NOT EXISTS idx_tiempos_obra       ON tiempos(obra_id);
 CREATE INDEX IF NOT EXISTS idx_cie_circuitos     ON certificado_circuitos(certificado_id);
+CREATE INDEX IF NOT EXISTS idx_cie_archivos      ON certificado_archivos(certificado_id);
 CREATE INDEX IF NOT EXISTS idx_tiempos_fecha      ON tiempos(fecha);
 """
 
@@ -709,6 +732,10 @@ MIGRACIONES = [
     ("clientes", "piso", "TEXT"),
     ("obras", "numero", "TEXT"),
     ("obras", "piso", "TEXT"),
+    # La referencia catastral del emplazamiento. El impreso IN614C no tiene
+    # casilla para ella, pero el técnico la necesita para tramitar el
+    # boletín: sin ella no sale el PDF (ver cie.py).
+    ("certificados", "ref_catastral", "TEXT"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la

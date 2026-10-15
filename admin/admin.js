@@ -4557,7 +4557,7 @@ function verCie() {
         return;
       }
       caja.innerHTML = "<table><thead><tr><th>Número</th><th>Fecha</th><th>Titular</th>" +
-        "<th>Emplazamiento</th><th>Cliente</th><th class=\"num\">Circuitos</th>" +
+        "<th>Emplazamiento</th><th>Cliente</th><th class=\"num\">Circuitos</th><th>Tramitado</th>" +
         "<th class=\"num\">Acciones</th></tr></thead><tbody>" +
         vistas.map(function (f) {
           var sitio = [f.emplazamiento, f.numero_via, f.ayuntamiento].filter(Boolean).join(" ");
@@ -4567,6 +4567,11 @@ function verCie() {
             (f.titular_nif ? '<div style="font-size:.78rem;color:var(--muted-2)">' + esc(f.titular_nif) + "</div>" : "") +
             "</td><td>" + (esc(sitio) || "—") + "</td>" +
             "<td>" + (esc(f.cliente) || "—") + '</td><td class="num">' + f.n_circuitos + "</td>" +
+            "<td>" + (f.tiene_boletin || f.tiene_memoria
+              ? (f.tiene_boletin ? '<span class="tag tag--verde" style="margin-right:4px">CIE firmado</span>' : "") +
+                (f.tiene_memoria ? '<span class="tag tag--verde">Memoria</span>' : "")
+              : '<span class="tag tag--amber">' + (f.ref_catastral ? "pendiente" : "sin ref. catastral") + "</span>") +
+            "</td>" +
             '<td class="acciones">' +
               '<button data-pdf="' + f.id + '" title="Descargar el impreso oficial relleno">' + svg(ico.descarga) + "</button>" +
               '<button data-editar="' + f.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
@@ -4603,6 +4608,69 @@ function verCie() {
     pintar();
     $("#buscar").addEventListener("input", pintar);
   }).catch(error);
+}
+
+// Lo que el técnico devuelve una vez tramitado el boletín: uno de cada, en PDF.
+var CIE_ADJUNTOS = [
+  { clase: "boletin", t: "CIE oficial firmado" },
+  { clase: "memoria", t: "Memoria técnica" }
+];
+
+// Un hueco de adjunto del certificado: el PDF que hay (descargar, sustituir,
+// borrar) o el botón para subirlo. Va por trozos, como los de las notas.
+function adjuntoCie(id, d, actual) {
+  var caja = $("#cie-adj-" + d.clase), base = "/api/admin/cie/" + id + "/archivos";
+  if (!caja) return;
+  function boton(texto) {
+    return '<label class="btn btn--fant btn--sm">' + svg(ico.clip) + "<span>" + texto + "</span>" +
+      '<input type="file" accept="application/pdf,.pdf" hidden></label>';
+  }
+  caja.innerHTML = actual
+    ? '<div class="adjuntos"><div class="adjunto"><button type="button" class="adjunto__nombre" data-bajar title="Descargar">' +
+        svg(ico.clip) + "<span>" + esc(actual.nombre) + "</span><small>" + tamanoLegible(actual.tamano) + "</small></button>" +
+        '<button type="button" class="adjunto__x" data-quitar title="Borrar el archivo">&times;</button></div></div>' +
+      boton("Sustituir")
+    : boton("Subir PDF");
+
+  var bajar = $("[data-bajar]", caja), quitar = $("[data-quitar]", caja);
+  if (bajar) bajar.addEventListener("click", function () {
+    descargarAdjunto("cie/" + id + "/archivos/" + actual.id, actual.nombre);
+  });
+  if (quitar) quitar.addEventListener("click", function () {
+    if (!confirm("¿Borrar «" + actual.nombre + "»? No se puede deshacer.")) return;
+    quitar.disabled = true;
+    api(base + "/" + actual.id, { metodo: "DELETE" })
+      .then(function () { avisar(d.t + " borrado"); adjuntoCie(id, d, null); })
+      .catch(function (e) { quitar.disabled = false; avisar(e.message, "err"); });
+  });
+
+  var inp = $("input[type=file]", caja), etiqueta = inp.parentNode;
+  inp.addEventListener("change", function () {
+    var f = inp.files && inp.files[0];
+    inp.value = "";
+    if (!f) return;
+    if (String(f.name.split(".").pop()).toLowerCase() !== "pdf") return avisar("«" + f.name + "» no es un PDF", "err");
+    if (f.size > MAX_ARCHIVO) return avisar("«" + f.name + "» pasa de 20 MB", "err");
+    if (!f.size) return avisar("«" + f.name + "» está vacío", "err");
+    etiqueta.style.pointerEvents = "none";
+    api(base, { metodo: "POST", datos: { clase: d.clase, nombre: f.name, tamano: f.size } }).then(function (a) {
+      var trozos = Math.ceil(f.size / a.trozo), i = 0;
+      function siguiente() {
+        if (i >= trozos) return api(base + "/" + a.id + "/fin", { metodo: "POST" });
+        $("span", etiqueta).textContent = "Subiendo " + Math.round(i / trozos * 100) + " %…";
+        return trozoBase64(f.slice(i * a.trozo, (i + 1) * a.trozo)).then(function (b64) {
+          return api(base + "/" + a.id + "/trozos/" + i, { metodo: "PUT", datos: { datos: b64 } });
+        }).then(function () { i++; return siguiente(); });
+      }
+      return siguiente();
+    }).then(function (r) {
+      avisar(d.t + " adjuntado");
+      adjuntoCie(id, d, r);
+    }).catch(function (e) {
+      avisar(e.message, "err");
+      adjuntoCie(id, d, actual);
+    });
+  });
 }
 
 function editarCie(id) {
@@ -4655,6 +4723,8 @@ function editarCie(id) {
       dos(campo("titular", "Titular"), campo("titular_nif", "NIF")) +
       campo("emplazamiento", "Emplazamiento") +
       dos(campo("numero_via", "Número"), campo("piso", "Piso")) +
+      campo("ref_catastral", "Referencia catastral *",
+            "Obligatoria para sacar el PDF (se puede guardar sin ella). 20 caracteres: está en el recibo del IBI o en la Sede del Catastro") +
       dos(campo("provincia", "Provincia"), campo("ayuntamiento", "Ayuntamiento")) +
       campo("distribuidora", "Empresa distribuidora", "Si no la hay, se pone «NO DISPONE»") +
       dos(campo("uso", "Uso al que se destina", "Vivienda, local, garaje…"),
@@ -4694,7 +4764,16 @@ function editarCie(id) {
       '<h3 class="cie-tit">Quién lo firma</h3>' +
       dos(campo("empresa_nif", "NIF de la empresa instaladora"), campo("fecha", "Fecha", "", "date")) +
       dos(campo("instalador", "Instalador/a"), campo("instalador_nif", "DNI del instalador/a")) +
-      "</form>";
+      "</form>" +
+
+      // Lo que devuelve el técnico cuando ya lo ha tramitado. Se sube al
+      // momento, sin esperar a «Guardar»: no depende de lo demás del formulario.
+      '<h3 class="cie-tit">Boletín tramitado</h3>' +
+      (id ? '<div class="rejilla-2">' +
+              CIE_ADJUNTOS.map(function (d) {
+                return '<div class="campo"><label>' + esc(d.t) + '</label><div id="cie-adj-' + d.clase + '"></div></div>';
+              }).join("") + "</div>"
+          : '<p style="color:var(--muted-2);font-size:.86rem">Guarda el certificado para poder adjuntar el CIE firmado y la memoria técnica.</p>');
 
     modal("Certificado de instalación eléctrica" + (c.numero ? " · " + c.numero : ""), cuerpo,
       '<button class="btn btn--fant" id="cie-no">Cancelar</button>' +
@@ -4741,8 +4820,18 @@ function editarCie(id) {
 
     $("#cie-no").addEventListener("click", cerrarModal);
     if (id) $("#cie-pdf").addEventListener("click", function () {
+      // Sin referencia catastral el técnico no puede tramitarlo. El servidor
+      // también lo comprueba, con lo guardado; esto avisa antes.
+      if (!$("#k-ref_catastral").value.trim()) {
+        var e = $("#cie-err");
+        e.textContent = "Falta la referencia catastral: sin ella no se genera el PDF. Escríbela y guarda.";
+        e.hidden = false;
+        $("#k-ref_catastral").focus();
+        return;
+      }
       bajarPdf("/api/admin/cie/" + id + "/pdf", (c.numero || "CIE-" + id) + ".pdf");
     });
+    if (id) CIE_ADJUNTOS.forEach(function (d) { adjuntoCie(id, d, (c.archivos || {})[d.clase]); });
 
     $("#cie-si").addEventListener("click", function () {
       var datos = { circuitos: [] };
