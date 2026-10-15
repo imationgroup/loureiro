@@ -168,7 +168,13 @@ def generar(datos: dict, circuitos: list) -> bytes:
         _escribir(c, caja("seccion"), circuito.get("seccion"), 8.5, centrado=True)
         _escribir(c, caja("interruptor"), circuito.get("interruptor"), 8.5, centrado=True)
 
-    _parrafo(c, OBSERVACIONES, datos.get("observaciones"))
+    # El impreso no tiene casilla para la referencia catastral y el técnico
+    # la necesita para tramitarlo: va en la primera línea de observaciones.
+    ref = (datos.get("ref_catastral") or "").strip()
+    observaciones = "\n".join(x for x in (
+        "Referencia catastral: " + ref if ref else "",
+        (datos.get("observaciones") or "").strip()) if x)
+    _parrafo(c, OBSERVACIONES, observaciones)
 
     c.save()
     buffer.seek(0)
