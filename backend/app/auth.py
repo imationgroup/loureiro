@@ -186,6 +186,30 @@ def filtro_responsable(u: dict, alias: str = "") -> tuple[str, tuple]:
     return f"{pre}usuario_id = ?", (u["id"],)
 
 
+def obras_suyas(u: dict, alias: str = "") -> tuple[str, tuple]:
+    """Las obras con las que trabaja un miembro: las que lleva y aquellas en
+    las que está asignado como profesional (Obras → Asignar). En estas puede
+    echar partes y notas, aunque la obra la lleve otra persona."""
+    if es_admin(u):
+        return "1=1", ()
+    pre = f"{alias}." if alias else ""
+    if not u.get("profesional_id"):
+        return f"{pre}usuario_id = ?", (u["id"],)
+    return (f"""({pre}usuario_id = ? OR {pre}id IN (
+                 SELECT obra_id FROM obra_profesionales WHERE profesional_id = ?))""",
+            (u["id"], u["profesional_id"]))
+
+
+def clientes_suyos(u: dict, alias: str = "") -> tuple[str, tuple]:
+    """Los clientes que lleva y los de las obras en las que trabaja."""
+    if es_admin(u):
+        return "1=1", ()
+    pre = f"{alias}." if alias else ""
+    fo, po = obras_suyas(u, "ob")
+    return (f"({pre}usuario_id = ? OR {pre}id IN (SELECT ob.cliente_id FROM obras ob WHERE {fo}))",
+            (u["id"], *po))
+
+
 REFERENCIAS = (("cliente_id", "clientes", "ese cliente"),
                ("obra_id", "obras", "esa obra"),
                ("presupuesto_id", "presupuestos", "ese presupuesto"),
@@ -206,8 +230,14 @@ def comprobar_referencias(u: dict, datos: dict, existente: dict | None = None):
         valor = datos.get(campo)
         if not valor or (existente and existente.get(campo) == valor):
             continue
-        if not db.escalar(f"SELECT COUNT(*) FROM {tabla} WHERE id = ? AND usuario_id = ?",
-                          (valor, u["id"])):
+        if tabla == "obras":
+            cond, params = obras_suyas(u)
+        elif tabla == "clientes":
+            cond, params = clientes_suyos(u)
+        else:
+            cond, params = "usuario_id = ?", (u["id"],)
+        if not db.escalar(f"SELECT COUNT(*) FROM {tabla} WHERE id = ? AND {cond}",
+                          (valor, *params)):
             raise HTTPException(422, f"No puedes usar {que}: lo lleva otra persona del equipo.")
 
 
