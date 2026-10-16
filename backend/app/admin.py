@@ -24,6 +24,7 @@ from . import db
 from .agenda import validar_cita
 from .documentos import totales
 from .listas import completar_cliente, completar_gasto, completar_obra, estado_pendiente
+from .tiempos import gasto_de_parte, gastos_del_profesional
 from .notas import adjuntos_de
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
@@ -345,6 +346,8 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
         cur = con.execute(f"INSERT INTO {t.nombre} ({cols}) VALUES ({marcas})",
                           tuple(d.values()))
         nuevo = cur.lastrowid
+        if t.nombre == "tiempos":
+            gasto_de_parte(con, nuevo)
     if t.nombre == "obras":
         _presupuesto_a_la_obra(nuevo, d)
     return db.fila(f"SELECT * FROM {t.nombre} WHERE id = ?", (nuevo,))
@@ -372,6 +375,12 @@ def actualizar(recurso: str, id_: int, datos: dict[str, Any],
                           (*d.values(), id_))
         if cur.rowcount == 0:
             raise HTTPException(404, "No encontrado")
+        # Un parte rehace su gasto; un profesional con otra tarifa, los de
+        # todos sus partes.
+        if t.nombre == "tiempos":
+            gasto_de_parte(con, id_)
+        if t.nombre == "profesionales" and ("tarifa_hora" in d or "autonomo" in d):
+            gastos_del_profesional(con, id_)
     if t.nombre == "obras":
         _presupuesto_a_la_obra(id_, d)
     return db.fila(f"SELECT * FROM {t.nombre} WHERE id = ?", (id_,))

@@ -552,7 +552,8 @@ var MODULOS = {
       { c: "segundos", t: "Tiempo trabajado", tipo: "duracion", mitad: true,
         ayuda: "Escríbelo a mano, o usa el cronómetro de la pestaña y se rellena solo" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales",
-        pordefecto: "miProfesional" },
+        pordefecto: "miProfesional",
+        ayuda: "El parte genera un gasto de mano de obra en la obra: horas × su tarifa por hora" },
       { c: "concepto", t: "Qué se hizo", ayuda: "Tirar cable, alicatar el baño…" },
       { c: "notas", t: "Notas", tipo: "area" }
     ]
@@ -1515,7 +1516,14 @@ function abrirFormulario(clave, registro, inicial) {
   });
 
   Promise.all(refs.map(cargarRef)).then(function () {
-    var cuerpo = '<div class="aviso aviso--err" id="f-err" hidden></div><form id="f-form">';
+    var cuerpo = '<div class="aviso aviso--err" id="f-err" hidden></div>' +
+      // El gasto de mano de obra de un parte se rehace cada vez que el parte
+      // cambia: lo que se toque aquí (salvo el estado de pago) se pierde.
+      (clave === "costes" && registro && registro.tiempo_id
+        ? '<div class="aviso aviso--aviso">Este gasto sale de un parte de horas (horas × tarifa del profesional). ' +
+          "Para cambiar el importe, corrige el parte o la tarifa; aquí solo cuenta el estado de pago.</div>"
+        : "") +
+      '<form id="f-form">';
     var buffer = [];
     campos.forEach(function (campo) {
       if (campo.mitad) {
