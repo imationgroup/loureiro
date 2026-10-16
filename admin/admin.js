@@ -2371,7 +2371,9 @@ function verObras() {
                  svg(ico.nota) + (nNotas[o.id] ? nNotas[o.id] + " nota" + (nNotas[o.id] === 1 ? "" : "s") : "Notas") +
                  "</button></td>"
                : "") +
-             (conHoras ? '<td class="num">' + esc(duracion(o.segundos)) + "</td>" : "") +
+             // Las horas llevan a los partes de esta obra, como los gastos a los suyos.
+             (conHoras ? '<td class="num"><a class="enlace-num" href="#tiempos?obra=' + o.id +
+                         '" title="Ver los partes de esta obra">' + esc(duracion(o.segundos)) + "</a></td>" : "") +
              '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' +
              // Los gastos llevan a la lista de Gastos con esta obra filtrada.
              // Es un enlace: Ctrl+clic la abre en otra pestaña.
