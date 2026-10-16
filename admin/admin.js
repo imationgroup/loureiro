@@ -677,8 +677,12 @@ var MODULOS = {
     // Desplegable encima de la tabla para ver los gastos de una sola obra.
     filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Gastos de empresa",
               cliente: "clientes" },
-    // Y por estado: pendiente, pagado… los de la lista editable.
-    filtroPor: { c: "estado", de: "listas/gasto-estados", campo: "nombre", todos: "Todos los estados" },
+    // Y por estado y por categoría: los de sus listas editables.
+    filtroPor: [
+      { c: "estado", de: "listas/gasto-estados", campo: "nombre", todos: "Todos los estados", param: "estado" },
+      { c: "categoria", de: "listas/gasto-categorias", campo: "nombre", todos: "Todas las categorías",
+        param: "categoria" }
+    ],
     // El importe se escribe con el IVA incluido, que es lo que pone el tique.
     // Se guarda la base (lo que cuenta la contabilidad) y se enseña el total.
     conIva: true,
@@ -1064,8 +1068,10 @@ function aplicarFiltroUrl(h) {
   var p = h.p;
   if (!h.filtrada) return;
   if (h.k === "notas") NOTAS_OBRA = p.obra || "";
-  else FILTRO[h.k] = { cliente: p.cliente || "", obra: p.obra || "", por: p.por || "",
-                       estado: p.estado || "" };
+  else {
+    FILTRO[h.k] = { cliente: "", obra: "", por: "", estado: "" };
+    Object.keys(p).forEach(function (c) { if (c !== "q" && c !== "periodo") FILTRO[h.k][c] = p[c]; });
+  }
   var periodo = /^\d{4}(-\d{2})?$/.test(p.periodo || "") ? p.periodo : "";
   // En Obras el periodo es un filtro más de la lista; en el Panel y en
   // orígenes, el periodo que comparten.
@@ -1131,9 +1137,12 @@ function verTabla(clave) {
   // En Clientes el desplegable filtra la propia lista.
   var propio = m.filtroPropio;
   if (propio && refs.indexOf(propio) < 0) refs.push(propio);
-  // Desplegable de un segundo campo (el profesional en los partes).
-  var por = m.filtroPor && (!m.filtroPor.soloAdmin || esAdmin()) ? m.filtroPor : null;
-  if (por && refs.indexOf(por.de) < 0) refs.push(por.de);
+  // Desplegables de otros campos: el profesional en los partes; el estado y
+  // la categoría en los gastos. Cada uno guarda lo elegido (y lo pone en la
+  // URL) con su nombre, «por» si no dice otro.
+  var pors = [].concat(m.filtroPor || []).filter(function (x) { return !x.soloAdmin || esAdmin(); })
+    .map(function (x) { return Object.assign({ param: "por" }, x); });
+  pors.forEach(function (x) { if (refs.indexOf(x.de) < 0) refs.push(x.de); });
 
   Promise.all([api("/api/admin/" + m.recurso)].concat(refs.map(cargarRef)))
     .then(function (res) {
@@ -1141,7 +1150,7 @@ function verTabla(clave) {
       // Filtro por cliente y por obra. El cliente se escribe (va filtrando la
       // lista según se teclea) y, con él puesto, el desplegable de obras solo
       // ofrece las suyas.
-      var est = (fil || propio || por) ? (FILTRO[clave] = FILTRO[clave] || { cliente: "", obra: "", por: "" }) : null;
+      var est = (fil || propio || pors.length) ? (FILTRO[clave] = FILTRO[clave] || { cliente: "", obra: "", por: "" }) : null;
       $("#vista").innerHTML =
         '<div class="herr">' +
         ((fil && fil.cliente) || propio
@@ -1152,15 +1161,18 @@ function verTabla(clave) {
             }).join("") + "</datalist>"
           : "") +
         (fil ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"></select>' : "") +
-        (por ? '<select id="filtro-por" aria-label="' + esc(por.todos) + '">' +
-               '<option value="">' + esc(por.todos) + "</option>" +
-               (por.vacio ? '<option value="ninguno"' + (est.por === "ninguno" ? " selected" : "") + ">" +
-                            esc(por.vacio) + "</option>" : "") +
-               (cache[por.de] || []).map(function (o) {
-                 var v = String(o[por.campo || "id"]);
-                 return '<option value="' + esc(v) + '"' + (v === est.por ? " selected" : "") + ">" +
-                        esc(o.titulo || o.nombre || nombreCliente(o)) + "</option>";
-               }).join("") + "</select>" : "") +
+        pors.map(function (por) {
+          var elegido = est[por.param] || "";
+          return '<select class="filtro-por" data-param="' + por.param + '" aria-label="' + esc(por.todos) + '">' +
+            '<option value="">' + esc(por.todos) + "</option>" +
+            (por.vacio ? '<option value="ninguno"' + (elegido === "ninguno" ? " selected" : "") + ">" +
+                         esc(por.vacio) + "</option>" : "") +
+            (cache[por.de] || []).map(function (o) {
+              var v = String(o[por.campo || "id"]);
+              return '<option value="' + esc(v) + '"' + (v === elegido ? " selected" : "") + ">" +
+                     esc(o.titulo || o.nombre || nombreCliente(o)) + "</option>";
+            }).join("") + "</select>";
+        }).join("") +
         '<input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar…"></div>' +
         (m.encima ? '<div id="tabla-encima"></div>' : "") +
         (m.resumen ? '<div id="tabla-resumen"></div>' : "") +
@@ -1191,7 +1203,11 @@ function verTabla(clave) {
       }
 
       function repintar() {
-        if (est) actualizarUrl({ cliente: est.cliente, obra: est.obra, por: est.por });
+        if (est) {
+          var enUrl = { cliente: est.cliente, obra: est.obra };
+          pors.forEach(function (por) { enUrl[por.param] = est[por.param]; });
+          actualizarUrl(enUrl);
+        }
         var q = llano($("#buscar").value);
         var clis = fil && fil.cliente ? clientesEscritos() : null;
         var vistas = filas.filter(function (f) {
@@ -1203,8 +1219,9 @@ function verTabla(clave) {
               if (!o || clis.indexOf(String(o.cliente_id)) < 0) return false;
             }
           }
-          if (por && est.por) {
-            if (est.por === "ninguno" ? f[por.c] : String(f[por.c]) !== est.por) return false;
+          for (var i = 0; i < pors.length; i++) {
+            var e = est[pors[i].param], c = pors[i].c;
+            if (e && (e === "ninguno" ? f[c] : String(f[c]) !== e)) return false;
           }
           if (propio) {
             var cp = clientesQueEncajan(propio, est.cliente);
@@ -1224,9 +1241,11 @@ function verTabla(clave) {
         est.obra = this.value;
         repintar();
       });
-      if (por) $("#filtro-por").addEventListener("change", function () {
-        est.por = this.value;
-        repintar();
+      $$(".filtro-por").forEach(function (sel) {
+        sel.addEventListener("change", function () {
+          est[sel.dataset.param] = this.value;
+          repintar();
+        });
       });
       if ($("#filtro-cliente")) $("#filtro-cliente").addEventListener("input", function () {
         est.cliente = this.value;
