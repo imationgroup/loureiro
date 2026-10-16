@@ -1033,9 +1033,21 @@ function ir(k) {
   return verTabla(k);
 }
 
+// «#costes/obra/20» es la vista con el filtro de esa obra puesto: así un
+// enlace (desde Obras, o abierto en otra pestaña) lleva a sus gastos.
+function vistaDeHash() {
+  var partes = location.hash.replace("#", "").split("/");
+  if (partes[1] === "obra" && /^\d+$/.test(partes[2] || "") &&
+      MODULOS[partes[0]] && MODULOS[partes[0]].filtro) {
+    FILTRO[partes[0]] = { cliente: "", obra: partes[2] };
+    return { k: partes[0], filtrada: true };
+  }
+  return { k: partes[0], filtrada: false };
+}
+
 window.addEventListener("hashchange", function () {
-  var k = location.hash.replace("#", "");
-  if (MODULOS[k] && puedeVer(k) && k !== vistaActual) ir(k);
+  var h = vistaDeHash();
+  if (MODULOS[h.k] && puedeVer(h.k) && (h.k !== vistaActual || h.filtrada)) ir(h.k);
 });
 
 /* ── Vista genérica de tabla ──────────────────────────────────────────── */
@@ -2237,7 +2249,13 @@ function verObras() {
                  "</button></td>"
                : "") +
              (conHoras ? '<td class="num">' + esc(duracion(o.segundos)) + "</td>" : "") +
-             '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' + eur(o.costes) + '</td><td class="num">' + eur(o.facturado) + "</td>" +
+             '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' +
+             // Los gastos llevan a la lista de Gastos con esta obra filtrada.
+             // Es un enlace: Ctrl+clic la abre en otra pestaña.
+             (puedeVer("costes")
+               ? '<a class="enlace-num" href="#costes/obra/' + o.id + '" title="Ver los gastos de esta obra">' + eur(o.costes) + "</a>"
+               : eur(o.costes)) +
+             '</td><td class="num">' + eur(o.facturado) + "</td>" +
              '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b>" +
              (pct !== null ? '<div style="font-size:.76rem;color:var(--muted)">' + pct + "%</div>" : "") + "</td>" +
              '<td class="acciones"><button data-editar="' + o.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
@@ -6122,7 +6140,7 @@ function arrancar(desdeLogin) {
   // Al entrar con la contraseña se abre siempre el Panel, aunque la URL traiga
   // la vista de la sesión anterior. Al recargar con la sesión viva sí se
   // respeta la vista en la que estabas.
-  var inicial = location.hash.replace("#", "");
+  var inicial = vistaDeHash().k;
   ir(!desdeLogin && MODULOS[inicial] ? inicial : "dashboard");
   // La campanita se refresca al cambiar de vista (lo hace ir()), cada minuto
   // y al volver a la pestaña.
