@@ -145,16 +145,16 @@ a{color:var(--amber);text-underline-offset:3px}
 .lat__marca b{font-family:var(--ff-h);font-size:1.02rem;font-weight:800;letter-spacing:-.03em}
 .lat__marca em{font-style:normal;font-weight:500;color:var(--muted)}
 .lat__nav{padding:14px 12px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:3px}
-.lat__nav button{
-  display:flex;align-items:center;gap:11px;width:100%;
+.lat__nav a{
+  display:flex;text-decoration:none;align-items:center;gap:11px;width:100%;
   background:none;border:0;border-radius:10px;cursor:pointer;
   padding:10px 13px;text-align:left;color:var(--muted);
   font-size:.93rem;font-weight:500;
   transition:background .16s var(--ease),color .16s var(--ease);
 }
-.lat__nav button svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.lat__nav button:hover{background:rgba(255,255,255,.05);color:var(--txt)}
-.lat__nav button.is-on{background:var(--amber);color:var(--grafito)}
+.lat__nav a svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.lat__nav a:hover{background:rgba(255,255,255,.05);color:var(--txt)}
+.lat__nav a.is-on{background:var(--amber);color:var(--grafito)}
 .lat__nav .sep{
   font-size:.68rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
   color:var(--muted-2);padding:16px 13px 6px;
@@ -872,8 +872,8 @@ td.acciones button.borrar:hover{color:var(--rojo)}
 .herr__cliente:focus{ outline:none; border-color:var(--amber); }
 @media (max-width:640px){ .herr__cliente, .herr select, .herr input[type="search"]{ width:100%; min-width:0; } }
 /* Submenús del lateral (Gastos > Categorías, Estados). */
-.lat__nav button .lat__flecha{ width:14px; height:14px; margin-left:auto; opacity:.7; }
-.lat__nav button.lat__sub{ padding:7px 13px 7px 42px; font-size:.86rem; }
+.lat__nav a .lat__flecha{ width:14px; height:14px; margin-left:auto; opacity:.7; }
+.lat__nav a.lat__sub{ padding:7px 13px 7px 42px; font-size:.86rem; }
 #tabla-resumen .metricas{ margin-bottom:16px; }
 
 /* ── Ficha de cliente ────────────────────────────────────────────────── */

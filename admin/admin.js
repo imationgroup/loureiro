@@ -101,6 +101,34 @@ function olvidar(clave) {
 
 var token = guardado("loureiro_token");
 
+// Una pestaña abierta con Ctrl+clic no hereda la sessionStorage de la otra:
+// sin «mantener la sesión iniciada» pediría la contraseña otra vez. Al
+// arrancar sin sesión se pregunta a las pestañas abiertas del panel, y la que
+// la tenga la pasa. Solo entre pestañas de este mismo origen.
+var canalSesion = null;
+try { canalSesion = new BroadcastChannel("loureiro-sesion"); } catch (e) {}
+if (canalSesion) canalSesion.addEventListener("message", function (ev) {
+  if (ev.data === "pide" && token) {
+    canalSesion.postMessage({ token: token, email: guardado("loureiro_email") });
+  }
+});
+function pedirSesion() {
+  return new Promise(function (listo) {
+    if (token || !canalSesion) return listo();
+    var plazo = setTimeout(listo, 400);
+    canalSesion.addEventListener("message", function recibir(ev) {
+      if (!ev.data || !ev.data.token || token) return;
+      clearTimeout(plazo);
+      canalSesion.removeEventListener("message", recibir);
+      token = ev.data.token;
+      guardar("loureiro_token", token, false);
+      if (ev.data.email) guardar("loureiro_email", ev.data.email, false);
+      listo();
+    });
+    canalSesion.postMessage("pide");
+  });
+}
+
 // Usuario de la sesión, con su rol y sus módulos. Lo da el servidor al entrar
 // (/login) o al recargar (/yo). Con esto se pinta el menú, pero quien decide
 // de verdad qué se ve es el servidor: esconder una pestaña no protege nada.
@@ -515,12 +543,14 @@ var MODULOS = {
       { c: "segundos", t: "Tiempo", tipo: "duracion", num: true }
     ],
     campos: [
+      // Primero el cliente y, con él elegido, sus obras: así no hay que
+      // buscar la obra en la lista de todas.
+      { c: "_cliente", t: "Cliente", tipo: "filtraObras", de: "clientes", para: "obra_id", primero: true,
+        ayuda: "Elige el cliente y abajo salen solo sus obras" },
+      { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "obras", req: true },
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "segundos", t: "Tiempo trabajado", tipo: "duracion", mitad: true,
         ayuda: "Escríbelo a mano, o usa el cronómetro de la pestaña y se rellena solo" },
-      { c: "_cliente", t: "Cliente", tipo: "filtraObras", de: "clientes", para: "obra_id",
-        ayuda: "Para encontrar la obra: escribe el cliente y se quedan solo sus obras" },
-      { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "obras", req: true },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales",
         pordefecto: "miProfesional" },
       { c: "concepto", t: "Qué se hizo", ayuda: "Tirar cable, alicatar el baño…" },
@@ -936,18 +966,23 @@ function pintarMenu() {
     items.forEach(function (x) {
       var m = MODULOS[x.k], hijos = x.hijos.filter(puedeVer);
       var abierto = x.k === vistaActual || hijos.indexOf(vistaActual) >= 0;
-      h += '<button data-vista="' + x.k + '"' + (x.k === vistaActual ? ' class="is-on"' : "") + ">" +
+      h += '<a href="#' + x.k + '" data-vista="' + x.k + '"' + (x.k === vistaActual ? ' class="is-on"' : "") + ">" +
            svg(m.icono) + "<span>" + esc(m.titulo) + "</span>" +
-           (hijos.length ? svg(abierto ? ico.arriba : ico.abajo, "lat__flecha") : "") + "</button>";
+           (hijos.length ? svg(abierto ? ico.arriba : ico.abajo, "lat__flecha") : "") + "</a>";
       if (abierto) hijos.forEach(function (k) {
-        h += '<button class="lat__sub' + (k === vistaActual ? " is-on" : "") + '" data-vista="' + k + '">' +
-             "<span>" + esc(MODULOS[k].menu || MODULOS[k].titulo) + "</span></button>";
+        h += '<a href="#' + k + '" class="lat__sub' + (k === vistaActual ? " is-on" : "") + '" data-vista="' + k + '">' +
+             "<span>" + esc(MODULOS[k].menu || MODULOS[k].titulo) + "</span></a>";
       });
     });
   });
   $("#menu").innerHTML = h;
-  $$("#menu button").forEach(function (b) {
-    b.addEventListener("click", function () {
+  // Son enlaces (#vista), así que Ctrl+clic, el botón central o «Abrir en
+  // una pestaña nueva» funcionan como en cualquier web. Un clic normal no
+  // recarga: se cambia de vista aquí mismo.
+  $$("#menu a").forEach(function (b) {
+    b.addEventListener("click", function (e) {
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
       // Desde el menú, las notas se abren todas; filtradas, desde su obra.
       if (b.dataset.vista === "notas") NOTAS_OBRA = "";
       ir(b.dataset.vista);
@@ -1414,9 +1449,11 @@ function campoHTML(campo, valor, esNuevo) {
     // escribe y el desplegable de obras se queda con las de ese cliente.
     h += '<input id="c-' + campo.c + '" data-filtra-obras="' + esc(campo.para) + '"' +
          ' data-lista="' + esc(campo.de) + '" list="lista-' + campo.c + '" autocomplete="off"' +
-         ' placeholder="Escribe para filtrar las obras…" value="' + esc(v) + '">' +
+         (campo.primero ? ' data-primero="1"' : "") +
+         ' placeholder="' + (campo.primero ? "Escribe el nombre del cliente…" : "Escribe para filtrar las obras…") +
+         '" value="' + esc(v) + '">' +
          '<datalist id="lista-' + campo.c + '">' + (cache[campo.de] || []).map(function (o) {
-           return '<option value="' + esc(o.nombre) + '"></option>';
+           return '<option value="' + esc(nombreCliente(o)) + '"></option>';
          }).join("") + "</datalist>";
   } else if (campo.tipo === "ref" && campo.sinObra) {
     // Aquí vacío no significa «sin rellenar» sino una elección: ninguna obra.
@@ -1661,14 +1698,25 @@ function abrirFormulario(clave, registro, inicial) {
       }
       function filtrar() {
         var clis = clientesQueEncajan(inp.dataset.lista, inp.value), antes = sel.value;
-        sel.innerHTML = todas.filter(function (op) {
+        var quedan = todas.filter(function (op) {
           var o = obraDe(op.v);
           return !clis || !o || clis.indexOf(String(o.cliente_id)) >= 0;
-        }).map(function (op) {
+        });
+        // Con «primero el cliente», sin cliente no se ofrece ninguna obra
+        // (salvo la que ya tuviera puesta), y con él, solo las suyas.
+        if (inp.dataset.primero) {
+          quedan = quedan.filter(function (op) { return op.v !== "" && (clis || op.v === antes); });
+          var suyas = quedan.filter(function (op) { return obraDe(op.v); }).length;
+          quedan.unshift({ v: "", t: !clis ? "— elige primero el cliente —"
+                                   : suyas ? "— elige la obra —" : "Ese cliente no tiene obras" });
+        }
+        sel.innerHTML = quedan.map(function (op) {
           return '<option value="' + esc(op.v) + '">' + esc(op.t) + "</option>";
         }).join("");
         sel.value = antes;
         if (sel.value !== antes) sel.value = "";
+        // Si el cliente tiene una sola obra, es esa.
+        if (inp.dataset.primero && clis && !sel.value && quedan.length === 2) sel.value = quedan[1].v;
       }
       clienteDeLaObra();
       filtrar();
@@ -4458,8 +4506,8 @@ function cronometro(caja, filas, recargar) {
 function empezarParte(recargar) {
   modal("Empezar a contar",
     '<div class="aviso aviso--err" id="cr-err" hidden></div>' +
-    '<div class="campo"><label for="cr-cli">Cliente <span class="opt">(para encontrar la obra)</span></label>' +
-    '<input id="cr-cli" list="cr-clientes" autocomplete="off" placeholder="Escribe para filtrar…">' +
+    '<div class="campo"><label for="cr-cli">Cliente</label>' +
+    '<input id="cr-cli" list="cr-clientes" autocomplete="off" placeholder="Escribe el nombre del cliente…">' +
     '<datalist id="cr-clientes">' + (cache.clientes || []).map(function (c) {
       return '<option value="' + esc(nombreCliente(c)) + '"></option>';
     }).join("") + "</datalist></div>" +
@@ -4469,19 +4517,25 @@ function empezarParte(recargar) {
     '<button class="btn btn--fant" id="cr-no">Cancelar</button>' +
     '<button class="btn btn--amber" id="cr-si">' + svg(ico.play) + "Empezar</button>");
 
+  // Primero el cliente; con él elegido, sus obras. Si tiene una sola, va puesta.
   function pintarObras() {
-    var clis = clientesQueEncajan("clientes", $("#cr-cli").value);
-    var suyas = (cache.obras || []).filter(function (o) {
-      return !clis || clis.indexOf(String(o.cliente_id)) >= 0;
+    var clis = clientesQueEncajan("clientes", $("#cr-cli").value), antes = $("#cr-obra").value;
+    var suyas = !clis ? [] : (cache.obras || []).filter(function (o) {
+      return clis.indexOf(String(o.cliente_id)) >= 0;
     });
-    $("#cr-obra").innerHTML = suyas.length
-      ? suyas.map(function (o) {
-          return '<option value="' + o.id + '">' + esc(o.titulo || nombreCliente(o)) + "</option>";
-        }).join("")
-      : '<option value="">No hay obras de ese cliente</option>';
+    $("#cr-obra").innerHTML =
+      '<option value="">' + (!clis ? "— elige primero el cliente —"
+                             : suyas.length ? "— elige la obra —" : "Ese cliente no tiene obras") + "</option>" +
+      suyas.map(function (o) {
+        return '<option value="' + o.id + '">' + esc(o.titulo || nombreCliente(o)) + "</option>";
+      }).join("");
+    $("#cr-obra").value = antes;
+    if (!$("#cr-obra").value && suyas.length === 1) $("#cr-obra").value = suyas[0].id;
   }
   pintarObras();
   $("#cr-cli").addEventListener("input", pintarObras);
+  $("#cr-cli").addEventListener("change", pintarObras);
+  $("#cr-cli").focus();
   $("#cr-no").addEventListener("click", cerrarModal);
   $("#cr-si").addEventListener("click", function () {
     var obra = $("#cr-obra").value, err = $("#cr-err");
@@ -6069,18 +6123,20 @@ function arrancar(desdeLogin) {
 
 $("#btn-menu").addEventListener("click", function () { $("#lat").classList.toggle("is-open"); });
 
-if (abrirEnlaceClave()) {
-  // Viene de un correo de invitación o de recuperación: primero eso.
-} else if (token) {
-  api("/api/admin/yo").then(function (u) { YO = u; arrancar(false); }).catch(function () { salir(true); });
-} else {
-  api("/api/admin/estado").then(function (e) {
-    if (!e.configurado) {
-      var a = $("#login-aviso");
-      a.className = "aviso aviso--err";
-      a.textContent = "El panel aún no tiene contraseña configurada. Ejecuta scripts/set-admin-password.py en el servidor.";
-      a.hidden = false;
-    }
-  }).catch(function () {});
-}
+pedirSesion().then(function () {
+  if (abrirEnlaceClave()) {
+    // Viene de un correo de invitación o de recuperación: primero eso.
+  } else if (token) {
+    api("/api/admin/yo").then(function (u) { YO = u; arrancar(false); }).catch(function () { salir(true); });
+  } else {
+    api("/api/admin/estado").then(function (e) {
+      if (!e.configurado) {
+        var a = $("#login-aviso");
+        a.className = "aviso aviso--err";
+        a.textContent = "El panel aún no tiene contraseña configurada. Ejecuta scripts/set-admin-password.py en el servidor.";
+        a.hidden = false;
+      }
+    }).catch(function () {});
+  }
+});
 })();
