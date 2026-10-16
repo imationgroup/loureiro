@@ -958,3 +958,7 @@ button.adjunto__nombre:hover span{ color:var(--amber); text-decoration:underline
   font-size:.88rem; color:var(--muted); }
 .check input{ width:18px; height:18px; accent-color:var(--amber); cursor:pointer; flex:none; }
 .check:hover{ color:var(--txt); }
+
+/* Un importe que lleva a otra vista (los gastos de una obra). */
+.enlace-num{color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted-2)}
+.enlace-num:hover{color:var(--amber);border-bottom-color:var(--amber)}
