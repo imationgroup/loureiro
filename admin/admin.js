@@ -1009,7 +1009,9 @@ function ir(k) {
   // Certificados tiene submenú: la entrada de arriba abre el primero (CIE).
   if (k === "certificados") k = "certificados_cie";
   vistaActual = k;
-  location.hash = k;
+  // Si la URL ya es de esta vista (al recargar, o con sus filtros), se deja
+  // como está: lleva los filtros, que la vista vuelve a escribir al pintarse.
+  if (vistaDeHash().k !== k) location.hash = k;
   pintarMenu();
   actualizarCampana();
   var m = MODULOS[k];
@@ -1039,21 +1041,59 @@ function ir(k) {
   return verTabla(k);
 }
 
-// «#costes/obra/20» es la vista con el filtro de esa obra puesto: así un
-// enlace (desde Obras, o abierto en otra pestaña) lleva a sus gastos.
+// Los filtros de cada vista van en la URL: «#obras?cliente=Ana&estado=en curso».
+// Así F5, un marcador o Ctrl+clic abren la vista tal y como estaba. Se
+// escriben con replaceState (no llenan el historial ni disparan hashchange)
+// cada vez que la vista se repinta, y se leen al arrancar y si cambia la URL.
+// «#costes/obra/20» es la forma antigua del enlace a los gastos de una obra.
 function vistaDeHash() {
-  var partes = location.hash.replace("#", "").split("/");
-  if (partes[1] === "obra" && /^\d+$/.test(partes[2] || "") &&
-      MODULOS[partes[0]] && MODULOS[partes[0]].filtro) {
-    FILTRO[partes[0]] = { cliente: "", obra: partes[2] };
-    return { k: partes[0], filtrada: true };
+  var h = location.hash.replace(/^#/, ""), p = {};
+  var vieja = /^[^\/?]+\/obra\/(\d+)/.exec(h);
+  if (vieja) p.obra = vieja[1];
+  var i = h.indexOf("?");
+  if (i >= 0) {
+    try { new URLSearchParams(h.slice(i + 1)).forEach(function (v, c) { p[c] = v; }); } catch (e) {}
   }
-  return { k: partes[0], filtrada: false };
+  return { k: h.split(/[?\/]/)[0], p: p, filtrada: Object.keys(p).length > 0 };
 }
+
+// Pone en su sitio los filtros que trae la URL, antes de pintar la vista.
+function aplicarFiltroUrl(h) {
+  var p = h.p;
+  if (!h.filtrada) return;
+  if (h.k === "notas") NOTAS_OBRA = p.obra || "";
+  else FILTRO[h.k] = { cliente: p.cliente || "", obra: p.obra || "", por: p.por || "",
+                       estado: p.estado || "" };
+  if (/^\d{4}(-\d{2})?$/.test(p.periodo || "")) PERIODO = p.periodo;
+}
+
+// La búsqueda escrita que trae la URL, para el cuadro «Buscar…».
+function qUrl() { return vistaDeHash().k === vistaActual ? (vistaDeHash().p.q || "") : ""; }
+
+// Escribe en la URL los filtros de la vista actual. Lo vacío no se escribe.
+function actualizarUrl(cambios) {
+  var h = vistaDeHash();
+  if (h.k !== vistaActual) return;
+  var p = Object.assign({}, h.p, cambios), qs = new URLSearchParams();
+  Object.keys(p).forEach(function (c) {
+    if (p[c] !== "" && p[c] !== null && p[c] !== undefined) qs.set(c, p[c]);
+  });
+  var texto = qs.toString().replace(/\+/g, "%20");
+  try { history.replaceState(null, "", "#" + vistaActual + (texto ? "?" + texto : "")); } catch (e) {}
+}
+
+// Lo que se escribe en cualquier «Buscar…» también va a la URL.
+document.addEventListener("input", function (e) {
+  if (e.target && e.target.id === "buscar") actualizarUrl({ q: e.target.value.trim() });
+});
 
 window.addEventListener("hashchange", function () {
   var h = vistaDeHash();
-  if (MODULOS[h.k] && puedeVer(h.k) && (h.k !== vistaActual || h.filtrada)) ir(h.k);
+  if (!MODULOS[h.k] || !puedeVer(h.k)) return;
+  if (h.k !== vistaActual || h.filtrada) {
+    aplicarFiltroUrl(h);
+    ir(h.k);
+  }
 });
 
 /* ── Vista genérica de tabla ──────────────────────────────────────────── */
@@ -1113,7 +1153,7 @@ function verTabla(clave) {
                  return '<option value="' + o.id + '"' + (String(o.id) === est.por ? " selected" : "") + ">" +
                         esc(o.titulo || nombreCliente(o)) + "</option>";
                }).join("") + "</select>" : "") +
-        '<input type="search" id="buscar" placeholder="Buscar…"></div>' +
+        '<input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar…"></div>' +
         (m.encima ? '<div id="tabla-encima"></div>' : "") +
         (m.resumen ? '<div id="tabla-resumen"></div>' : "") +
         '<div class="tabla-caja"><div class="tabla-scroll" id="caja-tabla"></div>' +
@@ -1143,6 +1183,7 @@ function verTabla(clave) {
       }
 
       function repintar() {
+        if (est) actualizarUrl({ cliente: est.cliente, obra: est.obra, por: est.por });
         var q = llano($("#buscar").value);
         var clis = fil && fil.cliente ? clientesEscritos() : null;
         var vistas = filas.filter(function (f) {
@@ -2093,7 +2134,11 @@ function pintarPeriodo(repintar, porDefecto) {
       "</div>" +
     "</div>";
   $$("#vista-acciones [data-periodo]").forEach(function (b) {
-    b.addEventListener("click", function () { PERIODO = b.dataset.periodo; repintar(); });
+    b.addEventListener("click", function () {
+      PERIODO = b.dataset.periodo;
+      actualizarUrl({ periodo: PERIODO });
+      repintar();
+    });
   });
   return periodo;
 }
@@ -2305,7 +2350,7 @@ function verObras() {
             return '<option value="' + esc(e.nombre) + '"' + (e.nombre === est.estado ? " selected" : "") + ">" +
                    esc(e.nombre) + "</option>";
           }).join("") + "</select>" +
-          '<input type="search" id="buscar" placeholder="Buscar obra…">' +
+          '<input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar obra…">' +
         "</div>" +
         '<div id="obras-resumen"></div>' +
         '<div class="tabla-caja"><div class="tabla-scroll" id="obras-tabla"></div></div>';
@@ -2331,7 +2376,7 @@ function verObras() {
              // Los gastos llevan a la lista de Gastos con esta obra filtrada.
              // Es un enlace: Ctrl+clic la abre en otra pestaña.
              (puedeVer("costes")
-               ? '<a class="enlace-num" href="#costes/obra/' + o.id + '" title="Ver los gastos de esta obra">' + eur(o.costes) + "</a>"
+               ? '<a class="enlace-num" href="#costes?obra=' + o.id + '" title="Ver los gastos de esta obra">' + eur(o.costes) + "</a>"
                : eur(o.costes)) +
              '</td><td class="num">' + eur(o.facturado) + "</td>" +
              '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b>" +
@@ -2341,6 +2386,7 @@ function verObras() {
       }
 
       function repintar() {
+        actualizarUrl({ cliente: est.cliente, obra: est.obra, estado: est.estado });
         var clis = clientesQueEncajan("clientes", est.cliente), q = llano($("#buscar").value);
         var vistas = obras.filter(function (o) {
           if (est.estado && o.estado !== est.estado) return false;
@@ -2969,11 +3015,12 @@ function verNotas() {
                      esc(o.titulo) + " (" + (conNotas[o.id] || 0) + ")</option>";
             }).join("") +
           "</select>" +
-          '<input type="search" id="buscar" placeholder="Buscar en las notas…">' +
+          '<input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar en las notas…">' +
         "</div>" +
         '<div class="notas" id="notas-lista"></div>';
 
       function pintar() {
+        actualizarUrl({ obra: NOTAS_OBRA });
         var q = llano($("#buscar").value);
         var filas = notas.filter(function (n) {
           if (NOTAS_OBRA === "sin" && n.obra_id) return false;
@@ -3323,7 +3370,7 @@ function verVisitas() {
       return;
     }
     $("#vista").innerHTML =
-      '<div class="herr"><input type="search" id="buscar" placeholder="Buscar por cliente, dirección o notas…"></div>' +
+      '<div class="herr"><input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar por cliente, dirección o notas…"></div>' +
       '<div class="vis-lista" id="vis-lista"></div>';
     function pintar(filas) {
       var caja = $("#vis-lista");
@@ -3610,7 +3657,7 @@ function verDocumentos(clave) {
           ESTADOS_DOC[tipo].map(function (e) {
             return '<option value="' + esc(e) + '"' + (e === est.estado ? " selected" : "") + ">" + esc(e) + "</option>";
           }).join("") + "</select>" +
-          '<input type="search" id="buscar" placeholder="Buscar…">' +
+          '<input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar…">' +
         "</div>" +
         '<div id="tabla-resumen"></div>' +
         '<div class="tabla-caja"><div class="tabla-scroll" id="docs-tabla"></div>' +
@@ -3631,6 +3678,7 @@ function verDocumentos(clave) {
       }
 
       function repintar() {
+        actualizarUrl({ cliente: est.cliente, obra: est.obra, estado: est.estado });
         var clis = clientesQueEncajan("clientes", est.cliente), q = llano($("#buscar").value);
         var vistas = docs.filter(function (d) {
           if (clis && clis.indexOf(String(d.cliente_id)) < 0) return false;
@@ -4700,7 +4748,7 @@ function verCie() {
   Promise.all([api("/api/admin/cie"), cargarRef("clientes")]).then(function (res) {
     var filas = res[0];
     $("#vista").innerHTML =
-      '<div class="herr"><input type="search" id="buscar" placeholder="Buscar por titular o dirección…"></div>' +
+      '<div class="herr"><input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar por titular o dirección…"></div>' +
       '<div class="tabla-caja"><div class="tabla-scroll" id="caja-cie"></div></div>';
 
     function pintar() {
@@ -5055,7 +5103,7 @@ function verTestsSeguridad() {
 
   api("/api/admin/tests-seguridad").then(function (filas) {
     $("#vista").innerHTML =
-      '<div class="herr"><input type="search" id="buscar" placeholder="Buscar por titular o dirección…"></div>' +
+      '<div class="herr"><input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar por titular o dirección…"></div>' +
       '<div class="tabla-caja"><div class="tabla-scroll" id="caja-ts"></div></div>';
 
     function pintar() {
@@ -6218,7 +6266,8 @@ function arrancar(desdeLogin) {
   // Al entrar con la contraseña se abre siempre el Panel, aunque la URL traiga
   // la vista de la sesión anterior. Al recargar con la sesión viva sí se
   // respeta la vista en la que estabas.
-  var inicial = vistaDeHash().k;
+  var h = vistaDeHash(), inicial = h.k;
+  if (!desdeLogin) aplicarFiltroUrl(h);
   ir(!desdeLogin && MODULOS[inicial] ? inicial : "dashboard");
   // La campanita se refresca al cambiar de vista (lo hace ir()), cada minuto
   // y al volver a la pestaña.
