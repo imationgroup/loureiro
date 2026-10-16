@@ -677,6 +677,8 @@ var MODULOS = {
     // Desplegable encima de la tabla para ver los gastos de una sola obra.
     filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Gastos de empresa",
               cliente: "clientes" },
+    // Y por estado: pendiente, pagado… los de la lista editable.
+    filtroPor: { c: "estado", de: "listas/gasto-estados", campo: "nombre", todos: "Todos los estados" },
     // El importe se escribe con el IVA incluido, que es lo que pone el tique.
     // Se guarda la base (lo que cuenta la contabilidad) y se enseña el total.
     conIva: true,
@@ -1152,10 +1154,12 @@ function verTabla(clave) {
         (fil ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"></select>' : "") +
         (por ? '<select id="filtro-por" aria-label="' + esc(por.todos) + '">' +
                '<option value="">' + esc(por.todos) + "</option>" +
-               '<option value="ninguno"' + (est.por === "ninguno" ? " selected" : "") + ">" + esc(por.vacio) + "</option>" +
+               (por.vacio ? '<option value="ninguno"' + (est.por === "ninguno" ? " selected" : "") + ">" +
+                            esc(por.vacio) + "</option>" : "") +
                (cache[por.de] || []).map(function (o) {
-                 return '<option value="' + o.id + '"' + (String(o.id) === est.por ? " selected" : "") + ">" +
-                        esc(o.titulo || nombreCliente(o)) + "</option>";
+                 var v = String(o[por.campo || "id"]);
+                 return '<option value="' + esc(v) + '"' + (v === est.por ? " selected" : "") + ">" +
+                        esc(o.titulo || o.nombre || nombreCliente(o)) + "</option>";
                }).join("") + "</select>" : "") +
         '<input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar…"></div>' +
         (m.encima ? '<div id="tabla-encima"></div>' : "") +
