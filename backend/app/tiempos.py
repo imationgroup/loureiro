@@ -106,8 +106,7 @@ def arrancar_nuevo(datos: Arranque, u: dict = Depends(sesion_actual)):
     exigir(u, "tiempos")
     comprobar_referencias(u, {"obra_id": datos.obra_id})
     # Un miembro apunta a su nombre; el administrador, a quien diga (o a nadie).
-    profesional = datos.profesional_id if es_admin(u) else (
-        datos.profesional_id or u.get("profesional_id"))
+    profesional = datos.profesional_id if es_admin(u) else u.get("profesional_id")
     with db.tx() as con:
         _pausar_los_demas(con, u["id"])
         nuevo = con.execute(

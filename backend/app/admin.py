@@ -28,7 +28,8 @@ from .tiempos import gasto_de_parte, gastos_del_profesional
 from .notas import adjuntos_de
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
-                   limpiar_intentos, publico, puede, registrar_intento, sesion_actual,
+                   limpiar_intentos, obras_suyas, clientes_suyos, publico, puede,
+                   registrar_intento, sesion_actual,
                    usuario_por_email, verificar_password)
 
 router = APIRouter(prefix="/api/admin", tags=["panel"])
@@ -147,10 +148,12 @@ class Tabla:
 
 
 # Quién necesita leer cada lista para sus desplegables.
+# Partes de horas y notas también: sus formularios eligen cliente y obra, y
+# sin poder leer esas listas la pestaña entera daba «No tienes acceso».
 _LEE_CLIENTES = ("clientes", "obras", "agenda", "presupuestos", "proformas", "facturas",
-                 "costes", "solicitudes", "visitas")
+                 "costes", "solicitudes", "visitas", "tiempos", "notas")
 _LEE_OBRAS = ("obras", "agenda", "presupuestos", "proformas", "facturas", "costes", "stock",
-              "notas")
+              "notas", "tiempos")
 
 TABLAS = {
     "clientes": Tabla("clientes",
@@ -163,7 +166,7 @@ TABLAS = {
         ["nombre", "categoria", "telefono", "email", "nif", "ciudades",
          "provincia", "tarifa_hora", "autonomo", "activo", "notas"],
         obligatorios=("nombre", "categoria"),
-        modulo="profesionales", lectura=("profesionales", "agenda", "obras", "costes")),
+        modulo="profesionales", lectura=("profesionales", "agenda", "obras", "costes", "tiempos")),
     "proveedores": Tabla("proveedores",
         ["nombre", "nif", "telefono", "email", "categoria", "notas"],
         obligatorios=("nombre",),
@@ -310,6 +313,13 @@ def listar(recurso: str, u: dict = Depends(sesion_actual)):
     t = _tabla(recurso)
     exigir(u, *t.lectura)
     cond, params = _visibles(t, u)
+    # En las listas (los desplegables) un miembro ve también las obras en las
+    # que está asignado y sus clientes, para poder echarles partes y notas.
+    # Editarlas o borrarlas sigue siendo solo de quien las lleva.
+    if t.nombre == "obras":
+        cond, params = obras_suyas(u)
+    elif t.nombre == "clientes":
+        cond, params = clientes_suyos(u)
     return db.filas(f"SELECT * FROM {t.nombre} WHERE {cond} ORDER BY {t.orden}", params)
 
 
@@ -335,6 +345,8 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
     if t.nombre == "citas" and not es_admin(u) and u.get("profesional_id") \
             and not d.get("profesional_id"):
         d["profesional_id"] = u["profesional_id"]
+    if t.nombre == "tiempos" and not es_admin(u):
+        d["profesional_id"] = u.get("profesional_id")
     comprobar_referencias(u, d)
     if t.nombre == "obras":
         _importe_de_obra(d)
@@ -364,6 +376,8 @@ def actualizar(recurso: str, id_: int, datos: dict[str, Any],
         fijar_responsable(u, datos, d, creando=False)
     if not d:
         raise HTTPException(422, "No hay datos que actualizar")
+    if t.nombre == "tiempos" and not es_admin(u):
+        d.pop("profesional_id", None)
     comprobar_referencias(u, d, existente)
     if t.nombre == "obras":
         _importe_de_obra(d)
@@ -1018,6 +1032,9 @@ def dashboard(periodo: str | None = None, u: dict = Depends(sesion_actual)):
     ve_solicitudes = puede(u, "solicitudes")
     ve_stock = puede(u, "stock")
 
+    if not es_admin(u):
+        return _panel_miembro(u, periodo, fmt, meses, ve_solicitudes)
+
     return {
         "contadores": {
             "obras_activas": db.escalar(f"SELECT COUNT(*) FROM obras WHERE estado IN (SELECT nombre FROM obra_estados WHERE activa = 1) AND {f}", p),
@@ -1065,4 +1082,49 @@ def dashboard(periodo: str | None = None, u: dict = Depends(sesion_actual)):
             SELECT id, nombre, cantidad, minimo, unidad FROM stock
             WHERE minimo > 0 AND cantidad <= minimo ORDER BY cantidad ASC LIMIT 8
         """) if ve_stock else [],
+    }
+
+
+def _panel_miembro(u: dict, periodo: str, fmt: str, meses: list[str], ve_solicitudes: bool) -> dict:
+    """El panel de un miembro del equipo: lo suyo, no lo de la empresa.
+
+    Sus obras activas (las que lleva y en las que está asignado), lo que ha
+    ganado en el periodo y lo que la empresa le debe. Lo ganado son los gastos
+    a su nombre de profesional: la mano de obra de sus partes y lo que se le
+    apunte aparte. Sin márgenes ni facturación de clientes.
+    """
+    prof = u.get("profesional_id")
+    fo, po = obras_suyas(u, "o")
+    ganado = {r["mes"]: r["importe"] for r in db.filas("""
+        SELECT strftime('%Y-%m', fecha) AS mes, SUM(importe) AS importe FROM costes
+        WHERE profesional_id = ? AND strftime('%Y-%m', fecha) BETWEEN ? AND ?
+        GROUP BY mes""", (prof, meses[0], meses[-1]))} if prof else {}
+    return {
+        "miembro": True,
+        "profesional": bool(prof),
+        "periodo": {
+            "clave": periodo,
+            "ganado": db.escalar(f"""SELECT SUM(importe) FROM costes
+                                     WHERE profesional_id = ? AND strftime('{fmt}', fecha) = ?""",
+                                 (prof, periodo)) if prof else 0,
+            "segundos": db.escalar(f"""SELECT SUM(segundos) FROM tiempos
+                                       WHERE profesional_id = ? AND strftime('{fmt}', fecha) = ?""",
+                                   (prof, periodo)) if prof else 0,
+        },
+        # Lo que la empresa le debe, con IVA: es lo que va a cobrar.
+        "pendiente_empresa": round(db.escalar("""
+            SELECT SUM(ROUND(importe * (1 + iva / 100.0) + 1e-9, 2)) FROM costes
+            WHERE profesional_id = ? AND pagado = 0""", (prof,)) or 0, 2) if prof else 0,
+        "evolucion": [{"mes": m, "ganado": ganado.get(m, 0)} for m in meses],
+        "obras_activas": db.filas(f"""
+            SELECT o.id, o.titulo, o.estado, o.ciudad,
+                   TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente,
+                   COALESCE((SELECT SUM(segundos) FROM tiempos t
+                             WHERE t.obra_id = o.id AND t.profesional_id IS ?), 0) AS segundos
+            FROM obras o LEFT JOIN clientes c ON c.id = o.cliente_id
+            WHERE o.estado IN (SELECT nombre FROM obra_estados WHERE activa = 1) AND {fo}
+            ORDER BY o.id DESC""", (prof, *po)),
+        "solicitudes_recientes": db.filas("""
+            SELECT id, nombre, servicio, estado, creado FROM solicitudes
+            WHERE usuario_id = ? ORDER BY id DESC LIMIT 5""", (u["id"],)) if ve_solicitudes else [],
     }

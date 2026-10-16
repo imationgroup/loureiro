@@ -502,6 +502,10 @@ var MODULOS = {
     // Desplegable de obras encima de la tabla, con el cliente delante.
     filtro: { c: "obra_id", de: "obras", todos: "Todas las obras", vacio: "Sin obra",
               cliente: "clientes" },
+    // Y otro por profesional: quién ha echado qué. Solo al administrador; un
+    // miembro ya ve solo los suyos.
+    filtroPor: { c: "profesional_id", de: "profesionales", todos: "Todos los profesionales",
+                 vacio: "Sin asignar", soloAdmin: true },
     // El cronómetro va encima de la tabla, en la misma pestaña.
     encima: cronometro,
     acciones: [
@@ -551,8 +555,10 @@ var MODULOS = {
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "segundos", t: "Tiempo trabajado", tipo: "duracion", mitad: true,
         ayuda: "Escríbelo a mano, o usa el cronómetro de la pestaña y se rellena solo" },
+      // Un miembro echa los partes a su nombre (lo pone el servidor): el
+      // campo solo lo ve el administrador.
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales",
-        pordefecto: "miProfesional",
+        pordefecto: "miProfesional", soloAdmin: true,
         ayuda: "El parte genera un gasto de mano de obra en la obra: horas × su tarifa por hora" },
       { c: "concepto", t: "Qué se hizo", ayuda: "Tirar cable, alicatar el baño…" },
       { c: "notas", t: "Notas", tipo: "area" }
@@ -1009,7 +1015,7 @@ function ir(k) {
   var m = MODULOS[k];
   $("#vista-titulo").textContent = m.titulo;
   $("#vista-sub").textContent = k === "dashboard" && !esAdmin()
-    ? "Tu resumen: tus obras, tus clientes y tus números" : m.sub;
+    ? "Tu resumen: tus obras, tus horas y lo que has ganado" : m.sub;
   $("#vista-acciones").innerHTML = "";
   $("#vista").innerHTML = '<div class="vacia">Cargando…</div>';
 
@@ -1079,6 +1085,9 @@ function verTabla(clave) {
   // En Clientes el desplegable filtra la propia lista.
   var propio = m.filtroPropio;
   if (propio && refs.indexOf(propio) < 0) refs.push(propio);
+  // Desplegable de un segundo campo (el profesional en los partes).
+  var por = m.filtroPor && (!m.filtroPor.soloAdmin || esAdmin()) ? m.filtroPor : null;
+  if (por && refs.indexOf(por.de) < 0) refs.push(por.de);
 
   Promise.all([api("/api/admin/" + m.recurso)].concat(refs.map(cargarRef)))
     .then(function (res) {
@@ -1086,7 +1095,7 @@ function verTabla(clave) {
       // Filtro por cliente y por obra. El cliente se escribe (va filtrando la
       // lista según se teclea) y, con él puesto, el desplegable de obras solo
       // ofrece las suyas.
-      var est = (fil || propio) ? (FILTRO[clave] = FILTRO[clave] || { cliente: "", obra: "" }) : null;
+      var est = (fil || propio || por) ? (FILTRO[clave] = FILTRO[clave] || { cliente: "", obra: "", por: "" }) : null;
       $("#vista").innerHTML =
         '<div class="herr">' +
         ((fil && fil.cliente) || propio
@@ -1097,6 +1106,13 @@ function verTabla(clave) {
             }).join("") + "</datalist>"
           : "") +
         (fil ? '<select id="filtro" aria-label="' + esc(fil.todos) + '"></select>' : "") +
+        (por ? '<select id="filtro-por" aria-label="' + esc(por.todos) + '">' +
+               '<option value="">' + esc(por.todos) + "</option>" +
+               '<option value="ninguno"' + (est.por === "ninguno" ? " selected" : "") + ">" + esc(por.vacio) + "</option>" +
+               (cache[por.de] || []).map(function (o) {
+                 return '<option value="' + o.id + '"' + (String(o.id) === est.por ? " selected" : "") + ">" +
+                        esc(o.titulo || nombreCliente(o)) + "</option>";
+               }).join("") + "</select>" : "") +
         '<input type="search" id="buscar" placeholder="Buscar…"></div>' +
         (m.encima ? '<div id="tabla-encima"></div>' : "") +
         (m.resumen ? '<div id="tabla-resumen"></div>' : "") +
@@ -1138,6 +1154,9 @@ function verTabla(clave) {
               if (!o || clis.indexOf(String(o.cliente_id)) < 0) return false;
             }
           }
+          if (por && est.por) {
+            if (est.por === "ninguno" ? f[por.c] : String(f[por.c]) !== est.por) return false;
+          }
           if (propio) {
             var cp = clientesQueEncajan(propio, est.cliente);
             if (cp && cp.indexOf(String(f.id)) < 0) return false;
@@ -1154,6 +1173,10 @@ function verTabla(clave) {
       $("#buscar").addEventListener("input", repintar);
       if (fil) $("#filtro").addEventListener("change", function () {
         est.obra = this.value;
+        repintar();
+      });
+      if (por) $("#filtro-por").addEventListener("change", function () {
+        est.por = this.value;
         repintar();
       });
       if ($("#filtro-cliente")) $("#filtro-cliente").addEventListener("input", function () {
@@ -2048,9 +2071,9 @@ function periodoVecino(p, paso) {
 // Pinta los botones de periodo en la barra de la vista y devuelve el elegido.
 // Lo comparten el Panel y el informe de orígenes: el año o el mes elegido vale
 // para los dos, así que al cambiarlo en uno sigue puesto al ir al otro.
-function pintarPeriodo(repintar) {
+function pintarPeriodo(repintar, porDefecto) {
   var hoy = new Date();
-  var periodo = PERIODO || periodoDe(hoy, "anio");
+  var periodo = PERIODO || periodoDe(hoy, porDefecto || "anio");
   var actual = periodoDe(hoy, periodo.length === 4 ? "anio" : "mes");
   var anterior = periodoVecino(periodoDe(hoy, "mes"), -1);
   function boton(p, txt) {
@@ -2076,10 +2099,12 @@ function pintarPeriodo(repintar) {
 }
 
 function verDashboard() {
-  var periodo = pintarPeriodo(verDashboard);
+  // Un miembro mira sobre todo el mes en curso: lo que lleva ganado.
+  var periodo = pintarPeriodo(verDashboard, esAdmin() ? "anio" : "mes");
   var esAnio = periodo.length === 4;
 
   api("/api/admin/dashboard?periodo=" + periodo).then(function (d) {
+    if (d.miembro) return panelMiembro(d, periodo);
     var c = d.contadores, margen = (d.periodo.ingresos || 0) - (d.periodo.gastos || 0);
     var del = esAnio ? "del año" : "del mes";
 
@@ -2164,6 +2189,59 @@ function verDashboard() {
 
     $("#vista").innerHTML = h;
   }).catch(error);
+}
+
+// El panel de un miembro del equipo: sus obras activas, lo que ha ganado en
+// el periodo (los gastos a su nombre de profesional: la mano de obra de sus
+// partes) y lo que la empresa le debe. Ni márgenes ni facturación de clientes.
+function panelMiembro(d, periodo) {
+  var esAnio = periodo.length === 4, del = esAnio ? "del año" : "del mes";
+  var h = "";
+  if (!d.profesional) {
+    h += '<div class="aviso aviso--aviso">Tu usuario no está vinculado a una ficha de profesional, así que no ' +
+         "hay horas ni importes a tu nombre. Pídeselo al administrador (Equipo → tu usuario → Profesional).</div>";
+  }
+  h += '<div class="metricas">' +
+    metrica(d.obras_activas.length, "Obras activas en las que trabajas", "") +
+    metrica(duracion(d.periodo.segundos), "Horas " + del, "metrica--azul") +
+    metrica(eur(d.periodo.ganado), "Ganado " + del + " · sin IVA", "metrica--verde") +
+    metrica(eur(d.pendiente_empresa), "Pendiente de cobrar de la empresa · con IVA", "") +
+    "</div>";
+
+  h += '<div class="paneles">';
+  var ev = d.evolucion || [];
+  var tope = Math.max.apply(null, ev.map(function (m) { return m.ganado || 0; }).concat([1]));
+  h += '<div class="tarjeta"><h3>Lo que has ganado <span>' +
+       (esAnio ? esc(periodo) : "6 meses hasta " + esc(nombrePeriodo(periodo).toLowerCase())) +
+       " · sin IVA</span></h3><div class=\"grafico\">" +
+       ev.map(function (m) {
+         return '<div class="barra-col"><div class="barra-par">' +
+           '<div class="barra barra--in" style="height:' + (m.ganado ? Math.max(3, m.ganado / tope * 100) : 0) +
+           '%" title="' + esc(eur(m.ganado)) + '"></div></div><small' + (m.mes === periodo ? ' class="is-on"' : "") + ">" +
+           esc(String(m.mes).slice(5) + "/" + String(m.mes).slice(2, 4)) + "</small></div>";
+       }).join("") + "</div></div>";
+
+  h += '<div class="tarjeta"><h3>Tus obras activas <span>horas que les has echado</span></h3>' +
+    (d.obras_activas.length
+      ? '<div class="tabla-scroll"><table class="tabla-corta"><tbody>' + d.obras_activas.map(function (o) {
+          return "<tr><td><b>" + esc(o.titulo) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
+                 esc(o.cliente || "sin cliente") + (o.ciudad ? " · " + esc(o.ciudad) : "") + "</div></td>" +
+                 '<td><span class="tag tag--verde">' + esc(o.estado) + "</span></td>" +
+                 '<td class="num">' + esc(duracion(o.segundos)) + "</td></tr>";
+        }).join("") + "</tbody></table></div>"
+      : '<div class="vacia">No tienes obras activas asignadas.</div>') + "</div>";
+  h += "</div>";
+
+  if (puedeVer("solicitudes") && d.solicitudes_recientes.length) {
+    h += '<div class="tarjeta" style="margin-top:16px"><h3>Tus últimas solicitudes</h3>' +
+      '<div class="tabla-scroll"><table class="tabla-corta"><tbody>' + d.solicitudes_recientes.map(function (s) {
+        return "<tr><td><b>" + esc(s.nombre) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
+               esc(s.servicio || "") + "</div></td>" +
+               '<td><span class="tag ' + (s.estado === "pendiente" ? "tag--amber" : "") + '">' + esc(s.estado) + "</span></td>" +
+               '<td class="num" style="font-size:.82rem;color:var(--muted)">' + esc(fecha(s.creado)) + "</td></tr>";
+      }).join("") + "</tbody></table></div></div>";
+  }
+  $("#vista").innerHTML = h;
 }
 
 // Un rato de trabajo, como lo diría una persona: «3 h 05 min», «45 min».
