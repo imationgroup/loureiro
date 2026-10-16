@@ -1064,7 +1064,11 @@ function aplicarFiltroUrl(h) {
   if (h.k === "notas") NOTAS_OBRA = p.obra || "";
   else FILTRO[h.k] = { cliente: p.cliente || "", obra: p.obra || "", por: p.por || "",
                        estado: p.estado || "" };
-  if (/^\d{4}(-\d{2})?$/.test(p.periodo || "")) PERIODO = p.periodo;
+  var periodo = /^\d{4}(-\d{2})?$/.test(p.periodo || "") ? p.periodo : "";
+  // En Obras el periodo es un filtro más de la lista; en el Panel y en
+  // orígenes, el periodo que comparten.
+  if (h.k === "obras") FILTRO.obras.periodo = periodo;
+  else if (periodo) PERIODO = periodo;
 }
 
 // La búsqueda escrita que trae la URL, para el cuadro «Buscar…».
@@ -2317,10 +2321,49 @@ function claseEstadoObra(nombre, estados) {
   return /cancel/i.test(nombre || "") ? "tag--rojo" : "tag--amber";
 }
 
+// Un importe de la tabla de Obras que lleva a esa vista filtrada por la obra
+// (presupuestos, facturas). Para quien no ve esa vista, solo el importe.
+function enlaceObra(vista, obraId, texto, titulo) {
+  return puedeVer(vista)
+    ? '<a class="enlace-num" href="#' + vista + "?obra=" + obraId + '" title="' + esc(titulo) + '">' + texto + "</a>"
+    : texto;
+}
+
 function verObras() {
-  $("#vista-acciones").innerHTML =
-    '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva obra</button>";
-  $("#btn-nuevo").addEventListener("click", function () { abrirFormulario("obras", null); });
+  // Filtro por cliente (se escribe), por estado y por periodo. Se conserva al
+  // volver de guardar una obra, como el de Gastos, y va en la URL.
+  var est = FILTRO.obras = FILTRO.obras || { cliente: "", estado: "" };
+  var repintarObras = function () {};
+
+  // Periodo, como el del Panel: el año o el mes en que empezó la obra (su
+  // fecha de inicio, o la de alta si no la tiene). «Todas», sin periodo.
+  function pintarPeriodoObras() {
+    var hoy = new Date(), p = est.periodo || "";
+    var actual = p ? periodoDe(hoy, p.length === 4 ? "anio" : "mes") : "";
+    function boton(v, txt) {
+      return '<button type="button" data-periodo="' + v + '"' + (v === p ? ' class="is-on"' : "") + ">" + txt + "</button>";
+    }
+    $("#vista-acciones").innerHTML =
+      '<div class="periodo"><div class="periodo__rapidos">' +
+        boton("", "Todas") + boton(periodoDe(hoy, "anio"), "Este año") + boton(periodoDe(hoy, "mes"), "Este mes") +
+        boton(periodoVecino(periodoDe(hoy, "mes"), -1), "Mes anterior") + "</div>" +
+      (p ? '<div class="periodo__nav">' +
+             '<button type="button" data-periodo="' + periodoVecino(p, -1) + '" aria-label="Anterior">‹</button>' +
+             "<b>" + esc(nombrePeriodo(p)) + "</b>" +
+             '<button type="button" data-periodo="' + periodoVecino(p, 1) + '" aria-label="Siguiente"' +
+               (p >= actual ? " disabled" : "") + ">›</button></div>" : "") +
+      "</div>" +
+      '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva obra</button>";
+    $("#btn-nuevo").addEventListener("click", function () { abrirFormulario("obras", null); });
+    $$("#vista-acciones [data-periodo]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        est.periodo = b.dataset.periodo;
+        pintarPeriodoObras();
+        repintarObras();
+      });
+    });
+  }
+  pintarPeriodoObras();
 
   var conNotas = puedeVer("notas");
   var conHoras = puedeVer("tiempos");
@@ -2335,9 +2378,6 @@ function verObras() {
         $("#vista").innerHTML = '<div class="tabla-caja"><div class="vacia">Todavía no hay obras. Pulsa «Nueva obra».</div></div>';
         return;
       }
-      // Filtro por cliente (se escribe) y por estado. Se conserva al volver
-      // de guardar una obra, como el de Gastos.
-      var est = FILTRO.obras = FILTRO.obras || { cliente: "", estado: "" };
       $("#vista").innerHTML =
         '<div class="herr">' +
           '<input id="filtro-cliente" list="lista-filtro-cliente" autocomplete="off" class="herr__cliente"' +
@@ -2374,13 +2414,14 @@ function verObras() {
              // Las horas llevan a los partes de esta obra, como los gastos a los suyos.
              (conHoras ? '<td class="num"><a class="enlace-num" href="#tiempos?obra=' + o.id +
                          '" title="Ver los partes de esta obra">' + esc(duracion(o.segundos)) + "</a></td>" : "") +
-             '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' +
+             '<td class="num">' + enlaceObra("presupuestos", o.id, eur(o.importe_venta), "Ver los presupuestos de esta obra") +
+             '</td><td class="num">' +
              // Los gastos llevan a la lista de Gastos con esta obra filtrada.
              // Es un enlace: Ctrl+clic la abre en otra pestaña.
              (puedeVer("costes")
                ? '<a class="enlace-num" href="#costes?obra=' + o.id + '" title="Ver los gastos de esta obra">' + eur(o.costes) + "</a>"
                : eur(o.costes)) +
-             '</td><td class="num">' + eur(o.facturado) + "</td>" +
+             '</td><td class="num">' + enlaceObra("facturas", o.id, eur(o.facturado), "Ver las facturas de esta obra") + "</td>" +
              '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b>" +
              (pct !== null ? '<div style="font-size:.76rem;color:var(--muted)">' + pct + "%</div>" : "") + "</td>" +
              '<td class="acciones"><button data-editar="' + o.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
@@ -2388,10 +2429,11 @@ function verObras() {
       }
 
       function repintar() {
-        actualizarUrl({ cliente: est.cliente, obra: est.obra, estado: est.estado });
+        actualizarUrl({ cliente: est.cliente, estado: est.estado, periodo: est.periodo });
         var clis = clientesQueEncajan("clientes", est.cliente), q = llano($("#buscar").value);
         var vistas = obras.filter(function (o) {
           if (est.estado && o.estado !== est.estado) return false;
+          if (est.periodo && String(o.fecha_inicio || o.creado || "").slice(0, est.periodo.length) !== est.periodo) return false;
           if (clis && clis.indexOf(String(o.cliente_id)) < 0) return false;
           return !q || llano([o.titulo, o.codigo, o.cliente, o.ciudad, o.estado].join(" ")).indexOf(q) >= 0;
         });
@@ -2437,6 +2479,7 @@ function verObras() {
           b.addEventListener("click", function () { notasDeObra(b.dataset.notas); });
         });
       }
+      repintarObras = repintar;
       repintar();
       $("#filtro-cliente").addEventListener("input", function () { est.cliente = this.value; repintar(); });
       $("#filtro-estado").addEventListener("change", function () { est.estado = this.value; repintar(); });
