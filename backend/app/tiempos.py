@@ -14,6 +14,10 @@ se cierre el panel, y lo que se arrancó en el móvil se ve desde el ordenador.
 Cada persona tiene UN cronómetro: arrancar uno pausa el que tuviera corriendo.
 Estar en dos obras a la vez no es que sea raro, es que no puede ser, y así el
 tiempo no se cuenta dos veces.
+
+Cada parte genera su gasto de mano de obra en la obra: las horas por la
+tarifa del profesional (ver gasto_de_parte). Se rehace cada vez que el parte
+cambia, así que ese gasto no se toca a mano: se corrige el parte.
 """
 
 from datetime import datetime, timezone
@@ -23,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from . import db
 from .auth import comprobar_referencias, es_admin, exigir, filtro_responsable, sesion_actual
+from .listas import estado_pendiente
 
 # Va montado antes del CRUD genérico: su /{recurso}/{id} se tragaría
 # /tiempos/en-curso como si «en-curso» fuese el id de un parte.
@@ -68,6 +73,7 @@ def _cerrar_tramo(con, parte: dict) -> int:
     total = parte["segundos"] + corridos
     con.execute("UPDATE tiempos SET segundos = ?, arrancado = NULL WHERE id = ?",
                 (total, parte["id"]))
+    gasto_de_parte(con, parte["id"])
     return total
 
 
@@ -134,3 +140,60 @@ def pausar(id_: int, u: dict = Depends(sesion_actual)):
     with db.tx() as con:
         _cerrar_tramo(con, parte)
     return con_total(db.fila("SELECT * FROM tiempos WHERE id = ?", (id_,)))
+
+
+# ═══ El gasto que genera el parte ═════════════════════════════════════════
+
+def _categoria_mano_de_obra(con) -> str:
+    """«mano de obra» si sigue en la lista; si la renombraron, la primera."""
+    fila = con.execute("SELECT nombre FROM gasto_categorias WHERE nombre = 'mano de obra'").fetchone() \
+        or con.execute("SELECT nombre FROM gasto_categorias ORDER BY orden, id LIMIT 1").fetchone()
+    return fila["nombre"] if fila else "mano de obra"
+
+
+def _duracion(segundos: int) -> str:
+    h, m = divmod(round(segundos / 60), 60)
+    return f"{h} h {m:02d} min" if h else f"{m} min"
+
+
+def gasto_de_parte(con, tiempo_id: int):
+    """Crea, rehace o quita el gasto de mano de obra de un parte.
+
+    Importe = horas × tarifa del profesional, sin IVA (como todos los gastos).
+    Lleva IVA si el profesional es autónomo (factura); si es de la plantilla,
+    no. Sin obra, sin profesional, sin tarifa o sin tiempo no hay gasto.
+    El estado de pago se respeta: si ya se marcó pagado, sigue pagado.
+    """
+    p = con.execute("""SELECT t.*, pr.nombre AS profesional, pr.tarifa_hora, pr.autonomo
+                       FROM tiempos t LEFT JOIN profesionales pr ON pr.id = t.profesional_id
+                       WHERE t.id = ?""", (tiempo_id,)).fetchone()
+    previo = con.execute("SELECT id FROM costes WHERE tiempo_id = ?", (tiempo_id,)).fetchone()
+    importe = round((p["segundos"] or 0) / 3600 * (p["tarifa_hora"] or 0), 2) if p else 0
+    if not p or not p["obra_id"] or importe <= 0:
+        if previo:
+            con.execute("DELETE FROM costes WHERE id = ?", (previo["id"],))
+        return
+
+    concepto = " · ".join(x for x in (
+        "Mano de obra", p["profesional"], (p["concepto"] or "").strip(),
+        f"{_duracion(p['segundos'])} a {p['tarifa_hora']:g} €/h") if x)
+    datos = {
+        "obra_id": p["obra_id"], "profesional_id": p["profesional_id"],
+        "categoria": _categoria_mano_de_obra(con), "concepto": concepto[:200],
+        "importe": importe, "iva": 21 if p["autonomo"] else 0,
+        "fecha": p["fecha"], "usuario_id": p["usuario_id"],
+    }
+    if previo:
+        con.execute("UPDATE costes SET %s WHERE id = ?" % ", ".join(f"{k} = ?" for k in datos),
+                    (*datos.values(), previo["id"]))
+    else:
+        datos.update(tiempo_id=tiempo_id, estado=estado_pendiente(), pagado=0)
+        con.execute("INSERT INTO costes (%s) VALUES (%s)"
+                    % (", ".join(datos), ", ".join("?" * len(datos))), tuple(datos.values()))
+
+
+def gastos_del_profesional(con, profesional_id: int):
+    """Al cambiar la tarifa de un profesional, se rehacen los gastos de sus partes."""
+    for (id_,) in con.execute("SELECT id FROM tiempos WHERE profesional_id = ?",
+                              (profesional_id,)).fetchall():
+        gasto_de_parte(con, id_)

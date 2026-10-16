@@ -736,6 +736,9 @@ MIGRACIONES = [
     # casilla para ella, pero el técnico la necesita para tramitar el
     # boletín: sin ella no sale el PDF (ver cie.py).
     ("certificados", "ref_catastral", "TEXT"),
+    # El gasto de mano de obra que sale de un parte de horas (ver
+    # tiempos.gasto_de_parte). Se borra con el parte.
+    ("costes", "tiempo_id", "INTEGER REFERENCES tiempos(id) ON DELETE CASCADE"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la
