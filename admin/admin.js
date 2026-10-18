@@ -733,7 +733,6 @@ var MODULOS = {
       { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "obras", req: true, sinObra: "Gastos de empresa (no es de una obra)" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales", mitad: true, pordefecto: "miProfesional" },
       { c: "proveedor_id", t: "Proveedor", tipo: "ref", de: "proveedores", mitad: true },
-      { c: "factura_ref", t: "Nº de factura", mitad: true },
       { c: "estado", t: "Estado", tipo: "lista", de: "listas/gasto-estados" },
       { c: "notas", t: "Notas", tipo: "area" }
     ]
