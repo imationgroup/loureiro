@@ -2441,7 +2441,7 @@ function verObras() {
              // Los gastos llevan a la lista de Gastos con esta obra filtrada.
              // Es un enlace: Ctrl+clic la abre en otra pestaña.
              (puedeVer("costes")
-               ? '<a class="enlace-num" href="#costes?obra=' + o.id + '" title="Ver los gastos de esta obra">' + eur(o.costes) + "</a>"
+               ? '<a class="enlace-num" href="#costes?obra=' + o.id + '" title="Sin IVA. En la lista de Gastos salen con IVA; abajo verás la base, que es esta cifra">' + eur(o.costes) + "</a>"
                : eur(o.costes)) +
              '</td><td class="num">' + enlaceObra("facturas", o.id, eur(o.facturado), "Ver las facturas de esta obra") + "</td>" +
              '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b>" +
@@ -2480,7 +2480,7 @@ function verObras() {
           "<th>Obra</th><th>Cliente</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
           "<th>Estado</th><th>Profesionales</th>" + (conNotas ? "<th>Notas</th>" : "") +
           (conHoras ? '<th class="num">Horas</th>' : "") +
-          '<th class="num">Presupuestado</th><th class="num">Gastos</th><th class="num">Facturado</th>' +
+          '<th class="num">Presupuestado</th><th class="num">Gastos sin IVA</th><th class="num">Facturado</th>' +
           '<th class="num">Margen</th><th class="num">Acciones</th></tr></thead><tbody>' +
           vistas.map(fila).join("") + "</tbody></table>";
 
@@ -2948,7 +2948,7 @@ function verFichaCliente() {
             '<td><span class="tag ' + claseEstadoObra(o.estado, cache["listas/obra-estados"]) + '">' + esc(o.estado) + "</span></td>" +
             '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' + eur(o.costes) + "</td>" +
             '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b></td></tr>";
-        }), "<th>Obra</th><th>Estado</th><th class='num'>Presupuestado</th><th class='num'>Gastos</th><th class='num'>Margen</th>");
+        }), "<th>Obra</th><th>Estado</th><th class='num'>Presupuestado</th><th class='num'>Gastos sin IVA</th><th class='num'>Margen</th>");
       }
       // Presupuestos y facturas.
       [["presupuestos", "Presupuestos"], ["facturas", "Facturas"]].forEach(function (t) {
