@@ -74,7 +74,8 @@ var ico = {
   camara:'<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
   ok:'<path d="M20 6L9 17l-5-5"/>',
   no:'<path d="M18 6L6 18M6 6l12 12"/>',
-  equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+  equipo:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  engranaje:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
 };
 function svg(d, cls) {
   return '<svg viewBox="0 0 24 24" ' + (cls ? 'class="' + cls + '" ' : "") + 'aria-hidden="true">' + d + "</svg>";
@@ -134,11 +135,24 @@ function pedirSesion() {
 // de verdad qué se ve es el servidor: esconder una pestaña no protege nada.
 var YO = null;
 function esAdmin() { return !!YO && YO.rol === "admin"; }
+
+// Configuración del panel, la misma para toda la empresa (Configuración, solo
+// el administrador la cambia). Se carga al entrar.
+var CONFIG = { opera_con_iva: true };
+function cargarConfiguracion() {
+  return api("/api/admin/configuracion")
+    .then(function (c) { CONFIG = c; })
+    .catch(function () {});
+}
+// Cómo van ingresos, gastos y márgenes: sin IVA si la empresa opera con IVA
+// (el IVA es de Hacienda) y con IVA si no (lo que pone el tique es lo que sale
+// de caja). Lo calcula el servidor; aquí solo se dice en las etiquetas.
+function etiquetaIva() { return CONFIG.opera_con_iva ? "sin IVA" : "con IVA"; }
 function puedeVer(k) {
   if (!YO) return false;
   if (MODULOS[k] && MODULOS[k].permiso) k = MODULOS[k].permiso;
   if (k === "dashboard") return true;
-  if (k === "equipo") return esAdmin();
+  if (k === "equipo" || k === "configuracion") return esAdmin();
   // Los estatutos los lee todo el mundo: de nada sirve escribir cómo
   // funciona la empresa si media plantilla no puede abrirlo.
   if (k === "estatutos") return true;
@@ -820,6 +834,8 @@ var MODULOS = {
 };
 
 MODULOS.equipo = { titulo: "Equipo", sub: "Quién entra al panel y a qué", icono: ico.equipo, especial: "equipo" };
+MODULOS.configuracion = { titulo: "Configuración", sub: "Cómo funciona el panel para toda la empresa",
+  icono: ico.engranaje, especial: "configuracion" };
 // Submenús de Gastos: sus listas de categorías y estados.
 MODULOS.gastos_categorias = { titulo: "Categorías de gasto", menu: "Categorías", sub: "Para clasificar los gastos",
   icono: ico.etiqueta, especial: "listaEditable", lista: "gasto-categorias", permiso: "costes" };
@@ -871,7 +887,7 @@ var ORDEN_MENU = [
                              { k: "certificados", hijos: ["certificados_cie", "tests_seguridad"] },
                              { k: "costes", hijos: ["gastos_categorias", "gastos_estados"] }, "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
-  { sep: "Empresa", items: ["estatutos", "documentacion", "equipo"] }
+  { sep: "Empresa", items: ["estatutos", "documentacion", "equipo", "configuracion"] }
 ];
 
 /* ── Caché de referencias (para los desplegables) ─────────────────────── */
@@ -1028,6 +1044,7 @@ function ir(k) {
 
   if (m.especial === "dashboard") return verDashboard();
   if (m.especial === "equipo") return verMiembros();
+  if (m.especial === "configuracion") return verConfiguracion();
   if (m.especial === "estatutos") return verEstatutos();
   if (m.especial === "documentacion") return verDocumentacion();
   if (m.especial === "guia") return verGuia();
@@ -2183,10 +2200,10 @@ function verDashboard() {
       metrica(c.obras_activas, "Obras activas", "") +
       (c.solicitudes_nuevas === null ? ""
         : metrica(c.solicitudes_nuevas, "Solicitudes sin atender", c.solicitudes_nuevas ? "metrica--azul" : "")) +
-      // Resultados sin IVA (el IVA es de Hacienda); lo pendiente, con IVA.
-      metrica(eur(d.periodo.ingresos), "Ingresos " + del + " · sin IVA", "metrica--verde") +
-      metrica(eur(d.periodo.gastos), "Gastos " + del + " · sin IVA", "metrica--rojo") +
-      metrica(eur(margen), "Margen " + del + " · sin IVA", margen >= 0 ? "metrica--verde" : "metrica--rojo") +
+      // Resultados según la configuración del IVA; lo pendiente, siempre con IVA.
+      metrica(eur(d.periodo.ingresos), "Ingresos " + del + " · " + etiquetaIva(), "metrica--verde") +
+      metrica(eur(d.periodo.gastos), "Gastos " + del + " · " + etiquetaIva(), "metrica--rojo") +
+      metrica(eur(margen), "Margen " + del + " · " + etiquetaIva(), margen >= 0 ? "metrica--verde" : "metrica--rojo") +
       (c.stock_bajo === null ? ""
         : metrica(c.stock_bajo, "Artículos bajo mínimo", c.stock_bajo ? "metrica--rojo" : "")) +
       "</div>";
@@ -2199,7 +2216,7 @@ function verDashboard() {
     var tope = Math.max.apply(null, ev.map(function (m) { return Math.max(m.ingresos || 0, m.gastos || 0); }).concat([1]));
     h += '<div class="tarjeta"><h3>Ingresos y gastos <span>' +
          (esAnio ? esc(periodo) : "6 meses hasta " + esc(nombrePeriodo(periodo).toLowerCase())) +
-         " · sin IVA</span></h3>";
+         " · " + etiquetaIva() + "</span></h3>";
     if (!ev.length) h += '<div class="vacia">Sin movimientos todavía.</div>';
     else {
       h += '<div class="grafico">';
@@ -2229,7 +2246,7 @@ function verDashboard() {
 
     // Obras y solicitudes recientes
     h += '<div class="paneles" style="margin-top:16px">';
-    h += '<div class="tarjeta"><h3>Últimas obras <span>margen sin IVA</span></h3>' + (d.obras_recientes.length
+    h += '<div class="tarjeta"><h3>Últimas obras <span>margen ' + etiquetaIva() + "</span></h3>" + (d.obras_recientes.length
       ? '<div class="tabla-scroll"><table class="tabla-corta"><tbody>' + d.obras_recientes.map(function (o) {
           var m2 = (o.importe_venta || 0) - (o.costes || 0);
           return "<tr><td><b>" + esc(o.titulo) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
@@ -2275,7 +2292,7 @@ function panelMiembro(d, periodo) {
   h += '<div class="metricas">' +
     metrica(d.obras_activas.length, "Obras activas en las que trabajas", "") +
     metrica(duracion(d.periodo.segundos), "Horas " + del, "metrica--azul") +
-    metrica(eur(d.periodo.ganado), "Ganado " + del + " · sin IVA", "metrica--verde") +
+    metrica(eur(d.periodo.ganado), "Ganado " + del + " · " + etiquetaIva(), "metrica--verde") +
     metrica(eur(d.pendiente_empresa), "Pendiente de cobrar de la empresa · con IVA", "") +
     "</div>";
 
@@ -2284,7 +2301,7 @@ function panelMiembro(d, periodo) {
   var tope = Math.max.apply(null, ev.map(function (m) { return m.ganado || 0; }).concat([1]));
   h += '<div class="tarjeta"><h3>Lo que has ganado <span>' +
        (esAnio ? esc(periodo) : "6 meses hasta " + esc(nombrePeriodo(periodo).toLowerCase())) +
-       " · sin IVA</span></h3><div class=\"grafico\">" +
+       " · " + etiquetaIva() + "</span></h3><div class=\"grafico\">" +
        ev.map(function (m) {
          return '<div class="barra-col"><div class="barra-par">' +
            '<div class="barra barra--in" style="height:' + (m.ganado ? Math.max(3, m.ganado / tope * 100) : 0) +
@@ -2441,7 +2458,9 @@ function verObras() {
              // Los gastos llevan a la lista de Gastos con esta obra filtrada.
              // Es un enlace: Ctrl+clic la abre en otra pestaña.
              (puedeVer("costes")
-               ? '<a class="enlace-num" href="#costes?obra=' + o.id + '" title="Sin IVA. En la lista de Gastos salen con IVA; abajo verás la base, que es esta cifra">' + eur(o.costes) + "</a>"
+               ? '<a class="enlace-num" href="#costes?obra=' + o.id + '" title="' + (CONFIG.opera_con_iva
+                 ? "Sin IVA. En la lista de Gastos salen con IVA; abajo verás la base, que es esta cifra"
+                 : "Con IVA, como en la lista de Gastos") + '">' + eur(o.costes) + "</a>"
                : eur(o.costes)) +
              '</td><td class="num">' + enlaceObra("facturas", o.id, eur(o.facturado), "Ver las facturas de esta obra") + "</td>" +
              '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b>" +
@@ -2464,9 +2483,9 @@ function verObras() {
         var sum = function (c) { return vistas.reduce(function (a, o) { return a + (Number(o[c]) || 0); }, 0); };
         var venta = sum("importe_venta"), gastos = sum("costes"), margen = venta - gastos;
         $("#obras-resumen").innerHTML = '<div class="metricas">' +
-          metrica(eur(venta), "Presupuestado sin IVA · " + vistas.length + " obra" + (vistas.length === 1 ? "" : "s"), "metrica--azul") +
+          metrica(eur(venta), "Presupuestado " + etiquetaIva() + " · " + vistas.length + " obra" + (vistas.length === 1 ? "" : "s"), "metrica--azul") +
           (conHoras ? metrica(duracion(sum("segundos")), "Horas imputadas", "") : "") +
-          metrica(eur(gastos), "Gastos sin IVA", "metrica--rojo") +
+          metrica(eur(gastos), "Gastos " + etiquetaIva(), "metrica--rojo") +
           metrica(eur(margen), "Margen" + (venta ? " · " + Math.round(margen / venta * 100) + " %" : ""),
                   margen >= 0 ? "metrica--verde" : "metrica--rojo") +
           "</div>";
@@ -2480,7 +2499,7 @@ function verObras() {
           "<th>Obra</th><th>Cliente</th>" + (esAdmin() ? "<th>Responsable</th>" : "") +
           "<th>Estado</th><th>Profesionales</th>" + (conNotas ? "<th>Notas</th>" : "") +
           (conHoras ? '<th class="num">Horas</th>' : "") +
-          '<th class="num">Presupuestado</th><th class="num">Gastos sin IVA</th><th class="num">Facturado</th>' +
+          '<th class="num">Presupuestado</th><th class="num">Gastos ' + etiquetaIva() + '</th><th class="num">Facturado</th>' +
           '<th class="num">Margen</th><th class="num">Acciones</th></tr></thead><tbody>' +
           vistas.map(fila).join("") + "</tbody></table>";
 
@@ -2948,7 +2967,7 @@ function verFichaCliente() {
             '<td><span class="tag ' + claseEstadoObra(o.estado, cache["listas/obra-estados"]) + '">' + esc(o.estado) + "</span></td>" +
             '<td class="num">' + eur(o.importe_venta) + '</td><td class="num">' + eur(o.costes) + "</td>" +
             '<td class="num" style="color:' + (margen >= 0 ? "var(--verde)" : "var(--rojo)") + '"><b>' + eur(margen) + "</b></td></tr>";
-        }), "<th>Obra</th><th>Estado</th><th class='num'>Presupuestado</th><th class='num'>Gastos sin IVA</th><th class='num'>Margen</th>");
+        }), "<th>Obra</th><th>Estado</th><th class='num'>Presupuestado</th><th class='num'>Gastos " + etiquetaIva() + "</th><th class='num'>Margen</th>");
       }
       // Presupuestos y facturas.
       [["presupuestos", "Presupuestos"], ["facturas", "Facturas"]].forEach(function (t) {
@@ -4529,12 +4548,13 @@ function verContabilidad() {
     var t = d.totales;
     var resultado = (t.ingresos || 0) - (t.gastos || 0);
     var ivaLiquidar = (t.iva_repercutido || 0) - (t.iva_soportado || 0);
+    var hayIva = d.con_iva !== false;
 
     var h = '<div class="metricas">' +
-      metrica(eur(t.ingresos), "Ingresos " + anio, "metrica--verde") +
-      metrica(eur(t.gastos), "Gastos " + anio, "metrica--rojo") +
+      metrica(eur(t.ingresos), "Ingresos " + anio + " · " + etiquetaIva(), "metrica--verde") +
+      metrica(eur(t.gastos), "Gastos " + anio + " · " + etiquetaIva(), "metrica--rojo") +
       metrica(eur(resultado), "Resultado", resultado >= 0 ? "metrica--verde" : "metrica--rojo") +
-      metrica(eur(ivaLiquidar), "IVA a liquidar", "metrica--azul") +
+      (hayIva ? metrica(eur(ivaLiquidar), "IVA a liquidar", "metrica--azul") : "") +
       metrica(eur(t.pendiente_cobro), "Pendiente de cobro", "") +
       metrica(eur(t.pendiente_pago), "Pendiente de pago", "") +
       "</div>";
@@ -4564,11 +4584,14 @@ function verContabilidad() {
     h += "</div>";
 
     h += '<div class="tarjeta" style="margin-top:16px"><h3>IVA</h3>' +
-      '<div class="tabla-scroll"><table><tbody>' +
-      "<tr><td>IVA repercutido (facturado a clientes)</td><td class=\"num\">" + eur(t.iva_repercutido) + "</td></tr>" +
-      "<tr><td>IVA soportado (pagado en compras)</td><td class=\"num\">" + eur(t.iva_soportado) + "</td></tr>" +
-      "<tr><td><b>Diferencia a liquidar</b></td><td class=\"num\"><b>" + eur(ivaLiquidar) + "</b></td></tr>" +
-      "</tbody></table></div>" +
+      (hayIva
+        ? '<div class="tabla-scroll"><table><tbody>' +
+          "<tr><td>IVA repercutido (facturado a clientes)</td><td class=\"num\">" + eur(t.iva_repercutido) + "</td></tr>" +
+          "<tr><td>IVA soportado (pagado en compras)</td><td class=\"num\">" + eur(t.iva_soportado) + "</td></tr>" +
+          "<tr><td><b>Diferencia a liquidar</b></td><td class=\"num\"><b>" + eur(ivaLiquidar) + "</b></td></tr>" +
+          "</tbody></table></div>"
+        : '<p style="color:var(--muted)">La empresa opera sin IVA (Configuración): no hay IVA que liquidar y ' +
+          "todos los importes de arriba llevan el IVA dentro.</p>") +
       '<p style="color:var(--muted-2);font-size:.83rem;margin-top:14px">' +
       "Estos números son para llevar el control interno del negocio. No sustituyen a tu gestoría " +
       "ni a las declaraciones fiscales: sirven para que sepas en todo momento cómo vas.</p></div>";
@@ -4592,7 +4615,7 @@ function verOrigenes() {
       metrica(t.clientes, "Clientes nuevos " + del, "") +
       metrica(t.solicitudes, "Solicitudes " + del, "") +
       metrica(t.obras, "Obras " + del, "") +
-      metrica(eur(t.facturado), "Facturado " + del + " · sin IVA", "metrica--verde") +
+      metrica(eur(t.facturado), "Facturado " + del + " · " + etiquetaIva(), "metrica--verde") +
       "</div>";
 
     h += '<div class="tarjeta" style="margin-top:16px"><h3>Por dónde llegaron <span>' +
@@ -4620,7 +4643,7 @@ function verOrigenes() {
     }
 
     h += '<p style="color:var(--muted-2);font-size:.83rem;margin-top:14px">' +
-      "Cada cosa cuenta en el periodo en que se dio de alta, y el facturado va sin IVA. " +
+      "Cada cosa cuenta en el periodo en que se dio de alta, y el facturado va " + etiquetaIva() + ". " +
       "El canal se apunta en la ficha del cliente, y las solicitudes de la web lo traen " +
       "puesto si la persona lo dice. Los canales se cambian en Clientes › Orígenes.</p></div>";
 
@@ -6039,6 +6062,51 @@ var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "tiempos", "n
   "profesionales", "presupuestos", "proformas", "facturas", "certificados", "costes",
   "contabilidad", "stock", "proveedores"];
 
+/* ── Configuración ────────────────────────────────────────────────────── */
+// Cómo funciona el panel para toda la empresa. Solo el administrador.
+function verConfiguracion() {
+  api("/api/admin/configuracion").then(function (c) {
+    CONFIG = c;
+    $("#vista").innerHTML =
+      '<div class="tarjeta" style="max-width:760px"><h3>IVA</h3>' +
+      '<label class="check"><input type="checkbox" id="cf-iva"' + (c.opera_con_iva ? " checked" : "") + ">" +
+      "<span><b>Operamos con IVA</b></span></label>" +
+      '<div id="cf-iva-texto"></div>' +
+      '<p style="color:var(--muted-2);font-size:.83rem;margin-top:14px">' +
+      "Cambiarlo no toca ningún dato: cada gasto e ingreso sigue guardando su importe y su IVA, y solo " +
+      "cambia cómo se suman en el Panel, Obras, Contabilidad y el resto de resúmenes. Puedes volver atrás " +
+      "cuando quieras. Lo pendiente de cobro y de pago va siempre con IVA, que es lo que se mueve de verdad.</p>" +
+      "</div>";
+
+    function explicar() {
+      $("#cf-iva-texto").innerHTML = CONFIG.opera_con_iva
+        ? "<p>El IVA que cobras se lo debes a Hacienda y el que pagas te lo devuelven: no es tuyo. " +
+          "Ingresos, gastos y márgenes se cuentan <b>sin IVA</b>.</p>" +
+          '<p style="color:var(--muted)">Ejemplo: un tique de 260 € con el 21 % cuenta como 214,88 € de gasto.</p>'
+        : "<p>Ni cobras el IVA aparte ni te lo devuelven: lo que pone el tique es lo que sale de caja y lo que " +
+          "paga el cliente es lo que entra. Ingresos, gastos y márgenes se cuentan <b>con el IVA dentro</b>.</p>" +
+          '<p style="color:var(--muted)">Ejemplo: un tique de 260 € cuenta como 260 € de gasto, y 1.000 € ' +
+          "cobrados cuentan como 1.000 € de ingreso.</p>";
+    }
+    explicar();
+
+    var casilla = $("#cf-iva");
+    casilla.addEventListener("change", function () {
+      var v = casilla.checked;
+      casilla.disabled = true;
+      api("/api/admin/configuracion", { metodo: "PUT", datos: { opera_con_iva: v } })
+        .then(function (r) {
+          CONFIG = r;
+          invalidar();
+          explicar();
+          avisar(r.opera_con_iva ? "Guardado: se cuenta sin IVA." : "Guardado: se cuenta con el IVA dentro.");
+        })
+        .catch(function (err) { casilla.checked = !v; avisar(err.message, "err"); })
+        .finally(function () { casilla.disabled = false; });
+    });
+  }).catch(error);
+}
+
 function verMiembros() {
   $("#vista-acciones").innerHTML =
     '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nuevo miembro</button>";
@@ -6335,7 +6403,10 @@ function arrancar(desdeLogin) {
   // respeta la vista en la que estabas.
   var h = vistaDeHash(), inicial = h.k;
   if (!desdeLogin) aplicarFiltroUrl(h);
-  ir(!desdeLogin && MODULOS[inicial] ? inicial : "dashboard");
+  // Las etiquetas de IVA dependen de la configuración: se carga antes de pintar.
+  cargarConfiguracion().then(function () {
+    ir(!desdeLogin && MODULOS[inicial] ? inicial : "dashboard");
+  });
   // La campanita se refresca al cambiar de vista (lo hace ir()), cada minuto
   // y al volver a la pestaña.
   if (!relojCampana) relojCampana = setInterval(actualizarCampana, 60000);

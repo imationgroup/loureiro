@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from . import db
+from .iva import con_iva, fijar as fijar_iva, imp, linea, venta
 from .agenda import validar_cita
 from .documentos import totales
 from .listas import completar_cliente, completar_gasto, completar_obra, estado_pendiente
@@ -456,6 +457,27 @@ def guardar_ajuste(clave: str, datos: Ajuste, u: dict = Depends(sesion_actual)):
     return {"clave": clave, "valor": valor}
 
 
+# ═══ Configuración del panel ═══════════════════════════════════════════
+# Cómo funciona el panel para toda la empresa. La lee todo el mundo (el panel
+# pinta las etiquetas con ella) y la cambia solo el administrador.
+
+class Configuracion(BaseModel):
+    opera_con_iva: bool
+
+
+@router.get("/configuracion")
+def ver_configuracion(u: dict = Depends(sesion_actual)):
+    return {"opera_con_iva": con_iva()}
+
+
+@router.put("/configuracion")
+def guardar_configuracion(datos: Configuracion, u: dict = Depends(sesion_actual)):
+    if not es_admin(u):
+        raise HTTPException(403, "Solo el administrador puede cambiar la configuración.")
+    fijar_iva(datos.opera_con_iva)
+    return {"opera_con_iva": con_iva()}
+
+
 # ═══ Ficha de cliente ═══════════════════════════════════════════════════
 
 @router.get("/clientes/{id_}/ficha")
@@ -474,8 +496,8 @@ def ficha_cliente(id_: int, u: dict = Depends(sesion_actual)):
     res: dict[str, Any] = {"cliente": c}
 
     res["obras"] = db.filas(f"""
-        SELECT x.id, x.titulo, x.codigo, x.estado, x.importe_venta, x.fecha_inicio, x.fecha_fin_real,
-               COALESCE((SELECT SUM(importe) FROM costes WHERE obra_id = x.id), 0) AS costes
+        SELECT x.id, x.titulo, x.codigo, x.estado, {venta('x')} AS importe_venta, x.fecha_inicio,
+               x.fecha_fin_real, COALESCE((SELECT SUM({imp()}) FROM costes WHERE obra_id = x.id), 0) AS costes
         FROM obras x WHERE x.cliente_id = ? AND {f} ORDER BY x.id DESC""", (id_, *p)) \
         if puede(u, "obras") else None
 
@@ -849,11 +871,11 @@ def informe_obras(u: dict = Depends(sesion_actual)):
     exigir(u, "obras")
     cond, params = filtro_responsable(u, "o")
     return db.filas(f"""
-        SELECT o.id, o.codigo, o.titulo, o.estado, o.ciudad, o.importe_venta, o.usuario_id, o.cliente_id,
+        SELECT o.id, o.codigo, o.titulo, o.estado, o.ciudad, {venta()} AS importe_venta, o.usuario_id, o.cliente_id,
                o.fecha_inicio, o.creado,
                TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente,
-               COALESCE((SELECT SUM(importe) FROM costes   WHERE obra_id = o.id), 0) AS costes,
-               COALESCE((SELECT SUM(importe) FROM ingresos WHERE obra_id = o.id), 0) AS facturado,
+               COALESCE((SELECT SUM({imp()}) FROM costes   WHERE obra_id = o.id), 0) AS costes,
+               COALESCE((SELECT SUM({imp()}) FROM ingresos WHERE obra_id = o.id), 0) AS facturado,
                COALESCE((SELECT SUM(segundos) FROM tiempos WHERE obra_id = o.id), 0) AS segundos,
                (SELECT COUNT(*) FROM obra_profesionales WHERE obra_id = o.id) AS n_profesionales
         FROM obras o
@@ -913,10 +935,10 @@ def informe_origenes(periodo: str | None = None, u: dict = Depends(sesion_actual
 
     if puede(u, "facturas"):
         cond, p = filtro_responsable(u, "f")
-        # Sin IVA, como todos los márgenes del panel: los precios se guardan
-        # en base aunque se escriban con IVA incluido.
+        # Como todos los márgenes del panel: sin IVA si la empresa opera con
+        # IVA, con él si no (ver iva.py).
         for f in db.filas(f"""SELECT c.origen AS o,
-                                     COALESCE(SUM(l.cantidad * l.precio), 0) AS t
+                                     COALESCE(SUM({linea()}), 0) AS t
                               FROM facturas f
                               JOIN factura_lineas l ON l.factura_id = f.id
                               LEFT JOIN clientes c ON c.id = f.cliente_id
@@ -940,11 +962,16 @@ def informe_origenes(periodo: str | None = None, u: dict = Depends(sesion_actual
 
 @router.get("/informes/contabilidad")
 def contabilidad(anio: int | None = None, u: dict = Depends(sesion_actual)):
-    """Resultado, IVA y pendientes. Un miembro ve la de lo que lleva él."""
+    """Resultado, IVA y pendientes. Un miembro ve la de lo que lleva él.
+
+    Si la empresa opera sin IVA no hay IVA que liquidar: esos apartados van a
+    None y el panel no los pinta.
+    """
     exigir(u, "contabilidad")
     anio = anio or date.today().year
     a = str(anio)
     f, p = filtro_responsable(u)
+    i, hay_iva = imp(), con_iva()
 
     meses = db.filas(f"""
         SELECT mes,
@@ -952,11 +979,11 @@ def contabilidad(anio: int | None = None, u: dict = Depends(sesion_actual)):
                SUM(iva_repercutido) AS iva_repercutido,
                SUM(iva_soportado) AS iva_soportado
         FROM (
-          SELECT strftime('%m', fecha) AS mes, importe AS ingresos, 0 AS gastos,
+          SELECT strftime('%m', fecha) AS mes, {i} AS ingresos, 0 AS gastos,
                  importe * iva / 100 AS iva_repercutido, 0 AS iva_soportado
           FROM ingresos WHERE strftime('%Y', fecha) = ? AND {f}
           UNION ALL
-          SELECT strftime('%m', fecha) AS mes, 0, importe,
+          SELECT strftime('%m', fecha) AS mes, 0, {i},
                  0, importe * iva / 100
           FROM costes WHERE strftime('%Y', fecha) = ? AND {f}
         )
@@ -964,22 +991,29 @@ def contabilidad(anio: int | None = None, u: dict = Depends(sesion_actual)):
     """, (a, *p, a, *p))
 
     por_categoria = db.filas(f"""
-        SELECT categoria, SUM(importe) AS total, COUNT(*) AS n
+        SELECT categoria, SUM({i}) AS total, COUNT(*) AS n
         FROM costes WHERE strftime('%Y', fecha) = ? AND {f}
         GROUP BY categoria ORDER BY total DESC
     """, (a, *p))
 
+    if not hay_iva:
+        for m in meses:
+            m["iva_repercutido"] = m["iva_soportado"] = None
+
     return {
         "anio": anio,
+        "con_iva": hay_iva,
         "meses": meses,
         "gastos_por_categoria": por_categoria,
         "totales": {
-            "ingresos": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
-            "gastos": db.escalar(f"SELECT SUM(importe) FROM costes WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
-            "iva_repercutido": db.escalar(f"SELECT SUM(importe*iva/100) FROM ingresos WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
-            "iva_soportado": db.escalar(f"SELECT SUM(importe*iva/100) FROM costes WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
-            "pendiente_cobro": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE cobrado=0 AND {f}", p),
-            "pendiente_pago": db.escalar(f"SELECT SUM(importe) FROM costes WHERE pagado=0 AND {f}", p),
+            "ingresos": db.escalar(f"SELECT SUM({i}) FROM ingresos WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
+            "gastos": db.escalar(f"SELECT SUM({i}) FROM costes WHERE strftime('%Y',fecha)=? AND {f}", (a, *p)),
+            "iva_repercutido": db.escalar(f"SELECT SUM(importe*iva/100) FROM ingresos WHERE strftime('%Y',fecha)=? AND {f}", (a, *p))
+                               if hay_iva else None,
+            "iva_soportado": db.escalar(f"SELECT SUM(importe*iva/100) FROM costes WHERE strftime('%Y',fecha)=? AND {f}", (a, *p))
+                             if hay_iva else None,
+            "pendiente_cobro": db.escalar(f"SELECT SUM({i}) FROM ingresos WHERE cobrado=0 AND {f}", p),
+            "pendiente_pago": db.escalar(f"SELECT SUM({i}) FROM costes WHERE pagado=0 AND {f}", p),
         },
     }
 
@@ -1020,13 +1054,14 @@ def dashboard(periodo: str | None = None, u: dict = Depends(sesion_actual)):
         raise HTTPException(422, "Periodo no válido: usa AAAA o AAAA-MM.")
     fmt, meses = _meses_del_periodo(periodo, hoy)
     f, p = filtro_responsable(u)
+    i = imp()
     # Todos los meses del periodo, también los que no tienen movimientos: un
     # hueco en el gráfico dice más que un mes que desaparece.
     por_mes = {r["mes"]: r for r in db.filas(f"""
         SELECT mes, SUM(ingresos) AS ingresos, SUM(gastos) AS gastos FROM (
-          SELECT strftime('%Y-%m', fecha) AS mes, importe AS ingresos, 0 AS gastos FROM ingresos WHERE {f}
+          SELECT strftime('%Y-%m', fecha) AS mes, {i} AS ingresos, 0 AS gastos FROM ingresos WHERE {f}
           UNION ALL
-          SELECT strftime('%Y-%m', fecha) AS mes, 0, importe FROM costes WHERE {f}
+          SELECT strftime('%Y-%m', fecha) AS mes, 0, {i} FROM costes WHERE {f}
         ) WHERE mes BETWEEN ? AND ? GROUP BY mes
     """, (*p, *p, meses[0], meses[-1]))}
     fo, po = filtro_responsable(u, "o")
@@ -1049,8 +1084,8 @@ def dashboard(periodo: str | None = None, u: dict = Depends(sesion_actual)):
         },
         "periodo": {
             "clave": periodo,
-            "ingresos": db.escalar(f"SELECT SUM(importe) FROM ingresos WHERE strftime('{fmt}',fecha)=? AND {f}", (periodo, *p)),
-            "gastos": db.escalar(f"SELECT SUM(importe) FROM costes WHERE strftime('{fmt}',fecha)=? AND {f}", (periodo, *p)),
+            "ingresos": db.escalar(f"SELECT SUM({i}) FROM ingresos WHERE strftime('{fmt}',fecha)=? AND {f}", (periodo, *p)),
+            "gastos": db.escalar(f"SELECT SUM({i}) FROM costes WHERE strftime('{fmt}',fecha)=? AND {f}", (periodo, *p)),
         },
         # Lo pendiente es dinero que va a entrar o salir, así que va con IVA:
         # es lo que paga el cliente y lo que se paga al proveedor. Lo cobrado de
@@ -1068,9 +1103,9 @@ def dashboard(periodo: str | None = None, u: dict = Depends(sesion_actual)):
         "evolucion": [{"mes": m, "ingresos": (por_mes.get(m) or {}).get("ingresos", 0),
                        "gastos": (por_mes.get(m) or {}).get("gastos", 0)} for m in meses],
         "obras_recientes": db.filas(f"""
-            SELECT o.id, o.titulo, o.estado, o.ciudad, o.importe_venta,
+            SELECT o.id, o.titulo, o.estado, o.ciudad, {venta()} AS importe_venta,
                    TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente,
-                   COALESCE((SELECT SUM(importe) FROM costes WHERE obra_id=o.id),0) AS costes
+                   COALESCE((SELECT SUM({i}) FROM costes WHERE obra_id=o.id),0) AS costes
             FROM obras o LEFT JOIN clientes c ON c.id=o.cliente_id
             WHERE {fo}
             ORDER BY o.id DESC LIMIT 5
@@ -1096,8 +1131,9 @@ def _panel_miembro(u: dict, periodo: str, fmt: str, meses: list[str], ve_solicit
     """
     prof = u.get("profesional_id")
     fo, po = obras_suyas(u, "o")
-    ganado = {r["mes"]: r["importe"] for r in db.filas("""
-        SELECT strftime('%Y-%m', fecha) AS mes, SUM(importe) AS importe FROM costes
+    i = imp()
+    ganado = {r["mes"]: r["importe"] for r in db.filas(f"""
+        SELECT strftime('%Y-%m', fecha) AS mes, SUM({i}) AS importe FROM costes
         WHERE profesional_id = ? AND strftime('%Y-%m', fecha) BETWEEN ? AND ?
         GROUP BY mes""", (prof, meses[0], meses[-1]))} if prof else {}
     return {
@@ -1105,7 +1141,7 @@ def _panel_miembro(u: dict, periodo: str, fmt: str, meses: list[str], ve_solicit
         "profesional": bool(prof),
         "periodo": {
             "clave": periodo,
-            "ganado": db.escalar(f"""SELECT SUM(importe) FROM costes
+            "ganado": db.escalar(f"""SELECT SUM({i}) FROM costes
                                      WHERE profesional_id = ? AND strftime('{fmt}', fecha) = ?""",
                                  (prof, periodo)) if prof else 0,
             "segundos": db.escalar(f"""SELECT SUM(segundos) FROM tiempos
