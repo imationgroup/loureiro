@@ -222,9 +222,12 @@ def sincronizar_ingreso(factura_id: int):
         return
     lineas = db.filas("SELECT * FROM factura_lineas WHERE factura_id = ?",
                       (factura_id,))
-    t = totales(lineas)
-    base = t["base"]
-    iva_pct = round(t["iva"] / base * 100, 2) if base else 21
+    # Sin redondear a céntimos: el precio de las líneas es la base con seis
+    # decimales, y redondearla aquí hacía que base + IVA no diese el total de
+    # la factura (750 € salían 749,99 € en Obras y en Contabilidad).
+    base = round(sum((l["cantidad"] or 0) * (l["precio"] or 0) for l in lineas), 6)
+    iva = sum((l["cantidad"] or 0) * (l["precio"] or 0) * (l["iva"] or 0) / 100 for l in lineas)
+    iva_pct = round(iva / base * 100, 6) if base else 21
 
     existente = db.fila("SELECT id FROM ingresos WHERE factura_id = ?", (factura_id,))
     with db.tx() as con:
@@ -271,6 +274,21 @@ def corregir_precios_con_iva():
         con.execute("INSERT INTO ajustes (clave, valor) VALUES (?, datetime('now'))", (MARCA_PRECIOS_IVA,))
     for f in db.filas("SELECT id FROM facturas"):
         sincronizar_ingreso(f["id"])
+
+
+# Corrección de una sola vez (2026-10-18): los apuntes de ingresos de las
+# facturas se guardaban con la base redondeada a céntimos y no cuadraban con
+# el total de la factura. Se rehacen todos con la base exacta.
+MARCA_INGRESOS_EXACTOS = "ingresos_facturas_base_exacta_2026_10_18"
+
+
+def rehacer_ingresos_de_facturas():
+    if db.fila("SELECT 1 FROM ajustes WHERE clave = ?", (MARCA_INGRESOS_EXACTOS,)):
+        return
+    for f in db.filas("SELECT id FROM facturas"):
+        sincronizar_ingreso(f["id"])
+    with db.tx() as con:
+        con.execute("INSERT INTO ajustes (clave, valor) VALUES (?, datetime('now'))", (MARCA_INGRESOS_EXACTOS,))
 
 
 def enlazar_obra(presupuesto_id: int, obra_id):

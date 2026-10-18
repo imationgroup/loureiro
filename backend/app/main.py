@@ -124,6 +124,7 @@ async def _datos_no_validos(request: Request, exc: RequestValidationError):
 def _arranque():
     db.inicializar()
     documentos.corregir_precios_con_iva()
+    documentos.rehacer_ingresos_de_facturas()
     auth.sembrar_admin()
     log.info("base de datos lista en %s", db.RUTA_DB)
 
