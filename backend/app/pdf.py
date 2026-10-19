@@ -27,6 +27,7 @@ from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.platypus import Paragraph, Table, TableStyle
 
 from . import db
+from .iva import presupuestos_con_iva
 from .empresa import EMPRESA
 
 
@@ -213,7 +214,16 @@ def _bloque_obra(c, y, obra):
     return y - 3 * mm
 
 
-def _tabla(lineas):
+def _pvp(l):
+    """Precio de una línea con su IVA dentro: el que se escribió en el panel."""
+    return (l["precio"] or 0) * (1 + (l["iva"] or 0) / 100)
+
+
+def _tabla(lineas, sin_iva=False):
+    """Sin IVA (presupuestos, si así se configura) no hay columna de IVA: cada
+    línea sale con su precio tal como se escribió, con el IVA dentro."""
+    if sin_iva:
+        return _tabla_sin_iva(lineas)
     cab = ["Concepto", "Cant.", "Ud.", "Precio", "IVA", "Importe"]
     datos = [[_parrafo(f"<b>{x}</b>", 8, colors.white) if i == 0 else
               _parrafo(f"<b>{x}</b>", 8, colors.white, TA_RIGHT)
@@ -243,13 +253,42 @@ def _tabla(lineas):
     return t
 
 
-def _filas_totales(lineas):
+def _tabla_sin_iva(lineas):
+    cab = ["Concepto", "Cant.", "Ud.", "Precio", "Importe"]
+    datos = [[_parrafo(f"<b>{x}</b>", 8, colors.white) if i == 0 else
+              _parrafo(f"<b>{x}</b>", 8, colors.white, TA_RIGHT)
+              for i, x in enumerate(cab)]]
+    for l in lineas:
+        datos.append([
+            _parrafo(l["concepto"] or ""),
+            _parrafo(f"{l['cantidad']:g}", alineacion=TA_RIGHT),
+            _parrafo(l["unidad"] or "ud", alineacion=TA_RIGHT),
+            _parrafo(_eur(_pvp(l)), alineacion=TA_RIGHT),
+            _parrafo(_eur((l["cantidad"] or 0) * _pvp(l)), alineacion=TA_RIGHT, negrita=True),
+        ])
+    t = Table(datos, colWidths=[None, 15 * mm, 12 * mm, 26 * mm, 28 * mm], repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), INK),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, SUAVE]),
+        ("LINEBELOW", (0, 1), (-1, -1), 0.4, LINEA),
+    ]))
+    return t
+
+
+def _filas_totales(lineas, sin_iva=False):
     """Filas del bloque de totales, con el IVA desglosado por tipo.
 
     En reformas de vivienda conviven el 21 % y el 10 %, y en una factura el
     desglose por tipo impositivo (base y cuota de cada uno) es obligatorio:
     una sola línea de "IVA" con la suma no vale.
     """
+    if sin_iva:
+        return [], sum((l["cantidad"] or 0) * _pvp(l) for l in lineas)
     grupos = {}
     for l in lineas:
         base = (l["cantidad"] or 0) * (l["precio"] or 0)
@@ -269,8 +308,8 @@ def _filas_totales(lineas):
     return filas, total
 
 
-def _totales(c, y, lineas):
-    filas, total = _filas_totales(lineas)
+def _totales(c, y, lineas, sin_iva=False):
+    filas, total = _filas_totales(lineas, sin_iva)
     x = ANCHO - MARGEN
     c.setFont("Helvetica", 9)
     for i, (etiqueta, valor) in enumerate(filas):
@@ -281,7 +320,7 @@ def _totales(c, y, lineas):
 
     # 14,5 mm por debajo de la última fila: la caja del TOTAL mide 11 mm hacia
     # arriba y con menos se subía por encima de la línea del IVA y la tapaba.
-    y -= (len(filas) - 1) * 5.5 * mm + 14.5 * mm
+    y -= max(len(filas) - 1, 0) * 5.5 * mm + 14.5 * mm
     c.setFillColor(AMBER)
     c.rect(x - 68 * mm, y - 2 * mm, 68 * mm, 11 * mm, stroke=0, fill=1)
     c.setFillColor(INK)
@@ -520,13 +559,14 @@ def documento_pdf(tipo: str, id_: int, firma: dict | None = None,
 
     # Hueco que se deja libre al pie de cada página para los totales y el
     # pie. Crece con el número de filas de IVA.
-    reserva = 44 * mm + len(_filas_totales(lineas)[0]) * 5.5 * mm
+    sin_iva = tipo == "presupuestos" and not presupuestos_con_iva()
+    reserva = 44 * mm + len(_filas_totales(lineas, sin_iva)[0]) * 5.5 * mm
     ancho_util = ANCHO - 2 * MARGEN
 
     # La tabla se va partiendo página a página. split() solo corta en dos, y
     # el resto puede no caber tampoco en una página entera: por eso es un
     # bucle y no un único corte.
-    restante = _tabla(lineas)
+    restante = _tabla(lineas, sin_iva)
     while True:
         disponible = y - MARGEN - reserva
         partes = restante.split(ancho_util, disponible)
@@ -546,7 +586,7 @@ def documento_pdf(tipo: str, id_: int, firma: dict | None = None,
         c.showPage()
         y = ALTO - MARGEN
 
-    y = _totales(c, y - 10 * mm, lineas)
+    y = _totales(c, y - 10 * mm, lineas, sin_iva)
 
     if doc.get("notas"):
         c.setFillColor(GRIS)

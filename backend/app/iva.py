@@ -56,3 +56,25 @@ def venta(alias: str = "o") -> str:
     return (f"COALESCE((SELECT SUM(l.cantidad * l.precio * (1 + l.iva / 100.0)) "
             f"FROM presupuesto_lineas l WHERE l.presupuesto_id = {alias}.presupuesto_id), "
             f"{alias}.importe_venta)")
+
+
+# ── Presupuestos sin IVA ────────────────────────────────────────────────
+# Otro ajuste, aparte del de arriba: cómo se le enseña el presupuesto al
+# cliente. Sin IVA, el presupuesto (PDF, editor y página de firma) no lleva
+# columna de IVA ni desglose: cada línea sale con el precio que se escribió y
+# el total es la suma. Los datos no cambian (cada línea sigue guardando su
+# base y su IVA), así que facturas, obras y contabilidad no se enteran.
+
+CLAVE_PRESUPUESTOS = "presupuestos_con_iva"
+
+
+def presupuestos_con_iva() -> bool:
+    fila = db.fila("SELECT valor FROM ajustes WHERE clave = ?", (CLAVE_PRESUPUESTOS,))
+    return (fila or {}).get("valor") != "0"
+
+
+def fijar_presupuestos(valor: bool):
+    with db.tx() as con:
+        con.execute("INSERT INTO ajustes (clave, valor) VALUES (?, ?) "
+                    "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+                    (CLAVE_PRESUPUESTOS, "1" if valor else "0"))
