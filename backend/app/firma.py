@@ -38,6 +38,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from . import db, empresa, pdf
+from .iva import presupuestos_con_iva
 from .auth import es_admin, exigir, exigir_admin, filtro_responsable, sesion_actual
 
 log = logging.getLogger("loureiro-firma")
@@ -279,6 +280,8 @@ def _datos_publicos(doc: dict) -> dict:
         "lineas": [{"concepto": l["concepto"], "cantidad": l["cantidad"], "unidad": l["unidad"],
                     "precio": l["precio"], "iva": l["iva"]} for l in lineas],
         "totales": totales(lineas),
+        # Sin IVA, la página no lo desglosa: como el PDF (ver iva.py).
+        "con_iva": presupuestos_con_iva(),
         "condiciones": condiciones(),
         "dias_desistimiento": DIAS_DESISTIMIENTO,
         "empresa": {k: empresa.EMPRESA[k] for k in ("nombre", "nif", "direccion", "telefono", "email")},

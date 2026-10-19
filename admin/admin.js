@@ -138,7 +138,7 @@ function esAdmin() { return !!YO && YO.rol === "admin"; }
 
 // Configuración del panel, la misma para toda la empresa (Configuración, solo
 // el administrador la cambia). Se carga al entrar.
-var CONFIG = { opera_con_iva: true };
+var CONFIG = { opera_con_iva: true, presupuestos_con_iva: true };
 function cargarConfiguracion() {
   return api("/api/admin/configuracion")
     .then(function (c) { CONFIG = c; })
@@ -4196,6 +4196,9 @@ function editarDocumento(tipo, id, inicial) {
   // Facturas y proformas salen de un presupuesto; un presupuesto no sale de
   // otro, así que ahí el campo no pinta nada.
   var dePresupuesto = tipo === "facturas" || tipo === "proformas";
+  // Presupuestos sin IVA (Configuración): sin columna de IVA ni desglose. El
+  // precio se escribe igual, y cada línea guarda su IVA aunque no se vea.
+  var sinIva = tipo === "presupuestos" && !CONFIG.presupuestos_con_iva;
   Promise.all([
     id ? api("/api/admin/documentos/" + tipo + "/" + id) : Promise.resolve(null),
     cargarRef("clientes"), cargarRef("obras")
@@ -4331,7 +4334,9 @@ function editarDocumento(tipo, id, inicial) {
         : "") +
       '<label style="font-size:.83rem;color:var(--muted);display:block;margin:18px 0 8px">Líneas</label>' +
       '<div class="lineas-cab"><span>Concepto</span><span>Cant.</span><span>Ud.</span>' +
-        "<span>Precio IVA incl.</span><span>IVA %</span><span>Importe IVA incl.</span><span></span></div>" +
+        (sinIva ? "<span>Precio</span><span></span><span>Importe</span>"
+                : "<span>Precio IVA incl.</span><span>IVA %</span><span>Importe IVA incl.</span>") +
+        "<span></span></div>" +
       '<div class="lineas" id="d-lineas"></div>' +
       '<button class="btn btn--fant btn--sm" id="d-add" style="margin-top:10px">' +
         svg(ico.mas) + "Añadir línea</button>" +
@@ -4349,8 +4354,10 @@ function editarDocumento(tipo, id, inicial) {
           '<input class="l-concepto" placeholder="Concepto" value="' + esc(l.concepto) + '">' +
           '<input class="l-cant" type="number" step="any" placeholder="Cant." value="' + esc(l.cantidad) + '">' +
           '<input class="l-ud" placeholder="ud" value="' + esc(l.unidad) + '">' +
-          '<input class="l-precio" type="number" step="any" placeholder="Precio con IVA" value="' + esc(l.pvp) + '">' +
-          '<select class="l-iva" aria-label="IVA">' + opcionesIva(l.iva) + "</select>" +
+          '<input class="l-precio" type="number" step="any" placeholder="' + (sinIva ? "Precio" : "Precio con IVA") +
+            '" value="' + esc(l.pvp) + '">' +
+          (sinIva ? '<input class="l-iva" type="hidden" value="' + esc(l.iva) + '"><span></span>'
+                  : '<select class="l-iva" aria-label="IVA">' + opcionesIva(l.iva) + "</select>") +
           '<span class="l-total">' + eur((l.cantidad || 0) * (l.pvp || 0)) + "</span>" +
           '<button class="l-borrar" title="Quitar línea">' + svg(ico.papelera) + "</button>" +
           "</div>";
@@ -4384,9 +4391,9 @@ function editarDocumento(tipo, id, inicial) {
       var iva = lineas.reduce(function (a, l) {
         return a + (l.cantidad || 0) * (l.precio || 0) * (l.iva || 0) / 100;
       }, 0);
-      $("#d-totales").innerHTML =
+      $("#d-totales").innerHTML = (sinIva ? "" :
         "<div><span>Base imponible</span><b>" + eur(base) + "</b></div>" +
-        "<div><span>IVA</span><b>" + eur(iva) + "</b></div>" +
+        "<div><span>IVA</span><b>" + eur(iva) + "</b></div>") +
         '<div class="grande"><span>Total</span><b>' + eur(base + iva) + "</b></div>";
     }
 
@@ -6076,6 +6083,11 @@ function verConfiguracion() {
       "Cambiarlo no toca ningún dato: cada gasto e ingreso sigue guardando su importe y su IVA, y solo " +
       "cambia cómo se suman en el Panel, Obras, Contabilidad y el resto de resúmenes. Puedes volver atrás " +
       "cuando quieras. Lo pendiente de cobro y de pago va siempre con IVA, que es lo que se mueve de verdad.</p>" +
+      "</div>" +
+      '<div class="tarjeta" style="max-width:760px;margin-top:16px"><h3>Presupuestos</h3>' +
+      '<label class="check"><input type="checkbox" id="cf-presu"' + (c.presupuestos_con_iva ? " checked" : "") + ">" +
+      "<span><b>Los presupuestos llevan IVA</b></span></label>" +
+      '<div id="cf-presu-texto"></div>' +
       "</div>";
 
     function explicar() {
@@ -6089,6 +6101,29 @@ function verConfiguracion() {
           "cobrados cuentan como 1.000 € de ingreso.</p>";
     }
     explicar();
+
+    function explicarPresu() {
+      $("#cf-presu-texto").innerHTML = CONFIG.presupuestos_con_iva
+        ? "<p>El presupuesto lleva la columna de IVA y el desglose: base imponible, IVA y total.</p>"
+        : "<p>El presupuesto sale <b>sin IVA</b>: sin columna de IVA ni desglose. Cada línea lleva el precio " +
+          "que escribes y el total es la suma. Vale para el PDF, el editor y la página donde firma el cliente.</p>" +
+          '<p style="color:var(--muted)">Las facturas no cambian: siguen con su IVA.</p>';
+    }
+    explicarPresu();
+
+    var presu = $("#cf-presu");
+    presu.addEventListener("change", function () {
+      var v = presu.checked;
+      presu.disabled = true;
+      api("/api/admin/configuracion", { metodo: "PUT", datos: { presupuestos_con_iva: v } })
+        .then(function (r) {
+          CONFIG = r;
+          explicarPresu();
+          avisar(r.presupuestos_con_iva ? "Guardado: los presupuestos llevan IVA." : "Guardado: los presupuestos salen sin IVA.");
+        })
+        .catch(function (err) { presu.checked = !v; avisar(err.message, "err"); })
+        .finally(function () { presu.disabled = false; });
+    });
 
     var casilla = $("#cf-iva");
     casilla.addEventListener("change", function () {

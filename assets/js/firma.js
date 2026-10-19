@@ -61,6 +61,8 @@ function condicionesHTML(txt) {
 
 function pintar() {
   var d = datos, c = d.cliente || {};
+  // Presupuestos sin IVA (configuración del panel): sin columna ni desglose.
+  var conIva = d.con_iva !== false;
   var lugar = [c.direccion, c.cp, c.ciudad].filter(Boolean).join(", ");
   var h = '<div class="fi__tarjeta">' +
     '<div class="fi__enc"><h1 class="fi__num">Presupuesto ' + esc(d.numero) + "</h1>" +
@@ -74,20 +76,25 @@ function pintar() {
         (c.nif ? "<br>NIF " + esc(c.nif) : "") + (lugar ? "<br>" + esc(lugar) : "") + "</p></div>" +
     "</div>" +
     '<table class="fi__tabla"><thead><tr><th>Concepto</th><th class="num">Cant.</th>' +
-      '<th class="num">Precio</th><th class="num">IVA</th><th class="num">Importe</th></tr></thead><tbody>';
+      '<th class="num">Precio</th>' + (conIva ? '<th class="num">IVA</th>' : "") +
+      '<th class="num">Importe</th></tr></thead><tbody>';
 
   d.lineas.forEach(function (l) {
+    // Sin IVA, el precio sale con el IVA dentro, tal como se escribió.
+    var precio = conIva ? (l.precio || 0) : (l.precio || 0) * (1 + (l.iva || 0) / 100);
     h += '<tr><td class="fi__concepto">' + esc(l.concepto) + "</td>" +
       '<td class="num" data-et="Cantidad">' + num(l.cantidad) + " " + esc(l.unidad || "") + "</td>" +
-      '<td class="num" data-et="Precio">' + eur(l.precio) + "</td>" +
-      '<td class="num" data-et="IVA">' + num(l.iva) + " %</td>" +
-      '<td class="num" data-et="Importe">' + eur((l.cantidad || 0) * (l.precio || 0)) + "</td></tr>";
+      '<td class="num" data-et="Precio">' + eur(precio) + "</td>" +
+      (conIva ? '<td class="num" data-et="IVA">' + num(l.iva) + " %</td>" : "") +
+      '<td class="num" data-et="Importe">' + eur((l.cantidad || 0) * precio) + "</td></tr>";
   });
 
   h += "</tbody></table>" +
     '<div class="fi__totales">' +
-      "<div><span>Base imponible</span><b>" + eur(d.totales.base) + "</b></div>" +
-      "<div><span>IVA</span><b>" + eur(d.totales.iva) + "</b></div>" +
+      (conIva
+        ? "<div><span>Base imponible</span><b>" + eur(d.totales.base) + "</b></div>" +
+          "<div><span>IVA</span><b>" + eur(d.totales.iva) + "</b></div>"
+        : "") +
       '<div class="fi__total"><span>Total</span><span>' + eur(d.totales.total) + "</span></div>" +
     "</div>" +
     (d.notas ? '<h3>Notas</h3><p>' + esc(d.notas).replace(/\n/g, "<br>") + "</p>" : "") +

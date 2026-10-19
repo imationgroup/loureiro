@@ -21,7 +21,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from . import db
-from .iva import con_iva, fijar as fijar_iva, imp, linea, venta
+from .iva import (con_iva, fijar as fijar_iva, fijar_presupuestos, imp, linea,
+                  presupuestos_con_iva, venta)
 from .agenda import validar_cita
 from .documentos import totales
 from .listas import completar_cliente, completar_gasto, completar_obra, estado_pendiente
@@ -462,20 +463,29 @@ def guardar_ajuste(clave: str, datos: Ajuste, u: dict = Depends(sesion_actual)):
 # pinta las etiquetas con ella) y la cambia solo el administrador.
 
 class Configuracion(BaseModel):
-    opera_con_iva: bool
+    # Lo que no llega no se toca: cada casilla se guarda por separado.
+    opera_con_iva: bool | None = None
+    presupuestos_con_iva: bool | None = None
+
+
+def _configuracion() -> dict:
+    return {"opera_con_iva": con_iva(), "presupuestos_con_iva": presupuestos_con_iva()}
 
 
 @router.get("/configuracion")
 def ver_configuracion(u: dict = Depends(sesion_actual)):
-    return {"opera_con_iva": con_iva()}
+    return _configuracion()
 
 
 @router.put("/configuracion")
 def guardar_configuracion(datos: Configuracion, u: dict = Depends(sesion_actual)):
     if not es_admin(u):
         raise HTTPException(403, "Solo el administrador puede cambiar la configuración.")
-    fijar_iva(datos.opera_con_iva)
-    return {"opera_con_iva": con_iva()}
+    if datos.opera_con_iva is not None:
+        fijar_iva(datos.opera_con_iva)
+    if datos.presupuestos_con_iva is not None:
+        fijar_presupuestos(datos.presupuestos_con_iva)
+    return _configuracion()
 
 
 # ═══ Ficha de cliente ═══════════════════════════════════════════════════
