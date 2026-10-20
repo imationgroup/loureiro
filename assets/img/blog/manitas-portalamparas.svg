@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Esquema de dos portalámparas. Bien conectado: la fase pasa por el interruptor y llega al contacto central, y el neutro va a la rosca; con la luz apagada no queda tensión. En esta casa: fase y neutro cruzados; el interruptor corta el neutro y la fase llega directa a la rosca, que sigue con tensión aunque la luz esté apagada">
+  <defs>
+    <linearGradient id="mp-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FAF7F3"/><stop offset="1" stop-color="#F0EBE4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#mp-bg)"/>
+
+  <!-- ══ Bien conectado ══ -->
+  <rect x="24" y="40" width="364" height="350" rx="12" fill="#FFFFFF"/>
+  <rect x="24" y="40" width="364" height="350" rx="12" fill="none" stroke="#E0DBD2" stroke-width="3"/>
+  <text x="46" y="72" font-family="Inter, sans-serif" font-size="16" fill="#16A34A" font-weight="700">Bien conectado</text>
+
+  <!-- Fase por el interruptor hasta el contacto central -->
+  <text x="46" y="122" font-family="Inter, sans-serif" font-size="13" fill="#8B5E3C" font-weight="600">Fase</text>
+  <path d="M46 132h56" stroke="#8B5E3C" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="104" cy="132" r="5" fill="#3A3E46"/>
+  <path d="M104 132l40-22" stroke="#3A3E46" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="150" cy="132" r="5" fill="#3A3E46"/>
+  <text x="96" y="96" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Interruptor apagado</text>
+  <path d="M150 132h100v38" stroke="#C8C3BA" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Neutro directo a la rosca -->
+  <text x="46" y="312" font-family="Inter, sans-serif" font-size="13" fill="#60A5FA" font-weight="600">Neutro</text>
+  <path d="M46 322h279v-92h-39" stroke="#60A5FA" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Portalámparas -->
+  <rect x="195" y="152" width="110" height="122" rx="10" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
+  <rect x="214" y="168" width="72" height="106" fill="#FFFFFF"/>
+  <rect x="240" y="168" width="20" height="10" rx="2" fill="#C8C3BA"/>
+  <path d="M214 194l8 7-8 7 8 7-8 7 8 7-8 7 8 7-8 7M286 194l-8 7 8 7-8 7 8 7-8 7 8 7-8 7 8 7" stroke="#60A5FA" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
+  <text x="186" y="178" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96" text-anchor="end">Contacto central</text>
+  <text x="186" y="236" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96" text-anchor="end">Rosca</text>
+
+  <text x="46" y="360" font-family="Inter, sans-serif" font-size="14" fill="#3A3E46" font-weight="600">Luz apagada: el portalámparas</text>
+  <text x="46" y="378" font-family="Inter, sans-serif" font-size="14" fill="#16A34A" font-weight="600">queda sin tensión</text>
+
+  <!-- ══ En esta casa ══ -->
+  <rect x="412" y="40" width="364" height="350" rx="12" fill="#FFFFFF"/>
+  <rect x="412" y="40" width="364" height="350" rx="12" fill="none" stroke="#F87171" stroke-width="3"/>
+  <text x="434" y="72" font-family="Inter, sans-serif" font-size="16" fill="#DC2626" font-weight="700">En esta casa</text>
+
+  <!-- Neutro por el interruptor hasta el contacto central -->
+  <text x="434" y="122" font-family="Inter, sans-serif" font-size="13" fill="#60A5FA" font-weight="600">Neutro</text>
+  <path d="M434 132h56" stroke="#60A5FA" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="492" cy="132" r="5" fill="#3A3E46"/>
+  <path d="M492 132l40-22" stroke="#3A3E46" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="538" cy="132" r="5" fill="#3A3E46"/>
+  <text x="484" y="96" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96">Interruptor apagado</text>
+  <path d="M538 132h100v38" stroke="#C8C3BA" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Fase directa a la rosca -->
+  <text x="434" y="312" font-family="Inter, sans-serif" font-size="13" fill="#8B5E3C" font-weight="600">Fase</text>
+  <path d="M434 322h279v-92h-39" stroke="#8B5E3C" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Portalámparas con la rosca en tensión -->
+  <rect x="583" y="152" width="110" height="122" rx="10" fill="#F7F4EF" stroke="#C8C3BA" stroke-width="3"/>
+  <rect x="602" y="168" width="72" height="106" fill="#FEE2E2"/>
+  <rect x="628" y="168" width="20" height="10" rx="2" fill="#C8C3BA"/>
+  <path d="M602 194l8 7-8 7 8 7-8 7 8 7-8 7 8 7-8 7M674 194l-8 7 8 7-8 7 8 7-8 7 8 7-8 7 8 7" stroke="#DC2626" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
+  <path d="M638 280l-7 12h9l-7 12" stroke="#F2A81C" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="574" y="178" font-family="Inter, sans-serif" font-size="12" fill="#8A8E96" text-anchor="end">Contacto central</text>
+  <text x="574" y="236" font-family="Inter, sans-serif" font-size="12" fill="#DC2626" text-anchor="end" font-weight="600">Rosca: 230 V</text>
+
+  <text x="434" y="360" font-family="Inter, sans-serif" font-size="14" fill="#3A3E46" font-weight="600">Luz apagada: la rosca sigue</text>
+  <text x="434" y="378" font-family="Inter, sans-serif" font-size="14" fill="#DC2626" font-weight="600">con tensión. Nada lo avisa</text>
+
+  <!-- Leyenda -->
+  <path d="M24 422h30" stroke="#8B5E3C" stroke-width="5" stroke-linecap="round"/>
+  <text x="64" y="427" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Fase: marrón, negro o gris</text>
+  <path d="M270 422h30" stroke="#60A5FA" stroke-width="5" stroke-linecap="round"/>
+  <text x="310" y="427" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96">Neutro: azul</text>
+  <text x="776" y="427" font-family="Inter, sans-serif" font-size="13" fill="#8A8E96" text-anchor="end">Cambiar una bombilla: baja el automático</text>
+</svg>
