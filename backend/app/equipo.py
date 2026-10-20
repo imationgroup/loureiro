@@ -6,6 +6,7 @@
 - Cualquiera puede pedir un enlace para cambiar la contraseña si la olvida.
   La respuesta es siempre la misma, exista o no el correo, para que el
   formulario no sirva para averiguar quién tiene cuenta.
+- El administrador también puede mandarle ese enlace a alguien desde Equipo.
 
 Los enlaces van en el fragmento de la URL (…/admin/#clave=…) y no en la ruta
 ni en la query: el fragmento no llega al servidor web, así que no se queda
@@ -32,6 +33,8 @@ PANEL = (os.getenv("PANEL_PUBLICO") or "https://loureirosoluciones.es/admin/").r
 MIN_PASSWORD = 10
 HORAS_INVITACION = 7 * 24
 HORAS_RECUPERAR = 2
+# Más margen que cuando lo pide uno mismo: el correo llega sin que lo espere.
+HORAS_RESTABLECER = 24
 
 
 def _ip(request: Request) -> str:
@@ -204,6 +207,36 @@ def reinvitar(id_: int, u: dict = Depends(sesion_actual)):
         raise HTTPException(status.HTTP_409_CONFLICT,
                             "Ya ha creado su contraseña. Si la ha olvidado, que use «He olvidado mi contraseña».")
     return _invitar(m)
+
+
+@router.post("/equipo/{id_}/restablecer")
+def restablecer(id_: int, u: dict = Depends(sesion_actual)):
+    """El administrador le manda a alguien un enlace para cambiar su contraseña.
+
+    La contraseña actual no se borra: sigue valiendo hasta que use el enlace,
+    así que pedirlo por error no deja a nadie fuera.
+    """
+    exigir_admin(u)
+    m = usuario_por_id(id_)
+    if not m:
+        raise HTTPException(404, "No encontrado")
+    if not m["activo"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Está de baja. Actívalo antes de restablecer su contraseña.")
+    if not m.get("password_hash"):
+        # Aún no tiene contraseña: lo que le hace falta es la invitación.
+        return _invitar(m)
+    token = crear_clave(m["id"], "recuperar", HORAS_RESTABLECER)
+    enlace = f"{PANEL}#clave={token}"
+    nombre = m.get("nombre") or ""
+    enviado = _correo(
+        m["email"], "Cambia tu contraseña del panel de Loureiro",
+        f"Hola{(' ' + nombre) if nombre else ''},",
+        ["El administrador del panel de Loureiro Soluciones te ha enviado un enlace para que pongas "
+         "una contraseña nueva.",
+         f"Tu usuario sigue siendo este correo: {m['email']}."],
+        "Cambiar mi contraseña", enlace,
+        "El enlace sirve una sola vez y caduca en 24 horas. Hasta que lo uses, tu contraseña actual sigue valiendo.")
+    return {"enviado": enviado, "enlace": None if enviado else enlace}
 
 
 @router.delete("/equipo/{id_}")
