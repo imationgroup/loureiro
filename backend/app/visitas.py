@@ -29,7 +29,8 @@ router = APIRouter(prefix="/api/admin", tags=["visitas"])
 # Quien hace presupuestos tiene que poder elegir de qué visita sale el suyo,
 # aunque no tenga la pestaña de visitas. Solo la lista y las fotos: crear,
 # editar o borrar sigue pidiendo el módulo.
-LECTURA = ("visitas", "presupuestos")
+# Y quien hace hojas de recomendaciones (Certificados), que salen de una visita.
+LECTURA = ("visitas", "presupuestos", "certificados")
 
 # Tope de lo que se guarda por foto, ya decodificada. El panel las manda de
 # unos cientos de KB; esto solo para lo que llegue de otra parte.

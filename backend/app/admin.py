@@ -219,7 +219,7 @@ TABLAS = {
         ["titulo", "cliente_id", "fecha", "direccion", "notas"],
         orden="fecha DESC, id DESC", obligatorios=("cliente_id",),
         validar=lambda d, _: _con_cliente(d),
-        modulo="visitas", lectura=("visitas", "presupuestos"), responsable=True),
+        modulo="visitas", lectura=("visitas", "presupuestos", "certificados"), responsable=True),
     # Lo último que se ha tocado, arriba: una nota vieja que se retoca vuelve
     # a estar al día.
     "notas": Tabla("notas",

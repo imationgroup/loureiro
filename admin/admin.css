@@ -977,3 +977,30 @@ body.con-ver-como .lat{top:44px;height:calc(100dvh - 44px)}
 @media (max-width:900px){
   body.con-ver-como .lat{top:44px;height:auto}
 }
+
+/* ── Hoja de recomendaciones (Certificados) ──────────────────────────── */
+.ts-cuenta--verde{background:var(--verde-soft);color:var(--verde)}
+.rec-punto{border:1px solid var(--line-2);border-left:4px solid var(--muted);border-radius:12px;
+  padding:14px 16px;margin-bottom:12px;background:rgba(255,255,255,.02)}
+.rec-punto--urgente{border-left-color:var(--rojo)}
+.rec-punto--recomendada{border-left-color:#FB923C}
+.rec-punto--mejora{border-left-color:var(--verde)}
+.rec-punto__cab{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.rec-punto__cab b{font-size:.9rem}
+.rec-punto__mover{display:flex;gap:4px}
+.rec-punto__mover button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border-radius:8px;border:1px solid var(--line-2);background:transparent;color:var(--muted);cursor:pointer}
+.rec-punto__mover button:hover{color:var(--txt);border-color:var(--muted)}
+.rec-punto__mover button.borrar:hover{color:var(--rojo);border-color:var(--rojo)}
+.rec-punto__mover svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+.rec-prio{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.rec-prio__b{display:grid;gap:2px;padding:8px 10px;border-radius:9px;border:1.5px solid var(--line-2);
+  background:transparent;color:var(--muted);font-weight:600;font-size:.86rem;cursor:pointer;text-align:center}
+.rec-prio__b small{font-weight:400;font-size:.74rem;opacity:.8}
+.rec-prio__b:hover{border-color:var(--muted);color:var(--txt)}
+.rec-prio__b--urgente.is-on{background:var(--rojo-soft);border-color:var(--rojo);color:var(--rojo)}
+.rec-prio__b--recomendada.is-on{background:rgba(251,146,60,.14);border-color:#FB923C;color:#FB923C}
+.rec-prio__b--mejora.is-on{background:var(--verde-soft);border-color:var(--verde);color:var(--verde)}
+@media (max-width:600px){
+  .rec-prio__b small{display:none}
+}

@@ -885,13 +885,17 @@ MODULOS.clientes_origenes = { titulo: "Cómo nos conocen", menu: "Orígenes",
 MODULOS.clientes_origen = { titulo: "De dónde vienen", menu: "De dónde vienen",
   sub: "Qué canal trae clientes, obras y dinero",
   icono: ico.grafico, especial: "origenes", permiso: "clientes" };
-// Submenús de Certificados: el boletín y el test de seguridad del cuadro.
+// Submenús de Certificados: el boletín, el test de seguridad del cuadro y la
+// hoja de recomendaciones.
 // «certificados» a secas es la entrada del menú y abre el primero.
 MODULOS.certificados_cie = { titulo: "Certificados", menu: "CIE", sub: "Boletines eléctricos (CIE) para la Xunta",
   icono: ico.firma, especial: "cie", permiso: "certificados" };
 MODULOS.tests_seguridad = { titulo: "Test de seguridad", menu: "Test de seguridad",
   sub: "Revisión del cuadro de una vivienda, con puntuación y defectos",
   icono: ico.ok, especial: "testSeguridad", permiso: "certificados" };
+MODULOS.recomendaciones = { titulo: "Hojas de recomendaciones", menu: "Recomendaciones",
+  sub: "Lo que has visto en una visita u obra, lo que recomiendas y por qué",
+  icono: ico.nota, especial: "recomendaciones", permiso: "certificados" };
 // La ficha de un cliente: no sale en el menú, se entra desde Clientes.
 MODULOS.ficha_cliente = { titulo: "Ficha de cliente", sub: "", icono: ico.gente, especial: "fichaCliente",
   permiso: "clientes" };
@@ -919,7 +923,7 @@ var ORDEN_MENU = [
                             { k: "clientes", hijos: ["clientes_origen", "clientes_origenes"] },
                             "profesionales"] },
   { sep: "Economía", items: ["presupuestos", "proformas", "facturas",
-                             { k: "certificados", hijos: ["certificados_cie", "tests_seguridad"] },
+                             { k: "certificados", hijos: ["certificados_cie", "tests_seguridad", "recomendaciones"] },
                              { k: "costes", hijos: ["gastos_categorias", "gastos_estados"] }, "contabilidad"] },
   { sep: "Recursos", items: ["stock", "proveedores"] },
   { sep: "Empresa", items: ["estatutos", "documentacion", "equipo", "configuracion"] }
@@ -1095,6 +1099,7 @@ function ir(k) {
   if (m.especial === "documento") return verDocumentos(k);
   if (m.especial === "cie") return verCie();
   if (m.especial === "testSeguridad") return verTestsSeguridad();
+  if (m.especial === "recomendaciones") return verRecomendaciones();
   return verTabla(k);
 }
 
@@ -5226,6 +5231,283 @@ function tsNota(t) {
 function tsCuenta(n, clase, color) {
   n = n || 0;
   return '<span class="ts-cuenta ts-cuenta--' + color + '">' + n + " " + clase + (n === 1 ? "" : "s") + "</span>";
+}
+
+/* ── Hojas de recomendaciones ─────────────────────────────────────────── */
+// Lo que el electricista vio en una visita u obra y lo que recomienda, con el
+// porqué. El PDF lo maqueta el servidor (recomendaciones_pdf.py); aquí solo
+// se escribe.
+var REC_PRIORIDADES = [
+  { k: "urgente", txt: "Urgente", color: "rojo", ayuda: "Hay riesgo: cuanto antes" },
+  { k: "recomendada", txt: "Recomendable", color: "naranja", ayuda: "En los próximos meses" },
+  { k: "mejora", txt: "Mejora", color: "verde", ayuda: "Sin prisa" }
+];
+
+function verRecomendaciones() {
+  $("#vista-acciones").innerHTML =
+    '<button class="btn btn--amber" id="btn-nuevo">' + svg(ico.mas) + "Nueva hoja</button>";
+  $("#btn-nuevo").addEventListener("click", function () { editarRecomendacion(null); });
+
+  api("/api/admin/recomendaciones").then(function (filas) {
+    $("#vista").innerHTML =
+      '<div class="herr"><input type="search" id="buscar" value="' + esc(qUrl()) + '" placeholder="Buscar por cliente o dirección…"></div>' +
+      '<div class="tabla-caja"><div class="tabla-scroll" id="caja-rec"></div></div>';
+
+    function pintar() {
+      var q = llano($("#buscar").value);
+      var vistas = filas.filter(function (f) {
+        return !q || llano([f.numero, f.titular, f.direccion, f.cliente, f.autor].join(" ")).indexOf(q) >= 0;
+      });
+      var caja = $("#caja-rec");
+      if (!vistas.length) {
+        caja.innerHTML = '<div class="vacia">Todavía no hay hojas de recomendaciones. Pulsa «Nueva hoja».</div>';
+        return;
+      }
+      caja.innerHTML = "<table><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th>" +
+        "<th>Dirección</th><th>Recomendaciones</th><th>Electricista</th>" +
+        "<th class=\"num\">Acciones</th></tr></thead><tbody>" +
+        vistas.map(function (f) {
+          var cuentas = [[f.urgentes, "urgente", "rojo"], [f.recomendadas, "recomendable", "naranja"],
+                         [f.mejoras, "mejora", "verde"]]
+            .filter(function (d) { return d[0]; })
+            .map(function (d) { return tsCuenta(d[0], d[1], d[2]); })
+            .join(" ");
+          return "<tr><td><b>" + (esc(f.numero) || "—") + "</b></td>" +
+            "<td>" + esc(fecha(f.fecha)) + "</td>" +
+            "<td>" + (esc(f.titular) || "—") + "</td><td>" + (esc(f.direccion) || "—") + "</td>" +
+            "<td>" + (cuentas || '<span style="color:var(--muted-2)">ninguna</span>') + "</td>" +
+            "<td>" + (esc(f.autor) || "—") + "</td>" +
+            '<td class="acciones">' +
+              '<button data-pdf="' + f.id + '" title="Descargar la hoja">' + svg(ico.descarga) + "</button>" +
+              '<button data-editar="' + f.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
+              '<button class="borrar" data-borrar="' + f.id + '" title="Borrar">' + svg(ico.papelera) + "</button>" +
+            "</td></tr>";
+        }).join("") + "</tbody></table>";
+
+      $$("[data-pdf]", caja).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var f = filas.filter(function (x) { return String(x.id) === b.dataset.pdf; })[0];
+          bajarPdf("/api/admin/recomendaciones/" + f.id + "/pdf", (f.numero || "REC-" + f.id) + ".pdf");
+        });
+      });
+      $$("[data-editar]", caja).forEach(function (b) {
+        b.addEventListener("click", function () { editarRecomendacion(b.dataset.editar); });
+      });
+      $$("[data-borrar]", caja).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var cual = b.dataset.borrar;
+          modal("Confirmar borrado",
+            "<p style='color:var(--muted)'>Se va a borrar esta hoja de recomendaciones. No se puede deshacer.</p>",
+            '<button class="btn btn--fant" id="b-no">Cancelar</button>' +
+            '<button class="btn btn--peligro" id="b-si">Borrar</button>');
+          $("#b-no").addEventListener("click", cerrarModal);
+          $("#b-si").addEventListener("click", function () {
+            api("/api/admin/recomendaciones/" + cual, { metodo: "DELETE" })
+              .then(function () { cerrarModal(); avisar("Hoja borrada"); ir("recomendaciones"); })
+              .catch(function (e) { avisar(e.message, "err"); });
+          });
+        });
+      });
+    }
+    pintar();
+    $("#buscar").addEventListener("input", pintar);
+  }).catch(error);
+}
+
+function editarRecomendacion(id) {
+  // Las visitas solo si se pueden leer: sin ellas, la hoja se hace igual.
+  var visitas = cargarRef("visitas").catch(function () { return []; });
+  Promise.all([
+    id ? api("/api/admin/recomendaciones/" + id) : Promise.resolve(null),
+    cargarRef("clientes"), cargarRef("obras"), visitas
+  ]).then(function (res) {
+    var h = res[0] || {
+      fecha: new Date().toISOString().slice(0, 10),
+      autor: (YO && YO.nombre) || "",
+      usuario_id: YO && YO.id,
+      puntos: []
+    };
+    // Las recomendaciones, tal como se van escribiendo. Se pintan desde aquí.
+    var P = (h.puntos || []).map(function (p) { return Object.assign({}, p); });
+    if (!P.length) P.push({ prioridad: "urgente", titulo: "" });
+
+    function campo(clave, etiqueta, tipo, ph) {
+      var v = h[clave] === null || h[clave] === undefined ? "" : h[clave];
+      return '<div class="campo"><label for="k-' + clave + '">' + esc(etiqueta) + "</label>" +
+        '<input id="k-' + clave + '" data-k="' + clave + '" type="' + (tipo || "text") +
+        '" value="' + esc(v) + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : "") + "></div>";
+    }
+    function texto(clave, etiqueta, filas, ph) {
+      return '<div class="campo"><label for="k-' + clave + '">' + esc(etiqueta) + "</label>" +
+        '<textarea id="k-' + clave + '" data-k="' + clave + '" rows="' + filas + '" placeholder="' + esc(ph) + '">' +
+        esc(h[clave] || "") + "</textarea></div>";
+    }
+    function dos(a, b) { return '<div class="rejilla-2">' + a + b + "</div>"; }
+    function refer(clave, etiqueta, lista) {
+      return '<div class="campo"><label for="k-' + clave + '">' + esc(etiqueta) + "</label>" +
+        '<select id="k-' + clave + '" data-k="' + clave + '" data-num="1"><option value="">— ninguna —</option>' +
+        (cache[lista] || []).map(function (o) {
+          var nom = lista === "clientes" ? nombreCliente(o)
+            : lista === "visitas" ? [o.titulo || "Visita", o.cliente, fecha(o.fecha)].filter(Boolean).join(" · ")
+            : o.titulo || "";
+          return '<option value="' + o.id + '"' + (String(h[clave] || "") === String(o.id) ? " selected" : "") +
+                 ">" + esc(nom) + "</option>";
+        }).join("") + "</select></div>";
+    }
+
+    function puntoHTML(p, i) {
+      return '<section class="rec-punto rec-punto--' + p.prioridad + '" data-i="' + i + '">' +
+        '<div class="rec-punto__cab"><b>Recomendación ' + (i + 1) + "</b>" +
+          '<span class="rec-punto__mover">' +
+            (i > 0 ? '<button type="button" data-subir="' + i + '" title="Subir">' + svg(ico.arriba) + "</button>" : "") +
+            (i < P.length - 1 ? '<button type="button" data-bajar="' + i + '" title="Bajar">' + svg(ico.abajo) + "</button>" : "") +
+            '<button type="button" class="borrar" data-quitar="' + i + '" title="Quitar">' + svg(ico.papelera) + "</button>" +
+          "</span></div>" +
+        '<div class="rec-prio">' + REC_PRIORIDADES.map(function (r) {
+          return '<button type="button" class="rec-prio__b rec-prio__b--' + r.k + (p.prioridad === r.k ? " is-on" : "") +
+            '" data-prio="' + r.k + '" data-i="' + i + '">' + esc(r.txt) + "<small>" + esc(r.ayuda) + "</small></button>";
+        }).join("") + "</div>" +
+        '<div class="campo"><label>Qué recomendamos</label>' +
+          '<input data-p="titulo" data-i="' + i + '" value="' + esc(p.titulo || "") +
+          '" placeholder="Ej.: Instalar un interruptor diferencial de 30 mA"></div>' +
+        '<div class="campo"><label>Lo que hemos visto</label>' +
+          '<textarea data-p="visto" data-i="' + i + '" rows="2" placeholder="Ej.: El cuadro no tiene diferencial, solo dos automáticos.">' +
+          esc(p.visto || "") + "</textarea></div>" +
+        '<div class="campo"><label>Por qué se lo recomendamos</label>' +
+          '<textarea data-p="porque" data-i="' + i + '" rows="2" placeholder="Explícalo para alguien que no es electricista.">' +
+          esc(p.porque || "") + "</textarea></div>" +
+        '<div class="campo" style="margin-bottom:0"><label>Coste orientativo (opcional)</label>' +
+          '<input data-p="coste" data-i="' + i + '" value="' + esc(p.coste || "") + '" placeholder="Ej.: 150 – 220 €"></div>' +
+        "</section>";
+    }
+    function pintarPuntos() {
+      $("#rec-puntos").innerHTML = P.length ? P.map(puntoHTML).join("")
+        : '<p class="ts-ayuda">Sin recomendaciones: la hoja dirá que no hay nada que cambiar.</p>';
+    }
+
+    var cuerpo = '<div class="aviso aviso--err" id="rec-err" hidden></div><form id="rec-form">' +
+      '<h3 class="cie-tit">De dónde sale</h3>' +
+      dos(refer("cliente_id", "Cliente (opcional)", "clientes"), refer("visita_id", "Visita (opcional)", "visitas")) +
+      dos(refer("obra_id", "Obra (opcional)", "obras"), campo("fecha", "Fecha", "date")) +
+      dos(campo("titular", "Nombre del cliente en la hoja"), campo("direccion", "Dirección")) +
+      campo("autor", "Electricista") +
+      '<h3 class="cie-tit">Lo que hemos visto</h3>' +
+      texto("visto", "En general (opcional)", 3,
+            "Cómo está la instalación y qué se ha revisado. Lo concreto va en cada recomendación.") +
+      '<h3 class="cie-tit">Recomendaciones</h3>' +
+      '<p class="ts-ayuda" style="margin-bottom:12px">En el PDF salen ordenadas de la más urgente a la que puede ' +
+      "esperar. Escribe el porqué pensando en alguien que no es electricista.</p>" +
+      '<div id="rec-puntos"></div>' +
+      '<button type="button" class="btn btn--fant btn--sm" id="rec-mas" style="margin-top:10px">' +
+        svg(ico.mas) + "Añadir recomendación</button>" +
+      '<h3 class="cie-tit">En resumen</h3>' +
+      texto("conclusion", "Conclusión (opcional)", 2, "Ej.: Lo primero es el diferencial; lo demás puede ir después.") +
+      "</form>";
+
+    modal("Hoja de recomendaciones" + (h.numero ? " · " + h.numero : ""), cuerpo,
+      '<button class="btn btn--fant" id="rec-no">Cancelar</button>' +
+      '<button class="btn btn--fant" id="rec-pdf"' + (id ? "" : " disabled title=\"Guarda primero\"") + ">" +
+      svg(ico.descarga) + "PDF</button>" +
+      '<button class="btn btn--amber" id="rec-si">Guardar</button>', true);
+    pintarPuntos();
+
+    var form = $("#rec-form");
+    form.addEventListener("input", function (ev) {
+      var el = ev.target;
+      if (el.dataset.p) P[+el.dataset.i][el.dataset.p] = el.value;
+    });
+    form.addEventListener("click", function (ev) {
+      var b = ev.target.closest ? ev.target.closest("button") : null;
+      if (!b || !form.contains(b)) return;
+      var d = b.dataset, i;
+      if (d.prio) {
+        P[+d.i].prioridad = d.prio;
+      } else if (d.subir) {
+        i = +d.subir; P.splice(i - 1, 0, P.splice(i, 1)[0]);
+      } else if (d.bajar) {
+        i = +d.bajar; P.splice(i + 1, 0, P.splice(i, 1)[0]);
+      } else if (d.quitar) {
+        P.splice(+d.quitar, 1);
+      } else if (b.id === "rec-mas") {
+        P.push({ prioridad: "recomendada", titulo: "" });
+        pintarPuntos();
+        var ultimo = $$('#rec-puntos [data-p="titulo"]').pop();
+        if (ultimo) ultimo.focus();
+        return;
+      } else return;
+      pintarPuntos();
+    });
+
+    // Al elegir cliente o visita se rellena lo que esté vacío.
+    function rellenar(datos) {
+      Object.keys(datos).forEach(function (k) {
+        var el = $("#k-" + k);
+        if (el && !el.value.trim() && datos[k]) el.value = datos[k];
+      });
+    }
+    function datosCliente(cid) {
+      var cli = (cache.clientes || []).filter(function (x) { return String(x.id) === String(cid); })[0];
+      if (!cli) return {};
+      var calle = [cli.direccion, cli.numero].filter(Boolean).join(" ");
+      return {
+        titular: nombreCliente(cli),
+        direccion: [[calle, cli.piso].filter(Boolean).join(", "), cli.ayuntamiento || cli.ciudad]
+          .filter(Boolean).join(" · ")
+      };
+    }
+    $("#k-cliente_id").addEventListener("change", function () { rellenar(datosCliente($("#k-cliente_id").value)); });
+    $("#k-visita_id").addEventListener("change", function () {
+      var v = (cache.visitas || []).filter(function (x) { return String(x.id) === $("#k-visita_id").value; })[0];
+      if (!v) return;
+      if (v.cliente_id && !$("#k-cliente_id").value) $("#k-cliente_id").value = String(v.cliente_id);
+      var datos = datosCliente(v.cliente_id);
+      if (v.direccion) datos.direccion = v.direccion;
+      datos.visto = v.notas;
+      datos.fecha = v.fecha;
+      rellenar(datos);
+    });
+
+    $("#rec-no").addEventListener("click", cerrarModal);
+    if (id) $("#rec-pdf").addEventListener("click", function () {
+      bajarPdf("/api/admin/recomendaciones/" + id + "/pdf", (h.numero || "REC-" + id) + ".pdf");
+    });
+
+    $("#rec-si").addEventListener("click", function () {
+      var datos = {};
+      $$("#rec-form [data-k]").forEach(function (el) {
+        var v = el.value.trim();
+        datos[el.dataset.k] = el.dataset.num ? (v === "" ? null : Number(v)) : v;
+      });
+      datos.puntos = P.filter(function (p) { return (p.titulo || "").trim(); });
+      var e = $("#rec-err");
+      var fallo = !datos.titular ? "Falta el nombre del cliente."
+        : P.some(function (p) { return !(p.titulo || "").trim() && ((p.visto || "").trim() || (p.porque || "").trim()); })
+          ? "Hay una recomendación sin «Qué recomendamos». Escríbelo o quítala." : "";
+      if (fallo) {
+        e.textContent = fallo;
+        e.hidden = false;
+        $("#modal .modal__caja").scrollTop = 0;
+        return;
+      }
+      if (h.usuario_id !== undefined) datos.usuario_id = h.usuario_id;
+      var btn = $("#rec-si");
+      btn.disabled = true;
+      btn.textContent = "Guardando…";
+      api("/api/admin/recomendaciones" + (id ? "/" + id : ""), { metodo: id ? "PUT" : "POST", datos: datos })
+        .then(function (r) {
+          cerrarModal();
+          avisar("Hoja " + (r.numero || "") + " guardada");
+          ir("recomendaciones");
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = "Guardar";
+          e.textContent = err.message;
+          e.hidden = false;
+          $("#modal .modal__caja").scrollTop = 0;
+        });
+    });
+  }).catch(error);
 }
 
 function verTestsSeguridad() {

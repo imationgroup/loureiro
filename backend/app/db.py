@@ -487,6 +487,31 @@ CREATE TABLE IF NOT EXISTS tests_seguridad (
   creado        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── Hojas de recomendaciones ────────────────────────────────────────
+-- Lo que el electricista vio en una visita u obra y lo que recomienda, con
+-- el porqué, para entregar al cliente (ver recomendaciones.py). Cada
+-- recomendación va en `puntos`, como JSON; el recuento por prioridad se
+-- guarda aparte para pintar la lista.
+CREATE TABLE IF NOT EXISTS recomendaciones (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero       TEXT,
+  cliente_id   INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  obra_id      INTEGER REFERENCES obras(id) ON DELETE SET NULL,
+  visita_id    INTEGER REFERENCES visitas(id) ON DELETE SET NULL,
+  titular      TEXT,
+  direccion    TEXT,
+  autor        TEXT,
+  visto        TEXT,
+  conclusion   TEXT,
+  puntos       TEXT NOT NULL DEFAULT '[]',
+  urgentes     INTEGER NOT NULL DEFAULT 0,
+  recomendadas INTEGER NOT NULL DEFAULT 0,
+  mejoras      INTEGER NOT NULL DEFAULT 0,
+  fecha        TEXT NOT NULL DEFAULT (date('now')),
+  usuario_id   INTEGER,
+  creado       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- ── Partes de tiempo ──────────────────────────────────
 -- Las horas que se le echan a una obra. Se pueden escribir a mano o contarlas
 -- con el cronómetro, que admite pausas: `segundos` guarda lo acumulado de los
@@ -760,7 +785,8 @@ ORIGENES_CLIENTE = ["Google", "Recomendación", "Ya era cliente", "Redes sociale
 # administrador: nadie más lo ve hasta que él lo reparta.
 TABLAS_CON_RESPONSABLE = ("clientes", "obras", "citas", "presupuestos", "proformas",
                           "facturas", "costes", "ingresos", "solicitudes", "visitas",
-                          "notas", "tiempos", "certificados", "tests_seguridad")
+                          "notas", "tiempos", "certificados", "tests_seguridad",
+                          "recomendaciones")
 MIGRACIONES += [(t, "usuario_id", "INTEGER") for t in TABLAS_CON_RESPONSABLE]
 
 
