@@ -101,6 +101,23 @@ function olvidar(clave) {
   try { localStorage.removeItem(clave); sessionStorage.removeItem(clave); } catch (e) {}
 }
 
+// «Ver como»: Equipo abre una pestaña con …/admin/#vercomo=<sesión> para ver
+// el panel como lo ve un miembro. Esa sesión se guarda solo en la
+// sessionStorage de esta pestaña, sin tocar la localStorage: la sesión del
+// administrador sigue intacta en las demás pestañas.
+var VER_COMO = false;
+try {
+  var mVer = /^#vercomo=([\w-]+)$/.exec(location.hash);
+  if (mVer) {
+    sessionStorage.setItem("loureiro_token", mVer[1]);
+    sessionStorage.setItem("loureiro_vercomo", "1");
+    sessionStorage.removeItem("loureiro_email");
+    // Fuera de la barra de direcciones y del historial.
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+  VER_COMO = sessionStorage.getItem("loureiro_vercomo") === "1";
+} catch (e) {}
+
 var token = guardado("loureiro_token");
 
 // Una pestaña abierta con Ctrl+clic no hereda la sessionStorage de la otra:
@@ -110,7 +127,8 @@ var token = guardado("loureiro_token");
 var canalSesion = null;
 try { canalSesion = new BroadcastChannel("loureiro-sesion"); } catch (e) {}
 if (canalSesion) canalSesion.addEventListener("message", function (ev) {
-  if (ev.data === "pide" && token) {
+  // Una pestaña de «ver como» no reparte su sesión: es de otra persona.
+  if (ev.data === "pide" && token && !VER_COMO) {
     canalSesion.postMessage({ token: token, email: guardado("loureiro_email") });
   }
 });
@@ -222,6 +240,22 @@ function salir(silencioso) {
   var t = token;
   token = "";
   YO = null;
+  if (VER_COMO) {
+    // Solo se cierra esta pestaña: la localStorage es la del administrador.
+    try {
+      ["loureiro_token", "loureiro_email", "loureiro_vercomo"].forEach(function (k) { sessionStorage.removeItem(k); });
+    } catch (e) {}
+    // Primero se cierra la sesión en el servidor y luego la pestaña: si se
+    // cierra antes, la petición se corta y la sesión seguiría viva.
+    var cerrada = t ? fetch(API + "/api/admin/logout", { method: "POST", keepalive: true,
+      headers: { Authorization: "Bearer " + t } }).catch(function(){}) : Promise.resolve();
+    cerrada.then(function () { window.close(); });
+    // Si el navegador no deja cerrarla, se queda avisando.
+    document.body.innerHTML = '<div style="max-width:420px;margin:18vh auto;padding:0 20px;font-family:sans-serif;' +
+      'text-align:center;color:#9AA2B1;line-height:1.6"><p style="font-size:1.1rem;color:#fff">Has dejado de ver el panel ' +
+      "como otra persona.</p><p>Puedes cerrar esta pestaña.</p></div>";
+    return;
+  }
   olvidar("loureiro_token");
   olvidar("loureiro_email");
   if (!silencioso && t) {
@@ -6173,6 +6207,8 @@ function verMiembros() {
            '<td class="acciones">' +
            (p.estado === "invitado"
              ? '<button data-invitar="' + p.id + '" title="Reenviar la invitación">' + svg(ico.buzon) + "</button>" : "") +
+           (p.estado === "activo" && p.rol !== "admin"
+             ? '<button data-vercomo="' + p.id + '" title="Ver el panel como ' + esc(p.nombre) + '">' + svg(ico.ojo) + "</button>" : "") +
            (p.estado === "activo"
              ? '<button data-restablecer="' + p.id + '" title="Restablecer la contraseña">' + svg(ico.llave) + "</button>" : "") +
            '<button data-editar="' + p.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
@@ -6196,6 +6232,30 @@ function verMiembros() {
         api("/api/admin/equipo/" + b.dataset.invitar + "/invitar", { metodo: "POST" })
           .then(function (r) { resultadoInvitacion(buscar(b.dataset.invitar), r); })
           .catch(function (e) { avisar(e.message, "err"); })
+          .finally(function () { b.disabled = false; });
+      });
+    });
+    $$("[data-vercomo]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        // La pestaña se abre ya, en el clic: abierta después de esperar al
+        // servidor, el navegador la bloquearía como ventana emergente.
+        var w = window.open("", "_blank");
+        b.disabled = true;
+        api("/api/admin/equipo/" + b.dataset.vercomo + "/ver-como", { metodo: "POST" })
+          .then(function (r) {
+            var url = location.pathname + "#vercomo=" + encodeURIComponent(r.token);
+            if (w && !w.closed) { w.opener = null; w.location.href = url; return; }
+            // Ventanas emergentes bloqueadas: un enlace pulsado a mano sí abre.
+            var p = buscar(b.dataset.vercomo);
+            modal("Ver el panel como " + p.nombre,
+              "<p style='color:var(--muted);line-height:1.55'>El navegador no ha dejado abrir la pestaña sola. " +
+              "Ábrela con el botón: la sesión dura una hora.</p>",
+              '<button class="btn btn--fant" id="vc-no">Cancelar</button>' +
+              '<a class="btn btn--amber" id="vc-si" target="_blank" rel="noopener" href="' + esc(url) + '">Abrir pestaña</a>');
+            $("#vc-no").addEventListener("click", cerrarModal);
+            $("#vc-si").addEventListener("click", function () { setTimeout(cerrarModal, 0); });
+          })
+          .catch(function (e) { if (w) w.close(); avisar(e.message, "err"); })
           .finally(function () { b.disabled = false; });
       });
     });
@@ -6455,6 +6515,7 @@ var relojCampana = null;
 function arrancar(desdeLogin) {
   $("#login").hidden = true;
   $("#app").hidden = false;
+  pintarVerComo();
   $("#sesion-email").textContent = YO
     ? (YO.nombre || YO.email) + (esAdmin() ? " · administrador" : "")
     : guardado("loureiro_email");
@@ -6472,6 +6533,24 @@ function arrancar(desdeLogin) {
   // La campanita se refresca al cambiar de vista (lo hace ir()), cada minuto
   // y al volver a la pestaña.
   if (!relojCampana) relojCampana = setInterval(actualizarCampana, 60000);
+}
+
+// Franja fija arriba mientras se ve el panel como otra persona: que no se
+// olvide de quién es la sesión antes de tocar nada.
+function pintarVerComo() {
+  var f = $("#ver-como");
+  if (!(YO && YO.suplantado_por)) { if (f) f.remove(); document.body.classList.remove("con-ver-como"); return; }
+  if (!f) {
+    f = document.createElement("div");
+    f.id = "ver-como";
+    f.className = "ver-como";
+    document.body.insertBefore(f, document.body.firstChild);
+  }
+  f.innerHTML = svg(ico.ojo) + "<span>Estás viendo el panel como <b>" + esc(YO.nombre) + "</b>. " +
+    "Lo que hagas aquí queda a su nombre.</span>" +
+    '<button class="btn btn--sm" id="ver-como-salir">Salir</button>';
+  document.body.classList.add("con-ver-como");
+  $("#ver-como-salir").addEventListener("click", function () { salir(false); });
 }
 
 $("#btn-menu").addEventListener("click", function () { $("#lat").classList.toggle("is-open"); });

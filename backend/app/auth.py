@@ -58,6 +58,8 @@ HORAS_SESION = int(os.getenv("SESSION_HOURS", "12"))
 # para el móvil de quien anda en obra: si no, hay que escribir la contraseña
 # varias veces al día.
 DIAS_SESION_RECORDADA = int(os.getenv("SESSION_DAYS_REMEMBER", "30"))
+# «Ver como» otro miembro: lo justo para echar un vistazo.
+HORAS_VER_COMO = 1
 
 # ── Hash de contraseña ───────────────────────────────────────────────────
 
@@ -302,6 +304,7 @@ def publico(u: dict) -> dict:
         "id": u["id"], "email": u["email"], "nombre": u.get("nombre") or u["email"],
         "rol": u["rol"], "permisos": list(MODULOS) if es_admin(u) else u["permisos"],
         "profesional_id": u.get("profesional_id"),
+        "suplantado_por": u.get("suplantado_por"),
     }
 
 
@@ -338,20 +341,28 @@ def configurado() -> bool:
 
 # ── Sesiones ─────────────────────────────────────────────────────────────
 
-def crear_sesion(u: dict, recordar: bool = False) -> tuple[str, str]:
+def crear_sesion(u: dict, recordar: bool = False, suplantador: dict | None = None) -> tuple[str, str]:
+    """Abre una sesión. Con `suplantador`, es el administrador entrando como
+    `u` («ver como»): dura poco y no cuenta como acceso de esa persona."""
     token = secrets.token_urlsafe(32)
     ahora = datetime.now(timezone.utc)
-    expira = ahora + (timedelta(days=DIAS_SESION_RECORDADA) if recordar
-                      else timedelta(hours=HORAS_SESION))
+    if suplantador:
+        expira = ahora + timedelta(hours=HORAS_VER_COMO)
+    else:
+        expira = ahora + (timedelta(days=DIAS_SESION_RECORDADA) if recordar
+                          else timedelta(hours=HORAS_SESION))
     with db.tx() as con:
         con.execute(
-            "INSERT INTO sesiones (token, email, usuario_id, creada, expira) VALUES (?,?,?,?,?)",
-            (token, u["email"], u["id"], ahora.isoformat(), expira.isoformat()),
+            "INSERT INTO sesiones (token, email, usuario_id, creada, expira, suplantada_por) "
+            "VALUES (?,?,?,?,?,?)",
+            (token, u["email"], u["id"], ahora.isoformat(), expira.isoformat(),
+             suplantador["id"] if suplantador else None),
         )
         # Mismo formato que datetime('now') de SQLite (UTC, sin zona): es el que
         # entiende el «hace 5 min» del panel.
-        con.execute("UPDATE usuarios SET ultimo_acceso = ? WHERE id = ?",
-                    (ahora.strftime("%Y-%m-%d %H:%M:%S"), u["id"]))
+        if not suplantador:
+            con.execute("UPDATE usuarios SET ultimo_acceso = ? WHERE id = ?",
+                        (ahora.strftime("%Y-%m-%d %H:%M:%S"), u["id"]))
         # Aprovechamos para barrer las caducadas
         con.execute("DELETE FROM sesiones WHERE expira < ?", (ahora.isoformat(),))
     return token, expira.isoformat()
@@ -379,7 +390,7 @@ def sesion_actual(cred: HTTPAuthorizationCredentials | None = Depends(esquema_be
     """
     if cred is None or not cred.credentials:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión no iniciada")
-    s = db.fila("SELECT email, usuario_id, expira FROM sesiones WHERE token = ?",
+    s = db.fila("SELECT email, usuario_id, expira, suplantada_por FROM sesiones WHERE token = ?",
                 (cred.credentials,))
     if not s:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión no válida")
@@ -392,6 +403,13 @@ def sesion_actual(cred: HTTPAuthorizationCredentials | None = Depends(esquema_be
     if not u or not u["activo"] or not u.get("password_hash"):
         cerrar_sesion(cred.credentials)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión no válida")
+    if s["suplantada_por"]:
+        # «Ver como»: vale mientras quien la abrió siga siendo administrador.
+        quien = usuario_por_id(s["suplantada_por"])
+        if not quien or not quien["activo"] or not es_admin(quien):
+            cerrar_sesion(cred.credentials)
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión no válida")
+        u["suplantado_por"] = {"id": quien["id"], "nombre": quien.get("nombre") or quien["email"]}
     return u
 
 
