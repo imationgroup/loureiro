@@ -37,6 +37,7 @@ function fecha(f) { return f ? String(f).slice(0, 10).split("-").reverse().join(
 var ico = {
   panel:'<path d="M3 3h7v7H3zM14 3h7v4h-7zM14 11h7v10h-7zM3 14h7v7H3z"/>',
   buzon:'<path d="M4 4h16v12H4z"/><path d="M4 4l8 7 8-7"/>',
+  llave:'<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9"/><path d="M17 6l3 3"/><path d="M15 8l2 2"/>',
   gente:'<path d="M16 20v-2a4 4 0 0 0-8 0v2"/><circle cx="12" cy="8" r="4"/>',
   casco:'<path d="M3 18h18"/><path d="M5 18v-4a7 7 0 0 1 14 0v4"/><path d="M10 7V4h4v3"/>',
   obra:'<path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/>',
@@ -6172,6 +6173,8 @@ function verMiembros() {
            '<td class="acciones">' +
            (p.estado === "invitado"
              ? '<button data-invitar="' + p.id + '" title="Reenviar la invitación">' + svg(ico.buzon) + "</button>" : "") +
+           (p.estado === "activo"
+             ? '<button data-restablecer="' + p.id + '" title="Restablecer la contraseña">' + svg(ico.llave) + "</button>" : "") +
            '<button data-editar="' + p.id + '" title="Editar">' + svg(ico.lapiz) + "</button>" +
            (p.id !== YO.id
              ? '<button class="borrar" data-borrar="' + p.id + '" title="Quitar del equipo">' + svg(ico.papelera) + "</button>" : "") +
@@ -6196,6 +6199,29 @@ function verMiembros() {
           .finally(function () { b.disabled = false; });
       });
     });
+    $$("[data-restablecer]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var p = buscar(b.dataset.restablecer);
+        modal("Restablecer la contraseña",
+          "<p style='color:var(--muted);line-height:1.55'>Se le enviará a <b>" + esc(p.nombre) + "</b> (" +
+          esc(p.email) + ") un correo con un enlace para poner una contraseña nueva.</p>" +
+          "<p style='color:var(--muted-2);font-size:.86rem'>Su contraseña actual sigue valiendo hasta que use el " +
+          "enlace. Caduca en 24 horas y sirve una sola vez.</p>",
+          '<button class="btn btn--fant" id="b-no">Cancelar</button>' +
+          '<button class="btn btn--amber" id="b-si">Enviar enlace</button>');
+        $("#b-no").addEventListener("click", cerrarModal);
+        $("#b-si").addEventListener("click", function () {
+          $("#b-si").disabled = true;
+          api("/api/admin/equipo/" + p.id + "/restablecer", { metodo: "POST" })
+            .then(function (r) {
+              cerrarModal();
+              if (r.enviado) avisar("Enlace para cambiar la contraseña enviado a " + p.email);
+              else resultadoInvitacion(p, r, "cambia su contraseña; sirve una sola vez y caduca en 24 horas");
+            })
+            .catch(function (e) { cerrarModal(); avisar(e.message, "err"); });
+        });
+      });
+    });
     $$("[data-borrar]").forEach(function (b) {
       b.addEventListener("click", function () {
         var p = buscar(b.dataset.borrar);
@@ -6218,12 +6244,13 @@ function verMiembros() {
   }).catch(error);
 }
 
-function resultadoInvitacion(p, r) {
+function resultadoInvitacion(p, r, uso) {
   if (r.enviado) { avisar("Invitación enviada a " + p.email); return; }
   // Si el correo no sale, el enlace se enseña para pasárselo por otra vía.
   modal("No se ha podido enviar el correo",
     '<p style="color:var(--muted);line-height:1.55">Pásale este enlace a <b>' + esc(p.nombre) +
-    "</b> por WhatsApp o como prefieras. Con él crea su contraseña; sirve una sola vez y caduca en 7 días.</p>" +
+    "</b> por WhatsApp o como prefieras. Con él " +
+    (uso || "crea su contraseña; sirve una sola vez y caduca en 7 días") + ".</p>" +
     '<div class="ag-url"><input id="inv-url" readonly value="' + esc(r.enlace) + '">' +
     '<button class="btn btn--fant btn--sm" id="inv-copiar">Copiar</button></div>',
     '<button class="btn btn--amber" id="inv-ok">Hecho</button>');
