@@ -7,6 +7,7 @@
   La respuesta es siempre la misma, exista o no el correo, para que el
   formulario no sirva para averiguar quién tiene cuenta.
 - El administrador también puede mandarle ese enlace a alguien desde Equipo.
+- Y puede ver el panel como lo ve un miembro («ver como»), en otra pestaña.
 
 Los enlaces van en el fragmento de la URL (…/admin/#clave=…) y no en la ruta
 ni en la query: el fragmento no llega al servidor web, así que no se queda
@@ -237,6 +238,33 @@ def restablecer(id_: int, u: dict = Depends(sesion_actual)):
         "Cambiar mi contraseña", enlace,
         "El enlace sirve una sola vez y caduca en 24 horas. Hasta que lo uses, tu contraseña actual sigue valiendo.")
     return {"enviado": enviado, "enlace": None if enviado else enlace}
+
+
+@router.post("/equipo/{id_}/ver-como")
+def ver_como(id_: int, u: dict = Depends(sesion_actual)):
+    """Sesión corta a nombre de un miembro, para ver el panel como lo ve él.
+
+    El panel la abre en una pestaña aparte que no toca la sesión del
+    administrador. No cuenta como acceso del miembro (su «último acceso» no
+    cambia) y se anula si quien la abrió deja de ser administrador.
+    """
+    exigir_admin(u)
+    if u.get("suplantado_por"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ya estás viendo el panel como otra persona.")
+    m = usuario_por_id(id_)
+    if not m:
+        raise HTTPException(404, "No encontrado")
+    if m["id"] == u["id"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ese eres tú.")
+    if m["rol"] == "admin":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Es administrador: ve lo mismo que tú.")
+    if not m["activo"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Está de baja: no puede entrar al panel.")
+    if not m.get("password_hash"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Aún no ha creado su contraseña: no puede entrar al panel.")
+    log.info("[equipo] %s abre «ver como» %s", u["email"], m["email"])
+    token, expira = crear_sesion(m, suplantador=u)
+    return {"token": token, "expira": expira}
 
 
 @router.delete("/equipo/{id_}")

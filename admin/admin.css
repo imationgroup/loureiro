@@ -962,3 +962,18 @@ button.adjunto__nombre:hover span{ color:var(--amber); text-decoration:underline
 /* Un importe que lleva a otra vista (los gastos de una obra). */
 .enlace-num{color:inherit;text-decoration:none;border-bottom:1px dashed var(--muted-2)}
 .enlace-num:hover{color:var(--amber);border-bottom-color:var(--amber)}
+
+/* ── «Ver como» otro miembro (Equipo) ────────────────────────────────── */
+.ver-como{
+  position:fixed;top:0;left:0;right:0;z-index:180;height:44px;
+  display:flex;align-items:center;justify-content:center;gap:10px;padding:0 16px;
+  background:var(--amber);color:#2C3444;font-size:.88rem;line-height:1.25;
+}
+.ver-como svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2}
+.ver-como span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ver-como .btn{flex:none;background:#2C3444;color:#fff;border-color:#2C3444}
+body.con-ver-como{padding-top:44px}
+body.con-ver-como .lat{top:44px;height:calc(100dvh - 44px)}
+@media (max-width:900px){
+  body.con-ver-como .lat{top:44px;height:auto}
+}

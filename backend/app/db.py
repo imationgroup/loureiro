@@ -680,6 +680,8 @@ MIGRACIONES = [
     # ahí, para que lo que se factura y lo que se firmó sean lo mismo.
     ("obras", "presupuesto_id", "INTEGER"),
     ("sesiones", "usuario_id", "INTEGER"),
+    # «Ver como»: el administrador que abrió esta sesión a nombre de otro.
+    ("sesiones", "suplantada_por", "INTEGER"),
     # Cancelaciones: quién las pide y por qué. Sin esto, una cita cancelada o
     # un presupuesto caído no dejan rastro de lo que pasó.
     ("citas", "cancelada_por", "TEXT"),
