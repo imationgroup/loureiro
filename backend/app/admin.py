@@ -299,6 +299,9 @@ def _visibles(t: Tabla, u: dict) -> tuple[str, tuple]:
         return "1=1", ()
     if t.nombre == "citas" and not es_admin(u) and u.get("profesional_id"):
         return "(usuario_id = ? OR profesional_id = ?)", (u["id"], u["profesional_id"])
+    # Los partes a su nombre son suyos aunque los apuntara el administrador.
+    if t.nombre == "tiempos" and not es_admin(u) and u.get("profesional_id"):
+        return "(usuario_id = ? OR profesional_id = ?)", (u["id"], u["profesional_id"])
     return filtro_responsable(u)
 
 
@@ -322,7 +325,12 @@ def listar(recurso: str, u: dict = Depends(sesion_actual)):
         cond, params = obras_suyas(u)
     elif t.nombre == "clientes":
         cond, params = clientes_suyos(u)
-    return db.filas(f"SELECT * FROM {t.nombre} WHERE {cond} ORDER BY {t.orden}", params)
+    extra = ""
+    # Cada parte con lo que genera: su gasto de mano de obra y si está pagado.
+    if t.nombre == "tiempos":
+        extra = (", (SELECT importe FROM costes WHERE tiempo_id = tiempos.id) AS importe"
+                 ", (SELECT pagado FROM costes WHERE tiempo_id = tiempos.id) AS pagado")
+    return db.filas(f"SELECT *{extra} FROM {t.nombre} WHERE {cond} ORDER BY {t.orden}", params)
 
 
 @router_crud.post("/{recurso}", status_code=201)
@@ -1174,6 +1182,24 @@ def _panel_miembro(u: dict, periodo: str, fmt: str, meses: list[str], ve_solicit
             FROM obras o LEFT JOIN clientes c ON c.id = o.cliente_id
             WHERE o.estado IN (SELECT nombre FROM obra_estados WHERE activa = 1) AND {fo}
             ORDER BY o.id DESC""", (prof, *po)),
+        # Las terminadas en las que trabajó: sus horas, lo ganado (como el resto
+        # del panel) y lo que ya ha cobrado y le queda por cobrar (con IVA).
+        "obras_terminadas": db.filas(f"""
+            SELECT o.id, o.titulo, o.ciudad, o.fecha_fin_real,
+                   TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente,
+                   COALESCE((SELECT SUM(segundos) FROM tiempos t
+                             WHERE t.obra_id = o.id AND t.profesional_id = ?), 0) AS segundos,
+                   COALESCE((SELECT SUM({i}) FROM costes
+                             WHERE obra_id = o.id AND profesional_id = ?), 0) AS ganado,
+                   COALESCE((SELECT SUM(ROUND(importe * (1 + iva / 100.0) + 1e-9, 2)) FROM costes
+                             WHERE obra_id = o.id AND profesional_id = ? AND pagado = 1), 0) AS cobrado,
+                   COALESCE((SELECT SUM(ROUND(importe * (1 + iva / 100.0) + 1e-9, 2)) FROM costes
+                             WHERE obra_id = o.id AND profesional_id = ? AND pagado = 0), 0) AS pendiente
+            FROM obras o LEFT JOIN clientes c ON c.id = o.cliente_id
+            WHERE o.estado = 'terminada' COLLATE NOCASE
+              AND ({fo} OR o.id IN (SELECT obra_id FROM tiempos WHERE profesional_id = ?))
+            ORDER BY COALESCE(o.fecha_fin_real, '') DESC, o.id DESC""",
+            (prof, prof, prof, prof, *po, prof)) if prof else [],
         "solicitudes_recientes": db.filas("""
             SELECT id, nombre, servicio, estado, creado FROM solicitudes
             WHERE usuario_id = ? ORDER BY id DESC LIMIT 5""", (u["id"],)) if ve_solicitudes else [],

@@ -5,8 +5,8 @@ edición, el borrado y la lista salen del CRUD genérico
 (admin.TABLAS["tiempos"]); aquí va solo lo que ese CRUD no sabe hacer: decir
 a qué obras (y de qué clientes) puede echar partes cada persona.
 
-Un miembro solo echa partes en las obras a las que está asignado como
-profesional (Obras → Asignar); el administrador, en cualquiera.
+Un miembro solo echa partes en las obras en curso a las que está asignado
+como profesional (Obras → Asignar); el administrador, en cualquiera.
 
 Hubo un cronómetro (la columna `arrancado` es de entonces). Se quitó: los
 partes que se quedaron contando se cierran al arrancar (ver cerrar_cronometros).
@@ -33,17 +33,18 @@ def obras_del_parte(u: dict) -> tuple[str, tuple]:
     """Condición SQL (sobre `obras`) con las obras a las que puede echar partes."""
     if es_admin(u):
         return "1=1", ()
-    return ("id IN (SELECT obra_id FROM obra_profesionales WHERE profesional_id = ?)",
+    return ("estado = 'en curso' COLLATE NOCASE"
+            " AND id IN (SELECT obra_id FROM obra_profesionales WHERE profesional_id = ?)",
             (u.get("profesional_id") or 0,))
 
 
 def comprobar_obra(u: dict, obra_id) -> None:
-    """Un miembro no puede echar un parte a una obra a la que no está asignado."""
+    """Un miembro solo echa partes a obras en curso a las que está asignado."""
     if not obra_id or es_admin(u):
         return
     cond, params = obras_del_parte(u)
     if not db.fila(f"SELECT id FROM obras WHERE id = ? AND {cond}", (obra_id, *params)):
-        raise HTTPException(403, "Solo puedes echar partes a las obras a las que estás asignado")
+        raise HTTPException(403, "Solo puedes echar partes a obras en curso a las que estás asignado")
 
 
 @router.get("/obras")
