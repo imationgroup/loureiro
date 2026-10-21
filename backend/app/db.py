@@ -513,12 +513,8 @@ CREATE TABLE IF NOT EXISTS recomendaciones (
 );
 
 -- ── Partes de tiempo ──────────────────────────────────
--- Las horas que se le echan a una obra. Se pueden escribir a mano o contarlas
--- con el cronómetro, que admite pausas: `segundos` guarda lo acumulado de los
--- tramos ya cerrados y `arrancado` dice desde cuándo corre el tramo abierto
--- (UTC), o va vacío si está parado. El estado vive aquí y no en el navegador
--- a propósito: así el cronómetro sigue contando aunque se cierre el panel y
--- se ve igual desde el móvil que desde el ordenador.
+-- Las horas que se le echan a una obra, escritas a mano: `segundos`.
+-- `arrancado` es del cronómetro que hubo; ya no se usa y siempre va vacío.
 CREATE TABLE IF NOT EXISTS tiempos (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   obra_id        INTEGER REFERENCES obras(id) ON DELETE SET NULL,
