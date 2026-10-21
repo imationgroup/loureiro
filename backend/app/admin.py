@@ -26,7 +26,7 @@ from .iva import (con_iva, fijar as fijar_iva, fijar_presupuestos, imp, linea,
 from .agenda import validar_cita
 from .documentos import totales
 from .listas import completar_cliente, completar_gasto, completar_obra, estado_pendiente
-from .tiempos import gasto_de_parte, gastos_del_profesional
+from .tiempos import comprobar_obra, gasto_de_parte, gastos_del_profesional
 from .notas import adjuntos_de
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
@@ -349,6 +349,7 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
         d["profesional_id"] = u["profesional_id"]
     if t.nombre == "tiempos" and not es_admin(u):
         d["profesional_id"] = u.get("profesional_id")
+        comprobar_obra(u, d.get("obra_id"))
     comprobar_referencias(u, d)
     if t.nombre == "obras":
         _importe_de_obra(d)
@@ -380,6 +381,8 @@ def actualizar(recurso: str, id_: int, datos: dict[str, Any],
         raise HTTPException(422, "No hay datos que actualizar")
     if t.nombre == "tiempos" and not es_admin(u):
         d.pop("profesional_id", None)
+        if d.get("obra_id") and d["obra_id"] != existente.get("obra_id"):
+            comprobar_obra(u, d["obra_id"])
     comprobar_referencias(u, d, existente)
     if t.nombre == "obras":
         _importe_de_obra(d)

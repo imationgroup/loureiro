@@ -38,7 +38,7 @@ from .agenda import router as router_agenda, publico as router_agenda_publico
 from .visitas import router as router_visitas
 from .notas import router as router_notas
 from .listas import router as router_listas
-from .tiempos import router as router_tiempos
+from .tiempos import cerrar_cronometros, router as router_tiempos
 from .cie import router as router_cie
 from .documentacion import router as router_documentacion
 from .test_seguridad import router as router_test_seguridad
@@ -126,6 +126,7 @@ def _arranque():
     db.inicializar()
     documentos.corregir_precios_con_iva()
     documentos.rehacer_ingresos_de_facturas()
+    cerrar_cronometros()
     auth.sembrar_admin()
     log.info("base de datos lista en %s", db.RUTA_DB)
 

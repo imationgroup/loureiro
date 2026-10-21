@@ -555,22 +555,6 @@ var MODULOS = {
     // miembro ya ve solo los suyos.
     filtroPor: { c: "profesional_id", de: "profesionales", todos: "Todos los profesionales",
                  vacio: "Sin asignar", soloAdmin: true },
-    // El cronómetro va encima de la tabla, en la misma pestaña.
-    encima: cronometro,
-    acciones: [
-      { ico: "play", titulo: "Seguir contando en este parte",
-        oculta: function (f) { return !!f.arrancado; },
-        fn: function (f) {
-          api("/api/admin/tiempos/" + f.id + "/arrancar", { metodo: "POST" })
-            .then(function () { recordarParte(f.id); ir("tiempos"); }).catch(error);
-        } },
-      { ico: "pausa", titulo: "Pausar",
-        oculta: function (f) { return !f.arrancado; },
-        fn: function (f) {
-          api("/api/admin/tiempos/" + f.id + "/pausar", { metodo: "POST" })
-            .then(function () { ir("tiempos"); }).catch(error);
-        } }
-    ],
     // Total de lo que se ve y repártelo por profesional: quién ha echado qué.
     resumen: function (filas) {
       var total = 0, por = {};
@@ -598,12 +582,15 @@ var MODULOS = {
     campos: [
       // Primero el cliente y, con él elegido, sus obras: así no hay que
       // buscar la obra en la lista de todas.
-      { c: "_cliente", t: "Cliente", tipo: "filtraObras", de: "clientes", para: "obra_id", primero: true,
+      // Un miembro solo ve los clientes y las obras a los que está asignado
+      // (lo decide el servidor); el administrador, todos.
+      { c: "_cliente", t: "Cliente", tipo: "filtraObras", de: "tiempos/clientes", para: "obra_id",
+        obras: "tiempos/obras", primero: true,
         ayuda: "Elige el cliente y abajo salen solo sus obras" },
-      { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "obras", req: true },
+      { c: "obra_id", t: "A qué obra va", tipo: "ref", de: "tiempos/obras", req: true },
       { c: "fecha", t: "Fecha", tipo: "fecha", mitad: true, pordefecto: "hoy" },
       { c: "segundos", t: "Tiempo trabajado", tipo: "duracion", mitad: true,
-        ayuda: "Escríbelo a mano, o usa el cronómetro de la pestaña y se rellena solo" },
+        ayuda: "Horas y minutos" },
       // Un miembro echa los partes a su nombre (lo pone el servidor): el
       // campo solo lo ve el administrador.
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales",
@@ -1064,7 +1051,6 @@ var VOLVER = null;
 
 function ir(k) {
   VOLVER = null;
-  pararTic();
   if (!MODULOS[k] || !puedeVer(k)) k = "dashboard";
   // Certificados tiene submenú: la entrada de arriba abre el primero (CIE).
   if (k === "certificados") k = "certificados_cie";
@@ -1357,10 +1343,7 @@ function celda(col, fila) {
   if (col.tipo === "conIva") return fila[col.c] ? eur(conIva(fila)) : "—";
   if (col.tipo === "clienteObra") return esc(clienteDeObra(v)) || "—";
   if (col.tipo === "duracion") {
-    // Mientras corre, lo guardado se queda corto: lo que va del tramo abierto
-    // solo lo sabe el cronómetro de arriba, y se dice para que no chirríe.
-    return "<b>" + esc(duracion(v)) + "</b>" + (fila.arrancado
-      ? ' <span class="tag tag--verde">contando</span>' : "");
+    return "<b>" + esc(duracion(v)) + "</b>";
   }
   if (col.tipo === "ref") {
     return esc(nombreDe(col.de, v)) || (col.vacio ? '<span class="tag">' + esc(col.vacio) + "</span>" : "—");
@@ -1595,8 +1578,7 @@ function campoHTML(campo, valor, esNuevo) {
          }).join("") + "</select>";
   } else if (campo.tipo === "duracion") {
     // Horas y minutos por separado, que es como se piensa el tiempo. Lo que
-    // se guarda son segundos, en un campo oculto que los dos van rellenando:
-    // así lo escrito a mano y lo que cuenta el cronómetro son la misma cosa.
+    // se guarda son segundos, en un campo oculto que los dos van rellenando.
     var seg = Math.max(0, Number(v) || 0);
     h += '<div class="duracion" data-duracion="' + campo.c + '">' +
          '<input type="number" min="0" step="1" id="c-' + campo.c + '-h" value="' +
@@ -1609,6 +1591,7 @@ function campoHTML(campo, valor, esNuevo) {
     // escribe y el desplegable de obras se queda con las de ese cliente.
     h += '<input id="c-' + campo.c + '" data-filtra-obras="' + esc(campo.para) + '"' +
          ' data-lista="' + esc(campo.de) + '" list="lista-' + campo.c + '" autocomplete="off"' +
+         (campo.obras ? ' data-obras="' + esc(campo.obras) + '"' : "") +
          (campo.primero ? ' data-primero="1"' : "") +
          ' placeholder="' + (campo.primero ? "Escribe el nombre del cliente…" : "Escribe para filtrar las obras…") +
          '" value="' + esc(v) + '">' +
@@ -1857,7 +1840,7 @@ function abrirFormulario(clave, registro, inicial) {
       if (!sel) return;
       var todas = $$("option", sel).map(function (o) { return { v: o.value, t: o.text }; });
       function obraDe(id) {
-        return (cache.obras || []).filter(function (o) { return String(o.id) === String(id); })[0];
+        return (cache[inp.dataset.obras || "obras"] || []).filter(function (o) { return String(o.id) === String(id); })[0];
       }
       function clienteDeLaObra() {
         var o = obraDe(sel.value);
@@ -2380,12 +2363,6 @@ function duracion(seg) {
   if (h) return h + " h " + ("0" + m).slice(-2) + " min";
   // Un rato que no llega al minuto no es «0 min»: es que acaba de empezar.
   return m ? m + " min" : (seg ? "menos de 1 min" : "0 min");
-}
-// Lo mismo mientras el cronómetro corre, con los segundos a la vista.
-function cronoTexto(seg) {
-  seg = Math.max(0, Math.floor(Number(seg) || 0));
-  var h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60);
-  return h + ":" + ("0" + m).slice(-2) + ":" + ("0" + (seg % 60)).slice(-2);
 }
 
 function metrica(valor, etiqueta, clase) {
@@ -4696,150 +4673,6 @@ function verOrigenes() {
 
     $("#vista").innerHTML = h;
   }).catch(error);
-}
-
-/* ── Cronómetro de los partes de horas ─────────────────────────────────── */
-// El tiempo lo cuenta el servidor: aquí solo se pintan los segundos que van
-// pasando. Por eso cerrar el panel, quedarse sin batería o seguir desde el
-// móvil no pierde nada; lo que se ve es lo que hay guardado.
-//
-// Un parte en pausa deja de estar «corriendo», así que para que no desaparezca
-// de la tarjeta durante el descanso se recuerda cuál se estaba cronometrando.
-// Eso es cosa de esta pestaña del navegador, no un dato del parte.
-var TIC = null;
-var PARTE_RECORDADO = null;
-try { PARTE_RECORDADO = Number(sessionStorage.getItem("loureiro_parte")) || null; } catch (e) {}
-
-function pararTic() { if (TIC) { clearInterval(TIC); TIC = null; } }
-
-function recordarParte(id) {
-  PARTE_RECORDADO = id || null;
-  try {
-    if (id) sessionStorage.setItem("loureiro_parte", String(id));
-    else sessionStorage.removeItem("loureiro_parte");
-  } catch (e) {}
-}
-
-// Cuándo arrancó el tramo abierto, en hora de este navegador. Lo que guarda el
-// servidor es UTC; si alguna fila viniera sin zona, se toma como UTC.
-function arrancadoEn(parte) {
-  if (!parte.arrancado) return 0;
-  var t = String(parte.arrancado);
-  if (!/(Z|[+-][0-9]{2}:?[0-9]{2})$/i.test(t)) t += "Z";
-  return Date.parse(t) || 0;
-}
-
-function cronometro(caja, filas, recargar) {
-  pararTic();
-  var corriendo = filas.filter(function (f) { return f.arrancado; })[0];
-  var parte = corriendo || filas.filter(function (f) { return f.id === PARTE_RECORDADO; })[0];
-  if (parte) recordarParte(parte.id);
-  else if (PARTE_RECORDADO) recordarParte(null);
-
-  if (!parte) {
-    caja.innerHTML = '<div class="crono">' +
-      '<div class="crono__texto"><b>Ningún cronómetro en marcha</b>' +
-      "<span>Elige la obra y el tiempo empieza a contar. Puedes pausarlo para los descansos " +
-      "y seguir después.</span></div>" +
-      '<div class="crono__botones"><button class="btn btn--amber" id="crono-nuevo">' +
-      svg(ico.play) + "Empezar a contar</button></div></div>";
-    $("#crono-nuevo").addEventListener("click", function () { empezarParte(recargar); });
-    return;
-  }
-
-  var base = Number(parte.segundos) || 0, desde = arrancadoEn(parte);
-  function total() {
-    return base + (desde ? Math.max(0, Math.floor((Date.now() - desde) / 1000)) : 0);
-  }
-  caja.innerHTML = '<div class="crono' + (parte.arrancado ? " crono--corre" : "") + '">' +
-    '<div class="crono__texto"><b id="crono-tiempo">' + esc(cronoTexto(total())) + "</b>" +
-    "<span>" + esc(nombreDe("obras", parte.obra_id) || "sin obra") +
-      (parte.concepto ? " · " + esc(parte.concepto) : "") +
-      (parte.arrancado ? " · contando" : " · en pausa") + "</span></div>" +
-    '<div class="crono__botones">' +
-      (parte.arrancado
-        ? '<button class="btn btn--fant" id="crono-pausa">' + svg(ico.pausa) + "Pausar</button>"
-        : '<button class="btn btn--amber" id="crono-sigue">' + svg(ico.play) + "Seguir</button>") +
-      '<button class="btn btn--fant" id="crono-fin">' + svg(ico.ok) + "Terminar</button>" +
-    "</div></div>";
-
-  if (parte.arrancado) {
-    TIC = setInterval(function () {
-      var e = $("#crono-tiempo");
-      if (!e) return pararTic();
-      e.textContent = cronoTexto(total());
-    }, 1000);
-  }
-
-  function mandar(accion, despues) {
-    pararTic();
-    api("/api/admin/tiempos/" + parte.id + "/" + accion, { metodo: "POST" })
-      .then(function (p) {
-        if (accion === "pausar") avisar("Apuntado: " + duracion(p.segundos));
-        if (despues) despues();
-        recargar();
-      })
-      .catch(function (e) { avisar(e.message, "err"); recargar(); });
-  }
-  if ($("#crono-pausa")) $("#crono-pausa").addEventListener("click", function () { mandar("pausar"); });
-  if ($("#crono-sigue")) $("#crono-sigue").addEventListener("click", function () { mandar("arrancar"); });
-  $("#crono-fin").addEventListener("click", function () {
-    if (parte.arrancado) return mandar("pausar", function () { recordarParte(null); });
-    recordarParte(null);
-    recargar();
-  });
-}
-
-// Elegir obra y arrancar. El cliente va delante solo para encontrarla: lo que
-// se guarda es la obra.
-function empezarParte(recargar) {
-  modal("Empezar a contar",
-    '<div class="aviso aviso--err" id="cr-err" hidden></div>' +
-    '<div class="campo"><label for="cr-cli">Cliente</label>' +
-    '<input id="cr-cli" list="cr-clientes" autocomplete="off" placeholder="Escribe el nombre del cliente…">' +
-    '<datalist id="cr-clientes">' + (cache.clientes || []).map(function (c) {
-      return '<option value="' + esc(nombreCliente(c)) + '"></option>';
-    }).join("") + "</datalist></div>" +
-    '<div class="campo"><label for="cr-obra">A qué obra va</label><select id="cr-obra"></select></div>' +
-    '<div class="campo"><label for="cr-que">Qué vas a hacer <span class="opt">(opcional)</span></label>' +
-    '<input id="cr-que" maxlength="200" placeholder="Tirar cable, alicatar el baño…"></div>',
-    '<button class="btn btn--fant" id="cr-no">Cancelar</button>' +
-    '<button class="btn btn--amber" id="cr-si">' + svg(ico.play) + "Empezar</button>");
-
-  // Primero el cliente; con él elegido, sus obras. Si tiene una sola, va puesta.
-  function pintarObras() {
-    var clis = clientesQueEncajan("clientes", $("#cr-cli").value), antes = $("#cr-obra").value;
-    var suyas = !clis ? [] : (cache.obras || []).filter(function (o) {
-      return clis.indexOf(String(o.cliente_id)) >= 0;
-    });
-    $("#cr-obra").innerHTML =
-      '<option value="">' + (!clis ? "— elige primero el cliente —"
-                             : suyas.length ? "— elige la obra —" : "Ese cliente no tiene obras") + "</option>" +
-      suyas.map(function (o) {
-        return '<option value="' + o.id + '">' + esc(o.titulo || nombreCliente(o)) + "</option>";
-      }).join("");
-    $("#cr-obra").value = antes;
-    if (!$("#cr-obra").value && suyas.length === 1) $("#cr-obra").value = suyas[0].id;
-  }
-  pintarObras();
-  $("#cr-cli").addEventListener("input", pintarObras);
-  $("#cr-cli").addEventListener("change", pintarObras);
-  $("#cr-cli").focus();
-  $("#cr-no").addEventListener("click", cerrarModal);
-  $("#cr-si").addEventListener("click", function () {
-    var obra = $("#cr-obra").value, err = $("#cr-err");
-    if (!obra) {
-      err.textContent = "Elige la obra a la que va el tiempo.";
-      err.hidden = false;
-      return;
-    }
-    var btn = this;
-    btn.disabled = true;
-    api("/api/admin/tiempos/arrancar",
-        { metodo: "POST", datos: { obra_id: Number(obra), concepto: $("#cr-que").value.trim() } })
-      .then(function (p) { recordarParte(p.id); cerrarModal(); recargar(); })
-      .catch(function (e) { btn.disabled = false; err.textContent = e.message; err.hidden = false; });
-  });
 }
 
 /* ── Certificados de instalación eléctrica (CIE) ──────────────────────── */
