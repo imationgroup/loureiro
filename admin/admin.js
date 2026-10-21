@@ -555,20 +555,31 @@ var MODULOS = {
     // miembro ya ve solo los suyos.
     filtroPor: { c: "profesional_id", de: "profesionales", todos: "Todos los profesionales",
                  vacio: "Sin asignar", soloAdmin: true },
-    // Total de lo que se ve y repártelo por profesional: quién ha echado qué.
+    // Total de lo que se ve, lo que suma en mano de obra y, al administrador,
+    // repartido por profesional: quién ha echado qué. Al miembro, lo suyo:
+    // lo ganado, lo que le falta por cobrar y en cuántas obras.
     resumen: function (filas) {
-      var total = 0, por = {};
+      var total = 0, importe = 0, pendiente = 0, por = {}, obras = {};
       filas.forEach(function (f) {
         var seg = Number(f.segundos) || 0;
         total += seg;
+        importe += Number(f.importe) || 0;
+        if (f.importe && !f.pagado) pendiente += Number(f.importe) || 0;
+        if (f.obra_id) obras[f.obra_id] = 1;
         var k = nombreDe("profesionales", f.profesional_id) || "sin asignar";
         por[k] = (por[k] || 0) + seg;
       });
       var h = '<div class="metricas">' +
         metrica(duracion(total), "Total · " + filas.length + " parte" + (filas.length === 1 ? "" : "s"),
-                "metrica--azul");
-      Object.keys(por).sort(function (a, b) { return por[b] - por[a]; }).slice(0, 5)
-        .forEach(function (k) { h += metrica(duracion(por[k]), k, ""); });
+                "metrica--azul") +
+        metrica(eur(importe), (esAdmin() ? "Mano de obra" : "Ganado") + " · sin IVA", "metrica--verde");
+      if (esAdmin()) {
+        Object.keys(por).sort(function (a, b) { return por[b] - por[a]; }).slice(0, 4)
+          .forEach(function (k) { h += metrica(duracion(por[k]), k, ""); });
+      } else {
+        h += metrica(eur(pendiente), "Pendiente de cobrar · sin IVA", "") +
+             metrica(Object.keys(obras).length, "Obras", "");
+      }
       return h + "</div>";
     },
     columnas: [
@@ -577,13 +588,14 @@ var MODULOS = {
       { c: "obra_id", t: "Cliente", tipo: "clienteObra" },
       { c: "profesional_id", t: "Profesional", tipo: "ref", de: "profesionales" },
       { c: "concepto", t: "Qué se hizo" },
-      { c: "segundos", t: "Tiempo", tipo: "duracion", num: true }
+      { c: "segundos", t: "Tiempo", tipo: "duracion", num: true },
+      { c: "importe", t: "Importe", tipo: "importeParte", num: true }
     ],
     campos: [
       // Primero el cliente y, con él elegido, sus obras: así no hay que
       // buscar la obra en la lista de todas.
-      // Un miembro solo ve los clientes y las obras a los que está asignado
-      // (lo decide el servidor); el administrador, todos.
+      // Un miembro solo ve las obras en curso a las que está asignado y sus
+      // clientes (lo decide el servidor); el administrador, todas.
       { c: "_cliente", t: "Cliente", tipo: "filtraObras", de: "tiempos/clientes", para: "obra_id",
         obras: "tiempos/obras", primero: true,
         ayuda: "Elige el cliente y abajo salen solo sus obras" },
@@ -1335,6 +1347,11 @@ function clienteDeObra(obraId) {
 function celda(col, fila) {
   var v = fila[col.c];
   if (col.tipo === "eur") return v ? eur(v) : "—";
+  // Lo que genera un parte (horas × tarifa, sin IVA) y si ya está pagado.
+  if (col.tipo === "importeParte") {
+    return v ? esc(eur(v)) + ' <span class="tag ' + (fila.pagado ? "tag--verde" : "tag--amber") + '">' +
+               (fila.pagado ? "pagado" : "pendiente") + "</span>" : "—";
+  }
   if (col.tipo === "fecha") return esc(fecha(v));
   if (col.tipo === "estadoGasto") {
     var est = (cache["listas/gasto-estados"] || []).filter(function (e) { return e.nombre === v; })[0];
@@ -2342,6 +2359,24 @@ function panelMiembro(d, periodo) {
         }).join("") + "</tbody></table></div>"
       : '<div class="vacia">No tienes obras activas asignadas.</div>') + "</div>";
   h += "</div>";
+
+  var term = d.obras_terminadas || [];
+  if (term.length) {
+    h += '<div class="tarjeta" style="margin-top:16px"><h3>Tus obras terminadas <span>horas, lo ganado (' +
+         etiquetaIva() + ") y lo cobrado (con IVA)</span></h3>" +
+      '<div class="tabla-scroll"><table class="tabla-corta"><thead><tr><th>Obra</th><th class="num">Horas</th>' +
+      '<th class="num">Ganado</th><th class="num">Cobrado</th><th class="num">Pendiente</th></tr></thead><tbody>' +
+      term.map(function (o) {
+        return "<tr><td><b>" + esc(o.titulo) + "</b><div style='font-size:.8rem;color:var(--muted)'>" +
+               esc(o.cliente || "sin cliente") + (o.ciudad ? " · " + esc(o.ciudad) : "") +
+               (o.fecha_fin_real ? " · terminada el " + esc(fecha(o.fecha_fin_real)) : "") + "</div></td>" +
+               '<td class="num">' + esc(duracion(o.segundos)) + "</td>" +
+               '<td class="num"><b>' + esc(eur(o.ganado)) + "</b></td>" +
+               '<td class="num">' + esc(eur(o.cobrado)) + "</td>" +
+               '<td class="num">' + (o.pendiente > 0 ? '<span class="tag tag--amber">' + esc(eur(o.pendiente)) + "</span>" : "—") +
+               "</td></tr>";
+      }).join("") + "</tbody></table></div></div>";
+  }
 
   if (puedeVer("solicitudes") && d.solicitudes_recientes.length) {
     h += '<div class="tarjeta" style="margin-top:16px"><h3>Tus últimas solicitudes</h3>' +
