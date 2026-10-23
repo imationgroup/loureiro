@@ -66,6 +66,16 @@ def clientes(u: dict = Depends(sesion_actual)):
                         ORDER BY nombre COLLATE NOCASE""", params)
 
 
+@router.post("/{id_}/visto")
+def visto(id_: int, u: dict = Depends(sesion_actual)):
+    """El administrador ya ha visto el parte: deja de salir en la campanita."""
+    if not es_admin(u):
+        raise HTTPException(403, "Solo el administrador")
+    with db.tx() as con:
+        con.execute("UPDATE tiempos SET aviso_admin = 0 WHERE id = ?", (id_,))
+    return {"ok": True}
+
+
 def cerrar_cronometros():
     """Guarda lo contado en los partes que se quedaron con el cronómetro en marcha."""
     ahora = datetime.now(timezone.utc)

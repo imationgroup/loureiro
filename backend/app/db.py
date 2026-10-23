@@ -762,6 +762,9 @@ MIGRACIONES = [
     # El gasto de mano de obra que sale de un parte de horas (ver
     # tiempos.gasto_de_parte). Se borra con el parte.
     ("costes", "tiempo_id", "INTEGER REFERENCES tiempos(id) ON DELETE CASCADE"),
+    # Un parte que apunta un miembro avisa al administrador en la campanita
+    # hasta que lo abre (ver admin.notificaciones).
+    ("tiempos", "aviso_admin", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la
