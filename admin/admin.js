@@ -6615,7 +6615,8 @@ function pintarCampana() {
       : "");
 
   // Pinchar un aviso lleva a lo que avisa y lo abre: la solicitud con su
-  // mensaje, o el presupuesto que lleva días sin respuesta.
+  // mensaje, el presupuesto que lleva días sin respuesta o el parte que ha
+  // apuntado un miembro (que, abierto, deja de avisar).
   $$("[data-noti]", p).forEach(function (b) {
     b.addEventListener("click", function () {
       var id = b.dataset.noti;
@@ -6623,6 +6624,16 @@ function pintarCampana() {
       if (b.dataset.tipo === "presupuesto") {
         ir("presupuestos");
         return editarDocumento("presupuestos", id);
+      }
+      if (b.dataset.tipo === "parte") {
+        ir("tiempos");
+        api("/api/admin/tiempos/" + id + "/visto", { metodo: "POST" })
+          .then(function () { actualizarCampana(); return api("/api/admin/tiempos"); })
+          .then(function (lista) {
+            var f = lista.filter(function (x) { return String(x.id) === id; })[0];
+            if (f) abrirFormulario("tiempos", f);
+          }).catch(error);
+        return;
       }
       ir("solicitudes");
       api("/api/admin/solicitudes").then(function (lista) {

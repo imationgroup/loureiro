@@ -26,7 +26,7 @@ from .iva import (con_iva, fijar as fijar_iva, fijar_presupuestos, imp, linea,
 from .agenda import validar_cita
 from .documentos import totales
 from .listas import completar_cliente, completar_gasto, completar_obra, estado_pendiente
-from .tiempos import comprobar_obra, gasto_de_parte, gastos_del_profesional
+from .tiempos import _duracion, comprobar_obra, gasto_de_parte, gastos_del_profesional
 from .notas import adjuntos_de
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
@@ -357,6 +357,7 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
         d["profesional_id"] = u["profesional_id"]
     if t.nombre == "tiempos" and not es_admin(u):
         d["profesional_id"] = u.get("profesional_id")
+        d["aviso_admin"] = 1
         comprobar_obra(u, d.get("obra_id"))
     comprobar_referencias(u, d)
     if t.nombre == "obras":
@@ -563,9 +564,10 @@ def ficha_cliente(id_: int, u: dict = Depends(sesion_actual)):
 def notificaciones(u: dict = Depends(sesion_actual)):
     """Lo que está pendiente de atender.
 
-    Dos cosas: las solicitudes sin atender y los presupuestos que se enviaron
-    hace días y siguen sin respuesta, que es trabajo ya hecho esperando una
-    llamada. Cada uno ve lo suyo; el administrador, todo.
+    Las solicitudes sin atender, los presupuestos que se enviaron hace días y
+    siguen sin respuesta (trabajo ya hecho esperando una llamada) y, solo al
+    administrador, los partes de horas nuevos de los miembros. Cada uno ve lo
+    suyo; el administrador, todo.
 
     La respuesta es genérica (tipo, título, detalle, fecha y vista a la que
     lleva) para poder añadir más avisos sin tocar el panel. Tiene que ir en el
@@ -605,6 +607,24 @@ def notificaciones(u: dict = Depends(sesion_actual)):
                 "detalle": f"Enviado hace {espera} días y sin respuesta",
                 "fecha": p_["fecha"],
                 "vista": "presupuestos",
+            })
+
+    # Al administrador, los partes que apuntan los miembros, hasta que los abre.
+    if es_admin(u):
+        for t in db.filas(
+                """SELECT t.id, t.segundos, t.concepto, t.creado, o.titulo AS obra,
+                          COALESCE(pr.nombre, us.nombre, us.email) AS quien
+                   FROM tiempos t LEFT JOIN obras o ON o.id = t.obra_id
+                   LEFT JOIN profesionales pr ON pr.id = t.profesional_id
+                   LEFT JOIN usuarios us ON us.id = t.usuario_id
+                   WHERE t.aviso_admin = 1 ORDER BY t.creado DESC, t.id DESC"""):
+            items.append({
+                "tipo": "parte",
+                "id": t["id"],
+                "titulo": f"Parte nuevo de {t['quien'] or 'un miembro'} · {_duracion(t['segundos'] or 0)}",
+                "detalle": " · ".join(x for x in (t["obra"] or "Sin obra", t["concepto"]) if x),
+                "fecha": t["creado"],
+                "vista": "tiempos",
             })
 
     return {"total": len(items), "items": items[:20]}
