@@ -28,6 +28,11 @@ router = APIRouter(prefix="/api/admin/tareas", tags=["tareas"])
 
 TIPO_VALORACION = "valoracion"
 
+# El texto de la petición, el mismo que en el panel (admin.js, textoResena).
+MENSAJE_RESENA = ("Muchas gracias por confiar en mí. ¿Me dejarías una valoración en Google? "
+                  "Solo lleva un minuto y me ayuda muchísimo a seguir creciendo "
+                  "profesionalmente.")
+
 
 def al_guardar_obra(obra_id: int):
     """Lo que toca a las tareas cada vez que se guarda una obra.
@@ -121,29 +126,22 @@ def _correo_valoracion(t: dict, enlace: str) -> bool:
     from .main import send_email   # import tardío: main importa este módulo
 
     nombre = (t.get("cliente_nombre") or "").strip().split(" ")[0]
-    obra = t.get("obra") or "el trabajo"
     texto = (f"Hola{(' ' + nombre) if nombre else ''},\n\n"
-             f"Ya hemos terminado {obra}. Gracias por confiar en Loureiro Soluciones.\n\n"
-             "Si has quedado contento con el trabajo, ¿nos dejas una valoración en Google? "
-             "Es un minuto y nos ayuda mucho a que otros vecinos nos encuentren:\n"
+             f"{MENSAJE_RESENA}\n\n"
              f"{enlace}\n\n"
-             "Y si algo no ha quedado como esperabas, responde a este correo o llámanos "
-             "al 603 905 128 y lo vemos.\n\n"
              "Un saludo,\nLoureiro Soluciones\n")
     html = f"""<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>¿Qué tal ha ido?</title></head><body style="margin:0;padding:0;background:#F4F5F7">
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>¿Me dejarías una valoración?</title></head><body style="margin:0;padding:0;background:#F4F5F7">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F7;padding:24px 12px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#242A36">
   <tr><td style="background:#1E2533;padding:20px 28px"><span style="font-size:19px;font-weight:bold;color:#FFFFFF">Loureiro</span><span style="font-size:19px;color:#9AA2B1">soluciones</span></td></tr>
   <tr><td style="padding:28px">
     <p style="margin:0 0 14px;font-size:20px;font-weight:bold;color:#1E2533">Hola{(' ' + escape(nombre)) if nombre else ''},</p>
-    <p style="margin:0 0 14px;font-size:15px;line-height:1.6">Ya hemos terminado <b>{escape(obra)}</b>. Gracias por confiar en nosotros.</p>
-    <p style="margin:0 0 14px;font-size:15px;line-height:1.6">Si has quedado contento con el trabajo, ¿nos dejas una valoración en Google? Es un minuto y nos ayuda mucho a que otros vecinos nos encuentren.</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6">{escape(MENSAJE_RESENA)}</p>
     <p style="margin:24px 0"><a href="{escape(enlace)}" style="display:inline-block;background:#F2A81C;color:#2C3444;font-weight:bold;font-size:15px;text-decoration:none;padding:13px 24px;border-radius:999px">Dejar mi valoración</a></p>
-    <p style="margin:0;font-size:13px;line-height:1.6;color:#6B7180">Si algo no ha quedado como esperabas, responde a este correo o llámanos al 603 905 128 y lo vemos.</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
-    return send_email(to=t["email"].strip(), subject="¿Qué tal ha ido? · Loureiro Soluciones",
+    return send_email(to=t["email"].strip(), subject="¿Me dejarías una valoración? · Loureiro Soluciones",
                       body=texto, html=html)
 
 

@@ -2859,11 +2859,11 @@ function cargarEnlaceResenas() {
     .catch(function () { return ""; });
 }
 
-function textoResena(cliente) {
+// El mismo texto que el correo de Tareas (tareas.py, MENSAJE_RESENA).
+function textoResena(cliente, enlace) {
   var nombre = String(cliente.nombre || "").trim().split(" ")[0];
-  return "Hola" + (nombre ? " " + nombre : "") + ", somos Loureiro Soluciones. " +
-    "Si has quedado contento con el trabajo, ¿nos dejas una reseña en Google? " +
-    "Es un minuto y nos ayuda mucho a que otros vecinos nos encuentren:\n" + RESENAS_URL;
+  return "Hola" + (nombre ? " " + nombre : "") + ". " +
+    "Muchas gracias por confiar en mí. ¿Me dejarías una valoración en Google? Solo lleva un minuto y me ayuda muchísimo a seguir creciendo profesionalmente.\n" + (enlace || RESENAS_URL);
 }
 
 // Guarda el enlace de reseñas. Solo el administrador.
@@ -4142,11 +4142,7 @@ function abrirTarea(id) {
         var ventana = window.open("", "_blank");
         api("/api/admin/tareas/" + id + "/enviar", { metodo: "POST", datos: { canal: "whatsapp" } })
           .then(function (r) {
-            var nombre = String(r.nombre || "").trim().split(" ")[0];
-            var texto = "Hola" + (nombre ? " " + nombre : "") + ", somos Loureiro Soluciones. " +
-              "Ya hemos terminado " + (r.obra ? "«" + r.obra + "»" : "el trabajo") + ", ¡gracias por confiar en nosotros! " +
-              "Si has quedado contento, ¿nos dejas una valoración en Google? " +
-              "Es un minuto y nos ayuda mucho a que otros vecinos nos encuentren:\n" + r.enlace;
+            var texto = textoResena({ nombre: r.nombre }, r.enlace);
             var url = "https://wa.me/" + tel + "?text=" + encodeURIComponent(texto);
             if (ventana) ventana.location.href = url;
             else avisar("El navegador no ha dejado abrir WhatsApp", "err");
