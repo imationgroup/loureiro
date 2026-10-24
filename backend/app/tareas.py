@@ -57,6 +57,28 @@ def al_guardar_obra(obra_id: int):
              o["usuario_id"], TIPO_VALORACION, o["id"]))
 
 
+def rellenar_terminadas():
+    """Toda obra terminada tiene su tarea, también las de antes de existir Tareas.
+
+    Se ejecuta al arrancar. Como hay una por obra, solo crea las que falten.
+    Las de clientes a los que ya se les pidió reseña (el botón de su ficha)
+    entran como hechas, con esa fecha; el resto, pendientes.
+    """
+    with db.tx() as con:
+        con.execute(
+            """INSERT INTO tareas (tipo, titulo, obra_id, cliente_id, usuario_id, estado,
+                                   hecha_el, creado)
+               SELECT ?, 'Pedir valoración al cliente', o.id, o.cliente_id, o.usuario_id,
+                      CASE WHEN c.resena_pedida IS NOT NULL AND c.resena_pedida != ''
+                           THEN 'hecha' ELSE 'pendiente' END,
+                      NULLIF(c.resena_pedida, ''),
+                      COALESCE(o.fecha_fin_real, o.creado)
+               FROM obras o LEFT JOIN clientes c ON c.id = o.cliente_id
+               WHERE lower(trim(o.estado)) = 'terminada'
+                 AND NOT EXISTS (SELECT 1 FROM tareas t WHERE t.tipo = ? AND t.obra_id = o.id)""",
+            (TIPO_VALORACION, TIPO_VALORACION))
+
+
 _SELECT = """
     SELECT t.*, o.titulo AS obra, o.fecha_fin_real,
            TRIM(COALESCE(c.nombre, '') || ' ' || COALESCE(c.apellidos, '')) AS cliente,
