@@ -2862,8 +2862,10 @@ function cargarEnlaceResenas() {
 // El mismo texto que el correo de Tareas (tareas.py, MENSAJE_RESENA).
 function textoResena(cliente, enlace) {
   var nombre = String(cliente.nombre || "").trim().split(" ")[0];
-  return "Hola" + (nombre ? " " + nombre : "") + ". " +
-    "Muchas gracias por confiar en mí. ¿Me dejarías una valoración en Google? Solo lleva un minuto y me ayuda muchísimo a seguir creciendo profesionalmente.\n" + (enlace || RESENAS_URL);
+  return "Hola" + (nombre ? " " + nombre : "") + ",\n\n" +
+    "Gracias por confiar en mí, ¿me dejarías una valoración en Google? " +
+    "Solo lleva un minuto y me ayuda muchísimo a seguir creciendo y a que otros vecinos me encuentren.\n\n" +
+    "Aquí tienes el enlace:\n" + (enlace || RESENAS_URL) + "\n\n¡Muchas gracias!";
 }
 
 // Guarda el enlace de reseñas. Solo el administrador.

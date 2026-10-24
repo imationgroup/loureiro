@@ -29,9 +29,9 @@ router = APIRouter(prefix="/api/admin/tareas", tags=["tareas"])
 TIPO_VALORACION = "valoracion"
 
 # El texto de la petición, el mismo que en el panel (admin.js, textoResena).
-MENSAJE_RESENA = ("Muchas gracias por confiar en mí. ¿Me dejarías una valoración en Google? "
-                  "Solo lleva un minuto y me ayuda muchísimo a seguir creciendo "
-                  "profesionalmente.")
+MENSAJE_RESENA = ("Gracias por confiar en mí, ¿me dejarías una valoración en Google? "
+                  "Solo lleva un minuto y me ayuda muchísimo a seguir creciendo y a que "
+                  "otros vecinos me encuentren.")
 
 
 def al_guardar_obra(obra_id: int):
@@ -128,8 +128,8 @@ def _correo_valoracion(t: dict, enlace: str) -> bool:
     nombre = (t.get("cliente_nombre") or "").strip().split(" ")[0]
     texto = (f"Hola{(' ' + nombre) if nombre else ''},\n\n"
              f"{MENSAJE_RESENA}\n\n"
-             f"{enlace}\n\n"
-             "Un saludo,\nLoureiro Soluciones\n")
+             f"Aquí tienes el enlace:\n{enlace}\n\n"
+             "¡Muchas gracias!\n")
     html = f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>¿Me dejarías una valoración?</title></head><body style="margin:0;padding:0;background:#F4F5F7">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F7;padding:24px 12px"><tr><td align="center">
@@ -138,7 +138,9 @@ def _correo_valoracion(t: dict, enlace: str) -> bool:
   <tr><td style="padding:28px">
     <p style="margin:0 0 14px;font-size:20px;font-weight:bold;color:#1E2533">Hola{(' ' + escape(nombre)) if nombre else ''},</p>
     <p style="margin:0 0 14px;font-size:15px;line-height:1.6">{escape(MENSAJE_RESENA)}</p>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.6">Aquí tienes el enlace:</p>
     <p style="margin:24px 0"><a href="{escape(enlace)}" style="display:inline-block;background:#F2A81C;color:#2C3444;font-weight:bold;font-size:15px;text-decoration:none;padding:13px 24px;border-radius:999px">Dejar mi valoración</a></p>
+    <p style="margin:0;font-size:15px;line-height:1.6">¡Muchas gracias!</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
     return send_email(to=t["email"].strip(), subject="¿Me dejarías una valoración? · Loureiro Soluciones",
