@@ -147,12 +147,16 @@ def _correo_valoracion(t: dict, enlace: str) -> bool:
                       body=texto, html=html)
 
 
-def _hecha(t: dict, canal: str | None):
-    """Apunta la tarea como hecha y la fecha de la reseña pedida en el cliente."""
+def _enviada(t: dict, canal: str):
+    """Apunta por dónde y cuándo se mandó, y la reseña pedida en el cliente.
+
+    La tarea sigue pendiente: se da por hecha a mano («Ya la pedí»), cuando
+    quien la lleva lo decide, no por haber pulsado el botón.
+    """
     hoy = date.today().isoformat()
     with db.tx() as con:
-        con.execute("UPDATE tareas SET estado = 'hecha', canal = ?, hecha_el = datetime('now') "
-                    "WHERE id = ?", (canal, t["id"]))
+        con.execute("UPDATE tareas SET canal = ?, enviada_el = datetime('now') WHERE id = ?",
+                    (canal, t["id"]))
         if t.get("cliente_id"):
             con.execute("UPDATE clientes SET resena_pedida = ? WHERE id = ?",
                         (hoy, t["cliente_id"]))
@@ -166,7 +170,7 @@ class Envio(BaseModel):
 
 @router.post("/{id_}/enviar")
 def enviar(id_: int, datos: Envio, u: dict = Depends(sesion_actual)):
-    """Manda al cliente la petición de valoración y da la tarea por hecha."""
+    """Manda al cliente la petición de valoración. La tarea sigue pendiente."""
     exigir(u, "tareas")
     t = _tarea(id_, u)
     enlace = _enlace_resenas()
@@ -175,14 +179,14 @@ def enviar(id_: int, datos: Envio, u: dict = Depends(sesion_actual)):
     if not t.get("cliente_id"):
         raise HTTPException(422, "La obra no tiene cliente: no hay a quién pedírsela.")
     if datos.canal == "whatsapp":
-        _hecha(t, "whatsapp")
+        _enviada(t, "whatsapp")
         return {"enviado": True, "enlace": enlace, "telefono": t.get("telefono"),
                 "nombre": t.get("cliente_nombre"), "obra": t.get("obra")}
     if not (t.get("email") or "").strip():
         raise HTTPException(422, "El cliente no tiene correo en su ficha.")
     if not _correo_valoracion(t, enlace):
         raise HTTPException(502, "No se ha podido enviar el correo.")
-    _hecha(t, "correo")
+    _enviada(t, "correo")
     return {"enviado": True, "email": t["email"].strip()}
 
 
@@ -192,12 +196,17 @@ class Estado(BaseModel):
 
 @router.put("/{id_}/estado")
 def cambiar_estado(id_: int, datos: Estado, u: dict = Depends(sesion_actual)):
-    """Descartarla, darla por hecha sin mandar nada (se pidió en persona) o reabrirla."""
+    """Darla por hecha («Ya la pedí»), descartarla o volver a dejarla pendiente.
+
+    Lo que se mandó (canal y fecha) se queda apuntado en cualquier caso.
+    """
     exigir(u, "tareas")
-    t = _tarea(id_, u)
-    if datos.estado == "hecha":
-        _hecha(t, None)
-        return _tarea(id_, u)
+    _tarea(id_, u)
+    with db.tx() as con:
+        con.execute("UPDATE tareas SET estado = ?, hecha_el = CASE WHEN ? = 'pendiente' "
+                    "THEN NULL ELSE datetime('now') END WHERE id = ?",
+                    (datos.estado, datos.estado, id_))
+    return _tarea(id_, u)
     with db.tx() as con:
         if datos.estado == "pendiente":
             con.execute("UPDATE tareas SET estado = 'pendiente', canal = NULL, hecha_el = NULL "
