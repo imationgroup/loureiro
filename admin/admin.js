@@ -528,6 +528,9 @@ var MODULOS = {
     ]
   },
 
+  tareas: { titulo: "Tareas", sub: "Lo que queda por hacer al terminar una obra: pedir la valoración al cliente",
+            icono: ico.ok, especial: "tareas" },
+
   visitas: { titulo: "Visitas", sub: "Notas y fotos de la toma de datos, antes del presupuesto",
              icono: ico.camara, especial: "visitas" },
 
@@ -917,7 +920,7 @@ MODULOS.guia = { titulo: "Documentación", sub: "", icono: ico.manual, especial:
 });
 
 var ORDEN_MENU = [
-  { sep: null, items: ["dashboard", "agenda", "solicitudes", "visitas"] },
+  { sep: null, items: ["dashboard", "tareas", "agenda", "solicitudes", "visitas"] },
   { sep: "Gestión", items: [{ k: "obras", hijos: ["obras_estados"] }, "tiempos", "notas",
                             { k: "clientes", hijos: ["clientes_origen", "clientes_origenes"] },
                             "profesionales"] },
@@ -1090,6 +1093,7 @@ function ir(k) {
   if (m.especial === "obras") return verObras();
   if (m.especial === "stock") return verStock();
   if (m.especial === "visitas") return verVisitas();
+  if (m.especial === "tareas") return verTareas();
   if (m.especial === "notas") return verNotas();
   if (m.especial === "fichaCliente") return verFichaCliente();
   if (m.especial === "listaEditable") return verListaEditable(k);
@@ -4006,6 +4010,154 @@ function verDocumentos(clave) {
     }).catch(error);
 }
 
+/* ── Tareas ───────────────────────────────────────────────────────────── */
+// Lo que queda por hacer al terminar una obra. Hoy, una sola clase: pedirle la
+// valoración al cliente. La crea el servidor al pasar la obra a «terminada» y
+// avisa en la campanita hasta que se manda o se descarta.
+var TAREAS_FILTRO = "pendiente";
+
+function estadoTarea(t) {
+  if (t.estado === "pendiente") return '<span class="tag tag--amber">Pendiente</span>';
+  if (t.estado === "descartada") return '<span class="tag">Descartada</span>';
+  return '<span class="tag tag--verde">Hecha' +
+    (t.canal === "correo" ? " · por correo" : t.canal === "whatsapp" ? " · por WhatsApp" : "") + "</span>";
+}
+
+function verTareas() {
+  api("/api/admin/tareas").then(function (tareas) {
+    var n = tareas.filter(function (t) { return t.estado === "pendiente"; }).length;
+    $("#vista").innerHTML =
+      '<div class="herr"><select id="tr-filtro" aria-label="Estado">' +
+        '<option value="pendiente">Pendientes (' + n + ")</option>" +
+        '<option value="hecha">Hechas</option><option value="descartada">Descartadas</option>' +
+        '<option value="">Todas</option></select></div>' +
+      '<div class="vis-lista" id="tr-lista"></div>';
+    $("#tr-filtro").value = TAREAS_FILTRO;
+    function pintar() {
+      var filas = tareas.filter(function (t) { return !TAREAS_FILTRO || t.estado === TAREAS_FILTRO; });
+      var caja = $("#tr-lista");
+      if (!filas.length) {
+        caja.innerHTML = '<div class="vacia">' + (TAREAS_FILTRO === "pendiente"
+          ? "No hay nada pendiente. Cuando una obra pase a «terminada» saldrá aquí la tarea de pedirle la valoración al cliente."
+          : "No hay tareas en este estado.") + "</div>";
+        return;
+      }
+      caja.innerHTML = filas.map(function (t) {
+        return '<button type="button" class="vis-item" data-tarea="' + t.id + '">' +
+          '<span class="vis-item__foto tarea__ico">' + svg(ico.estrella) + "</span>" +
+          '<span class="vis-item__txt"><b>' + esc(t.titulo) + "</b>" +
+            "<small>" + esc(t.cliente || "Sin cliente") + "</small>" +
+            "<small>" + esc(t.obra || "Sin obra") + "</small>" +
+            '<span class="vis-item__presu">' + estadoTarea(t) +
+              '<small class="tarea__cuando">' + esc(hace(t.estado === "pendiente" ? t.creado : t.hecha_el)) +
+              "</small></span>" +
+          "</span></button>";
+      }).join("");
+      $$("[data-tarea]", caja).forEach(function (b) {
+        b.addEventListener("click", function () { abrirTarea(Number(b.dataset.tarea)); });
+      });
+    }
+    pintar();
+    $("#tr-filtro").addEventListener("change", function () { TAREAS_FILTRO = this.value; pintar(); });
+  }).catch(error);
+}
+
+// La tarea abierta: a quién se le pide y por dónde. Cada canal se ofrece solo
+// si hay a dónde mandarlo; desactivado se sigue viendo, con lo que falta.
+function abrirTarea(id) {
+  api("/api/admin/tareas").then(function (lista) {
+    var t = lista.filter(function (x) { return x.id === id; })[0];
+    if (!t) return avisar("Esa tarea ya no existe", "err");
+    var email = String(t.email || "").trim();
+    var tel = telefonoWhatsApp(t.telefono);
+    var sinCliente = "La obra no tiene cliente";
+    var hecha = t.estado !== "pendiente";
+
+    function opcion(canal, icono, titulo, destino, falta) {
+      return '<button type="button" class="envio' + (destino ? "" : " envio--off") + '" data-canal="' + canal + '"' +
+        (destino ? "" : " disabled") + ">" + svg(icono) +
+        "<span><b>" + esc(titulo) + "</b><small>" + esc(destino || falta) + "</small></span></button>";
+    }
+    modal("Pedir valoración" + (t.cliente ? " a " + t.cliente : ""),
+      '<div class="aviso aviso--err" id="tr-err" hidden></div>' +
+      '<p style="color:var(--muted);line-height:1.55">Se ha terminado la obra <b>' + esc(t.obra || "sin obra") +
+      "</b>" + (t.fecha_fin_real ? " (" + esc(fecha(t.fecha_fin_real)) + ")" : "") +
+      ". Mándale al cliente el enlace para que deje su valoración en Google.</p>" +
+      (hecha ? '<p style="margin:0 0 6px">' + estadoTarea(t) + ' <small style="color:var(--muted-2)">' +
+               esc(fecha(t.hecha_el)) + "</small></p>" : "") +
+      (t.resena_pedida && !hecha ? '<p style="color:var(--muted-2);font-size:.88rem">Ya se le pidió una reseña el ' +
+               esc(fecha(t.resena_pedida)) + ".</p>" : "") +
+      '<div class="envios">' +
+        opcion("whatsapp", ico.whatsapp, hecha ? "Otra vez por WhatsApp" : "Por WhatsApp", tel ? t.telefono : "",
+               t.cliente_id ? (t.telefono ? "El teléfono de la ficha no parece válido" : "El cliente no tiene teléfono en su ficha")
+                            : sinCliente) +
+        opcion("correo", ico.buzon, hecha ? "Otra vez por correo" : "Por correo", email,
+               t.cliente_id ? "El cliente no tiene correo en su ficha" : sinCliente) +
+      "</div>",
+      (hecha
+        ? '<button class="btn btn--fant btn--sm" id="tr-reabrir" style="margin-right:auto">Volver a pendiente</button>'
+        : '<button class="btn btn--fant btn--sm" id="tr-descartar" style="margin-right:auto">Descartar</button>' +
+          '<button class="btn btn--fant btn--sm" id="tr-hecha" title="Si se la pediste en persona o por otro lado">Ya la pedí</button>') +
+      '<button class="btn btn--fant" id="tr-no">Cerrar</button>');
+    $("#tr-no").addEventListener("click", cerrarModal);
+
+    function listo(msg) {
+      cerrarModal();
+      invalidar();
+      if (msg) avisar(msg);
+      actualizarCampana();
+      if (vistaActual === "tareas") verTareas();
+    }
+    function fallo(e) {
+      $$(".envios [data-canal]").forEach(function (b) { b.classList.remove("is-cargando"); });
+      // Sin el enlace de reseñas no hay nada que mandar: se pide y se vuelve.
+      if (/enlace de reseñas/.test(e.message)) {
+        cerrarModal();
+        return configurarResenas(function () { abrirTarea(id); });
+      }
+      var err = $("#tr-err");
+      if (!err) return avisar(e.message, "err");
+      err.textContent = e.message; err.hidden = false;
+    }
+    function estado(nuevo, msg) {
+      api("/api/admin/tareas/" + id + "/estado", { metodo: "PUT", datos: { estado: nuevo } })
+        .then(function () { listo(msg); }).catch(fallo);
+    }
+    if ($("#tr-descartar")) $("#tr-descartar").addEventListener("click", function () { estado("descartada", "Tarea descartada"); });
+    if ($("#tr-hecha")) $("#tr-hecha").addEventListener("click", function () { estado("hecha", "Tarea hecha"); });
+    if ($("#tr-reabrir")) $("#tr-reabrir").addEventListener("click", function () { estado("pendiente", "Tarea pendiente otra vez"); });
+
+    $$(".envios [data-canal]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.disabled || b.classList.contains("is-cargando")) return;
+        b.classList.add("is-cargando");
+        if (b.dataset.canal === "correo") {
+          api("/api/admin/tareas/" + id + "/enviar", { metodo: "POST", datos: { canal: "correo" } })
+            .then(function (r) { listo("Petición de valoración enviada a " + r.email); })
+            .catch(fallo);
+          return;
+        }
+        // WhatsApp sale del teléfono de quien lo manda. La ventana se abre
+        // antes de ir al servidor: abierta después, el navegador la bloquea.
+        var ventana = window.open("", "_blank");
+        api("/api/admin/tareas/" + id + "/enviar", { metodo: "POST", datos: { canal: "whatsapp" } })
+          .then(function (r) {
+            var nombre = String(r.nombre || "").trim().split(" ")[0];
+            var texto = "Hola" + (nombre ? " " + nombre : "") + ", somos Loureiro Soluciones. " +
+              "Ya hemos terminado " + (r.obra ? "«" + r.obra + "»" : "el trabajo") + ", ¡gracias por confiar en nosotros! " +
+              "Si has quedado contento, ¿nos dejas una valoración en Google? " +
+              "Es un minuto y nos ayuda mucho a que otros vecinos nos encuentren:\n" + r.enlace;
+            var url = "https://wa.me/" + tel + "?text=" + encodeURIComponent(texto);
+            if (ventana) ventana.location.href = url;
+            else avisar("El navegador no ha dejado abrir WhatsApp", "err");
+            listo("Apuntado: valoración pedida por WhatsApp");
+          })
+          .catch(function (e) { if (ventana) ventana.close(); fallo(e); });
+      });
+    });
+  }).catch(function (e) { avisar(e.message, "err"); });
+}
+
 /* ── Firma del presupuesto ────────────────────────────────────────────── */
 // Teléfono listo para wa.me: solo cifras y con prefijo de país. Un móvil
 // español de 9 cifras lleva el 34 delante; si ya trae prefijo (+351, 0033…) se
@@ -6256,7 +6408,7 @@ function formSeccion(s) {
 
 /* ── Equipo: quién entra al panel y a qué ─────────────────────────────── */
 // Módulos que se pueden dar a un miembro, en el orden del menú.
-var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "tiempos", "notas", "clientes",
+var MODULOS_EQUIPO = ["agenda", "solicitudes", "visitas", "obras", "tiempos", "tareas", "notas", "clientes",
   "profesionales", "presupuestos", "proformas", "facturas", "certificados", "costes",
   "contabilidad", "stock", "proveedores"];
 
@@ -6621,8 +6773,8 @@ function pintarCampana() {
       : "");
 
   // Pinchar un aviso lleva a lo que avisa y lo abre: la solicitud con su
-  // mensaje, el presupuesto que lleva días sin respuesta o el parte que ha
-  // apuntado un miembro (que, abierto, deja de avisar).
+  // mensaje, el presupuesto que lleva días sin respuesta, el parte que ha
+  // apuntado un miembro (que, abierto, deja de avisar) o la tarea pendiente.
   $$("[data-noti]", p).forEach(function (b) {
     b.addEventListener("click", function () {
       var id = b.dataset.noti;
@@ -6630,6 +6782,10 @@ function pintarCampana() {
       if (b.dataset.tipo === "presupuesto") {
         ir("presupuestos");
         return editarDocumento("presupuestos", id);
+      }
+      if (b.dataset.tipo === "tarea") {
+        ir("tareas");
+        return abrirTarea(Number(id));
       }
       if (b.dataset.tipo === "parte") {
         ir("tiempos");

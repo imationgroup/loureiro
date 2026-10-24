@@ -28,6 +28,7 @@ from .documentos import totales
 from .listas import completar_cliente, completar_gasto, completar_obra, estado_pendiente
 from .tiempos import _duracion, comprobar_obra, gasto_de_parte, gastos_del_profesional
 from .notas import adjuntos_de
+from .tareas import al_guardar_obra, pendientes as tareas_pendientes
 from .auth import (HASH_FALSO, comprobar_referencias, configurado, crear_sesion,
                    cerrar_sesion, es_admin, exigir, filtro_responsable, fijar_responsable,
                    limpiar_intentos, obras_suyas, clientes_suyos, publico, puede,
@@ -374,6 +375,7 @@ def crear(recurso: str, datos: dict[str, Any], u: dict = Depends(sesion_actual))
             gasto_de_parte(con, nuevo)
     if t.nombre == "obras":
         _presupuesto_a_la_obra(nuevo, d)
+        al_guardar_obra(nuevo)
     return db.fila(f"SELECT * FROM {t.nombre} WHERE id = ?", (nuevo,))
 
 
@@ -411,6 +413,7 @@ def actualizar(recurso: str, id_: int, datos: dict[str, Any],
             gastos_del_profesional(con, id_)
     if t.nombre == "obras":
         _presupuesto_a_la_obra(id_, d)
+        al_guardar_obra(id_)
     return db.fila(f"SELECT * FROM {t.nombre} WHERE id = ?", (id_,))
 
 
@@ -566,7 +569,8 @@ def notificaciones(u: dict = Depends(sesion_actual)):
 
     Las solicitudes sin atender, los presupuestos que se enviaron hace días y
     siguen sin respuesta (trabajo ya hecho esperando una llamada) y, solo al
-    administrador, los partes de horas nuevos de los miembros. Cada uno ve lo
+    administrador, los partes de horas nuevos de los miembros y las tareas
+    pendientes (pedir la valoración de una obra terminada). Cada uno ve lo
     suyo; el administrador, todo.
 
     La respuesta es genérica (tipo, título, detalle, fecha y vista a la que
@@ -625,6 +629,18 @@ def notificaciones(u: dict = Depends(sesion_actual)):
                 "detalle": " · ".join(x for x in (t["obra"] or "Sin obra", t["concepto"]) if x),
                 "fecha": t["creado"],
                 "vista": "tiempos",
+            })
+
+    # Las tareas pendientes, hasta que se hacen o se descartan.
+    if puede(u, "tareas"):
+        for t in tareas_pendientes(u):
+            items.append({
+                "tipo": "tarea",
+                "id": t["id"],
+                "titulo": f"{t['titulo']}" + (f" · {t['cliente']}" if t["cliente"] else ""),
+                "detalle": f"Obra terminada: {t['obra'] or 'sin obra'}",
+                "fecha": t["creado"],
+                "vista": "tareas",
             })
 
     return {"total": len(items), "items": items[:20]}

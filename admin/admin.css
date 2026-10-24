@@ -989,3 +989,7 @@ body.con-ver-como .lat{top:44px;height:calc(100dvh - 44px)}
 @media (max-width:600px){
   .rec-prio__b small{display:none}
 }
+
+/* ── Tareas ──────────────────────────────────────────────────────────── */
+.tarea__ico{ width:48px; height:48px; color:var(--amber); }
+.tarea__cuando{ align-self:center; }

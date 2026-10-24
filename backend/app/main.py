@@ -43,6 +43,7 @@ from .cie import router as router_cie
 from .documentacion import router as router_documentacion
 from .test_seguridad import router as router_test_seguridad
 from .recomendaciones import router as router_recomendaciones
+from .tareas import router as router_tareas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("loureiro-contact")
@@ -150,6 +151,7 @@ app.include_router(router_tiempos)
 app.include_router(router_cie)
 app.include_router(router_test_seguridad)
 app.include_router(router_recomendaciones)
+app.include_router(router_tareas)
 app.include_router(router_documentacion)
 app.include_router(router_admin_crud)
 
