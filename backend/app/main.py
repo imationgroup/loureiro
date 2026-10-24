@@ -43,7 +43,7 @@ from .cie import router as router_cie
 from .documentacion import router as router_documentacion
 from .test_seguridad import router as router_test_seguridad
 from .recomendaciones import router as router_recomendaciones
-from .tareas import router as router_tareas
+from .tareas import rellenar_terminadas, router as router_tareas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("loureiro-contact")
@@ -129,6 +129,7 @@ def _arranque():
     documentos.rehacer_ingresos_de_facturas()
     cerrar_cronometros()
     auth.sembrar_admin()
+    rellenar_terminadas()
     log.info("base de datos lista en %s", db.RUTA_DB)
 
 
