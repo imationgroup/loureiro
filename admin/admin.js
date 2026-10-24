@@ -3769,7 +3769,13 @@ function verDocumentos(clave) {
       $("#vista-acciones").innerHTML;
     $("#btn-condiciones").addEventListener("click", editarCondiciones);
   }
-  $("#btn-nuevo").addEventListener("click", function () { editarDocumento(tipo, null); });
+  // Con la lista filtrada por una obra (el enlace de la tabla de Obras), lo
+  // nuevo sale ya con esa obra y su cliente puestos.
+  $("#btn-nuevo").addEventListener("click", function () {
+    var oid = (FILTRO[clave] || {}).obra;
+    var obra = oid && oid !== "sin" && (cache.obras || []).filter(function (o) { return String(o.id) === String(oid); })[0];
+    editarDocumento(tipo, null, obra ? { obra_id: obra.id, cliente_id: obra.cliente_id || null } : null);
+  });
 
   Promise.all([api("/api/admin/documentos/" + tipo), cargarRef("clientes"), cargarRef("obras")]
               .concat(esAdmin() ? [cargarRef("equipo")] : []))
