@@ -572,6 +572,22 @@ CREATE TABLE IF NOT EXISTS nota_archivo_trozos (
   PRIMARY KEY (archivo_id, indice)
 );
 
+-- ── Tareas ───────────────────────────────────────────────────────────
+-- Lo que queda por hacer al acabar una obra: hoy, pedir la valoración al
+-- cliente (ver tareas.py). Una por obra y tipo.
+CREATE TABLE IF NOT EXISTS tareas (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo        TEXT NOT NULL DEFAULT 'valoracion',
+  titulo      TEXT NOT NULL,
+  obra_id     INTEGER REFERENCES obras(id) ON DELETE CASCADE,
+  cliente_id  INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  estado      TEXT NOT NULL DEFAULT 'pendiente', -- pendiente|hecha|descartada
+  canal       TEXT,                              -- correo|whatsapp, si se mandó
+  hecha_el    TEXT,
+  usuario_id  INTEGER,
+  creado      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Ajustes sueltos del panel (clave -> valor). Hoy solo el token secreto del
 -- enlace de la agenda para Google Calendar.
 CREATE TABLE IF NOT EXISTS ajustes (
@@ -650,6 +666,7 @@ CREATE INDEX IF NOT EXISTS idx_tiempos_obra       ON tiempos(obra_id);
 CREATE INDEX IF NOT EXISTS idx_cie_circuitos     ON certificado_circuitos(certificado_id);
 CREATE INDEX IF NOT EXISTS idx_cie_archivos      ON certificado_archivos(certificado_id);
 CREATE INDEX IF NOT EXISTS idx_tiempos_fecha      ON tiempos(fecha);
+CREATE INDEX IF NOT EXISTS idx_tareas_obra        ON tareas(obra_id);
 """
 
 
@@ -785,7 +802,7 @@ ORIGENES_CLIENTE = ["Google", "Recomendación", "Ya era cliente", "Redes sociale
 TABLAS_CON_RESPONSABLE = ("clientes", "obras", "citas", "presupuestos", "proformas",
                           "facturas", "costes", "ingresos", "solicitudes", "visitas",
                           "notas", "tiempos", "certificados", "tests_seguridad",
-                          "recomendaciones")
+                          "recomendaciones", "tareas")
 MIGRACIONES += [(t, "usuario_id", "INTEGER") for t in TABLAS_CON_RESPONSABLE]
 
 

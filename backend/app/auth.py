@@ -138,7 +138,7 @@ def limpiar_intentos(ip: str):
 # tiene todo el mundo, con sus propios números; Equipo, solo el administrador.
 MODULOS = ("agenda", "solicitudes", "visitas", "obras", "notas", "clientes", "profesionales",
            "presupuestos", "proformas", "facturas", "certificados", "costes",
-           "tiempos", "contabilidad",
+           "tiempos", "tareas", "contabilidad",
            "stock", "proveedores")
 
 
