@@ -782,6 +782,9 @@ MIGRACIONES = [
     # Un parte que apunta un miembro avisa al administrador en la campanita
     # hasta que lo abre (ver admin.notificaciones).
     ("tiempos", "aviso_admin", "INTEGER NOT NULL DEFAULT 0"),
+    # Cuándo se le mandó al cliente la petición de valoración. Mandarla no
+    # cierra la tarea: eso es «Ya la pedí» (ver tareas.py).
+    ("tareas", "enviada_el", "TEXT"),
 ]
 
 # Punto de partida de las listas editables de gastos. Solo se siembran si la

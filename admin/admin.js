@@ -4025,6 +4025,12 @@ function estadoTarea(t) {
     (t.canal === "correo" ? " · por correo" : t.canal === "whatsapp" ? " · por WhatsApp" : "") + "</span>";
 }
 
+// Mandarla no cierra la tarea (eso es «Ya la pedí»): se apunta por dónde y cuándo.
+function enviadaTarea(t) {
+  if (!t.enviada_el) return "";
+  return "Enviada por " + (t.canal === "correo" ? "correo" : "WhatsApp") + " " + hace(t.enviada_el);
+}
+
 function verTareas() {
   api("/api/admin/tareas").then(function (tareas) {
     var n = tareas.filter(function (t) { return t.estado === "pendiente"; }).length;
@@ -4051,7 +4057,8 @@ function verTareas() {
             "<small>" + esc(t.cliente || "Sin cliente") + "</small>" +
             "<small>" + esc(t.obra || "Sin obra") + "</small>" +
             '<span class="vis-item__presu">' + estadoTarea(t) +
-              '<small class="tarea__cuando">' + esc(hace(t.estado === "pendiente" ? t.creado : t.hecha_el)) +
+              '<small class="tarea__cuando">' + esc(t.estado === "pendiente"
+                ? (enviadaTarea(t) || hace(t.creado)) : hace(t.hecha_el)) +
               "</small></span>" +
           "</span></button>";
       }).join("");
@@ -4074,6 +4081,7 @@ function abrirTarea(id) {
     var tel = telefonoWhatsApp(t.telefono);
     var sinCliente = "La obra no tiene cliente";
     var hecha = t.estado !== "pendiente";
+    var otraVez = hecha || t.enviada_el;
 
     function opcion(canal, icono, titulo, destino, falta) {
       return '<button type="button" class="envio' + (destino ? "" : " envio--off") + '" data-canal="' + canal + '"' +
@@ -4087,19 +4095,22 @@ function abrirTarea(id) {
       ". Mándale al cliente el enlace para que deje su valoración en Google.</p>" +
       (hecha ? '<p style="margin:0 0 6px">' + estadoTarea(t) + ' <small style="color:var(--muted-2)">' +
                esc(fecha(t.hecha_el)) + "</small></p>" : "") +
-      (t.resena_pedida && !hecha ? '<p style="color:var(--muted-2);font-size:.88rem">Ya se le pidió una reseña el ' +
+      (t.enviada_el && !hecha
+        ? '<p style="color:var(--muted);line-height:1.55">' + esc(enviadaTarea(t)) +
+          ". Cuando des la petición por hecha, pulsa «Ya la pedí» y saldrá de pendientes.</p>"
+        : t.resena_pedida && !hecha ? '<p style="color:var(--muted-2);font-size:.88rem">Ya se le pidió una reseña el ' +
                esc(fecha(t.resena_pedida)) + ".</p>" : "") +
       '<div class="envios">' +
-        opcion("whatsapp", ico.whatsapp, hecha ? "Otra vez por WhatsApp" : "Por WhatsApp", tel ? t.telefono : "",
+        opcion("whatsapp", ico.whatsapp, otraVez ? "Otra vez por WhatsApp" : "Por WhatsApp", tel ? t.telefono : "",
                t.cliente_id ? (t.telefono ? "El teléfono de la ficha no parece válido" : "El cliente no tiene teléfono en su ficha")
                             : sinCliente) +
-        opcion("correo", ico.buzon, hecha ? "Otra vez por correo" : "Por correo", email,
+        opcion("correo", ico.buzon, otraVez ? "Otra vez por correo" : "Por correo", email,
                t.cliente_id ? "El cliente no tiene correo en su ficha" : sinCliente) +
       "</div>",
       (hecha
         ? '<button class="btn btn--fant btn--sm" id="tr-reabrir" style="margin-right:auto">Volver a pendiente</button>'
         : '<button class="btn btn--fant btn--sm" id="tr-descartar" style="margin-right:auto">Descartar</button>' +
-          '<button class="btn btn--fant btn--sm" id="tr-hecha" title="Si se la pediste en persona o por otro lado">Ya la pedí</button>') +
+          '<button class="btn btn--fant btn--sm" id="tr-hecha" title="La da por hecha y sale de pendientes">Ya la pedí</button>') +
       '<button class="btn btn--fant" id="tr-no">Cerrar</button>');
     $("#tr-no").addEventListener("click", cerrarModal);
 
@@ -4135,7 +4146,7 @@ function abrirTarea(id) {
         b.classList.add("is-cargando");
         if (b.dataset.canal === "correo") {
           api("/api/admin/tareas/" + id + "/enviar", { metodo: "POST", datos: { canal: "correo" } })
-            .then(function (r) { listo("Petición de valoración enviada a " + r.email); })
+            .then(function (r) { listo("Enviada a " + r.email + ". Sigue pendiente hasta que pulses «Ya la pedí»"); })
             .catch(fallo);
           return;
         }
@@ -4148,7 +4159,7 @@ function abrirTarea(id) {
             var url = "https://wa.me/" + tel + "?text=" + encodeURIComponent(texto);
             if (ventana) ventana.location.href = url;
             else avisar("El navegador no ha dejado abrir WhatsApp", "err");
-            listo("Apuntado: valoración pedida por WhatsApp");
+            listo("WhatsApp abierto. Sigue pendiente hasta que pulses «Ya la pedí»");
           })
           .catch(function (e) { if (ventana) ventana.close(); fallo(e); });
       });
